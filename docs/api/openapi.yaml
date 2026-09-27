@@ -1,0 +1,152 @@
+openapi: 3.0.3
+info:
+  title: Developer Professional Profile Platform API
+  version: 1.0.0
+  description: Preliminary V1 API contract.
+servers:
+  - url: /api/v1
+paths:
+  /auth/register:
+    post:
+      summary: Register user
+      responses:
+        "201": {description: User created}
+        "409": {description: User already exists}
+  /auth/login:
+    post:
+      summary: Login
+      responses:
+        "200": {description: Authenticated}
+  /auth/logout:
+    post:
+      summary: Logout
+      responses:
+        "204": {description: Logged out}
+  /auth/me:
+    get:
+      summary: Current user
+      responses:
+        "200": {description: Current user}
+        "401": {description: Unauthorized}
+  /profile:
+    get:
+      summary: Get own profile
+      responses:
+        "200": {description: Profile}
+    patch:
+      summary: Update own profile
+      responses:
+        "200": {description: Updated profile}
+  /profile/publish:
+    post:
+      summary: Publish profile
+      responses:
+        "200": {description: Published}
+  /profile/unpublish:
+    post:
+      summary: Unpublish profile
+      responses:
+        "200": {description: Unpublished}
+  /public/profiles/{slug}:
+    get:
+      summary: Get public profile
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200": {description: Public profile}
+        "404": {description: Not found}
+  /projects:
+    get:
+      summary: List own projects
+      responses:
+        "200": {description: Projects}
+    post:
+      summary: Create project
+      responses:
+        "201": {description: Project created}
+  /projects/{id}:
+    get:
+      summary: Get project
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200": {description: Project}
+        "404": {description: Not found}
+    patch:
+      summary: Update project
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200": {description: Updated}
+    delete:
+      summary: Delete project
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204": {description: Deleted}
+  /projects/{id}/showcase:
+    post:
+      summary: Create showcase
+      responses:
+        "201": {description: Created}
+    patch:
+      summary: Update showcase
+      responses:
+        "200": {description: Updated}
+    delete:
+      summary: Delete showcase
+      responses:
+        "204": {description: Deleted}
+  /profile/featured-projects/reorder:
+    post:
+      summary: Reorder featured projects
+      responses:
+        "200": {description: Reordered}
+  /integrations/github/connect:
+    get:
+      summary: Start GitHub OAuth
+      responses:
+        "302": {description: Redirect}
+  /integrations/github/callback:
+    get:
+      summary: GitHub OAuth callback
+      responses:
+        "302": {description: Redirect}
+  /integrations/github/repositories:
+    get:
+      summary: List repositories
+      responses:
+        "200": {description: Repositories}
+  /integrations/github/repositories/{id}/import:
+    post:
+      summary: Import repository
+      responses:
+        "201": {description: Imported project}
+  /integrations/github/repositories/{id}/sync:
+    post:
+      summary: Sync repository
+      responses:
+        "202": {description: Sync accepted}
+  /integrations/github:
+    delete:
+      summary: Disconnect GitHub
+      responses:
+        "204": {description: Disconnected}
+  /analytics/events:
+    post:
+      summary: Track analytics event
+      responses:
+        "202": {description: Event accepted}
+  /analytics/profile:
+    get:
+      summary: Profile analytics
+      responses:
+        "200": {description: Analytics}
+  /analytics/projects/{id}:
+    get:
+      summary: Project analytics
+      responses:
+        "200": {description: Analytics}
