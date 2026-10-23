@@ -38,6 +38,7 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 | ADR-009-github-sync-worker-execution-model.md | GitHub Sync Worker Execution Model | Active |
 | ADR-010-github-evidence-data-model-v1.md | GitHub Evidence Data Model V1 | Active |
 | ADR-011-partial-sync-success.md | Partial Sync Success — Mandatory and Optional Categories | Active |
+| ADR-012-github-oauth-only-authentication.md | GitHub OAuth-Only Authentication | Active |
 
 ### Legacy series (bare numbers, frozen)
 
@@ -47,7 +48,7 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 | 002-nextjs.md | Next.js | Active |
 | 003-postgresql.md | PostgreSQL | Active |
 | 004-rest-api.md | REST API | Active |
-| 005-authentication.md | HTTP-only Cookie Sessions and GitHub OAuth | Active (token-storage detail extended by ADR-003-github-token-storage.md) |
+| 005-authentication.md | HTTP-only Cookie Sessions and GitHub OAuth | Active (token-storage extended by ADR-003; login method superseded by ADR-012-github-oauth-only-authentication.md; session/cookie security requirements remain) |
 | 006-github-source-of-truth.md | GitHub as Technical Evidence Source | Superseded by ADR-007-github-is-source-of-technical-evidence.md |
 | 007-object-storage.md | S3-compatible Object Storage | Active |
 | 008-no-microservices-v1.md | No Microservices in V1 | Superseded by ADR-001-modular-monolith.md |
@@ -66,8 +67,10 @@ These are known gaps intentionally left unresolved, because resolving them would
 - **File content retrieval for code viewer.** Whether file content is fetched on demand from GitHub with a short-lived cache, or stored locally. Provisional direction: on-demand. Not confirmed; a separate decision is required before implementation. See ADR-011-partial-sync-success.md.
 - **Exact `github_repositories` field list.** Not fixed by ADR-010 or ADR-011.
 - **CV feature.** Whether V1 includes any CV generation/storage/download capability at all; `CV_DOWNLOAD` stays deferred until this is decided.
+- **Session lifetime (specific value).** The duration after which an `auth_sessions` row expires. A configuration decision is required before implementation. See ADR-012-github-oauth-only-authentication.md.
+- **Behavior on GitHub login change.** If a user renames their GitHub login, `users.github_login` becomes stale. Whether to update it on next login is not decided. See ADR-012.
 
-Resolved by this round (no longer open): the GitHub sync worker/queue mechanism, GitHub sync status storage shape (ADR-009), and the storage shapes for README (TEXT column), languages (JSONB), file tree (JSONB) and contributors (ADR-011); contributor unique key `(github_repository_id, github_user_id)` (ADR-011); commits classified as optional history category — fetch failure does not block `SYNCED`, append-only model, freshness tracked in `github_sync_category_status` (ADR-011).
+Resolved by this round (no longer open): the GitHub sync worker/queue mechanism, GitHub sync status storage shape (ADR-009), and the storage shapes for README (TEXT column), languages (JSONB), file tree (JSONB) and contributors (ADR-011); contributor unique key `(github_repository_id, github_user_id)` (ADR-011); commits classified as optional history category — fetch failure does not block `SYNCED`, append-only model, freshness tracked in `github_sync_category_status` (ADR-011); GitHub OAuth as the only login mechanism, email nullable and not unique, USER 1:1 GITHUB_ACCOUNT, auth_sessions table with token_hash only, slug rules (ADR-012).
 
 ## Deliberately deferred (not open questions — revisit only with a new decision)
 

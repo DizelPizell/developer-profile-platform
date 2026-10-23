@@ -12,6 +12,7 @@ PostgreSQL is the application state source of truth.
 
 ```text
 users
+auth_sessions
 profiles
 experiences
 educations
@@ -50,9 +51,13 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 
 ## Important constraints
 
-- `users.email` is unique.
+- `users.github_user_id` is unique (stable GitHub numeric id; primary user identifier — see ADR-012-github-oauth-only-authentication.md).
+- `users.email` is nullable and not unique (GitHub users may keep their email private — see ADR-012).
+- One user has one GitHub Account (1:1 — see ADR-012). The earlier `USER 1:N GITHUB_ACCOUNT` relationship is replaced.
+- `auth_sessions.token_hash` is unique; `auth_sessions` columns: `id`, `user_id`, `token_hash`, `created_at`, `expires_at` — see ADR-012.
 - One user has one profile.
-- `profiles.slug` is unique.
+- `profiles.slug` is unique; format: lowercase letters, digits, hyphens; length 3–39 characters; reserved words excluded; generated from `github_login` on account creation, conflict resolved with a numeric suffix — see ADR-012-github-oauth-only-authentication.md.
+- `profiles.status` is one of PRIVATE, PUBLISHED — see ADR-005-project-lifecycle-and-visibility.md.
 - One project has at most one showcase record.
 - One project has at most one Demo.
 - One project has at most one linked GitHub repository in V1.

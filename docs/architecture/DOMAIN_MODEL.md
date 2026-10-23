@@ -3,7 +3,7 @@
 ## Bounded contexts
 
 ### Identity
-Registration, login, logout, sessions, current user.
+GitHub OAuth login (register and login unified), logout, sessions, current user.
 
 ### Profile
 Professional profile, slug, publication state, experience, education, skills, featured projects.
@@ -23,7 +23,7 @@ Object storage, uploads and access policy.
 ## Main workflow
 
 ```text
-Registration -> Profile -> Connect GitHub -> Repository list
+GitHub OAuth login -> Profile -> Connect GitHub (repo access) -> Repository list
 -> Import repository -> Create/enrich project -> Showcase
 -> Featured project -> Publish profile
 ```
@@ -31,8 +31,7 @@ Registration -> Profile -> Connect GitHub -> Repository list
 ## Use cases
 
 Identity:
-- RegisterUser
-- LoginUser
+- LoginWithGitHub
 - LogoutUser
 - GetCurrentUser
 
@@ -63,6 +62,14 @@ Analytics:
 - TrackEvent
 - GetProfileAnalytics
 - GetProjectAnalytics
+
+## User and session
+
+User fields: `id`, `github_user_id` (unique, stable GitHub numeric id), `github_login` (convenience, not stable), `email` (nullable, not unique), `created_at`.
+
+One User has exactly one GitHub Account (1:1). A GitHub Account holds the repository-access token, stored encrypted per ADR-003-github-token-storage.md.
+
+Sessions are stored server-side in `auth_sessions`: `id`, `user_id`, `token_hash` (unique), `created_at`, `expires_at`. The session cookie contains a random opaque token; only its hash is stored. See ADR-012-github-oauth-only-authentication.md.
 
 ## GitHub sync
 
@@ -99,7 +106,7 @@ Each successfully fetched category (snapshot or history) is committed in its own
 - **Repository metadata**: columns on `github_repositories`.
 - **README**: column (or JSONB field) on `github_repositories`, replaced wholesale.
 - **Languages**: JSONB column on `github_repositories`, replaced wholesale.
-- **File tree**: storage shape not yet decided — depends on Project Workspace UX (flat table vs lazy-load by folder).
+- **File tree**: JSONB column on `github_repositories`, replaced wholesale on each successful fetch. Configurable entry limit; truncation is a final outcome, not a retry trigger — see ADR-011-partial-sync-success.md.
 - **Contributors**: separate table `github_contributors` (snapshot, upsert + delete missing per successful fetch).
 - **Commits**: separate table `github_commits` (history, append-only, `ON CONFLICT DO NOTHING`).
 

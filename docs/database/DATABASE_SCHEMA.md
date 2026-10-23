@@ -6,6 +6,7 @@ This document is reconciled with `docs/database/DATABASE_DECISIONS.md` and the A
 
 ```text
 USER
+AUTH_SESSION
 PROFILE
 EXPERIENCE
 EDUCATION
@@ -36,10 +37,11 @@ Contributors are stored as a separate table `github_contributors` (snapshot, ups
 
 ```text
 USER 1:1 PROFILE
+USER 1:N AUTH_SESSION
 USER 1:N EXPERIENCE
 USER 1:N EDUCATION
 USER 1:N SKILL
-USER 1:N GITHUB_ACCOUNT
+USER 1:1 GITHUB_ACCOUNT
 
 PROFILE 1:N PROJECT_SHOWCASE
 PROJECT 1:0/1 PROJECT_SHOWCASE
@@ -60,11 +62,27 @@ GITHUB_REPOSITORY 1:N GITHUB_COMMIT
 PROFILE/PROJECT 1:N ANALYTICS_EVENT
 ```
 
+## User fields
+
+`id`, `github_user_id` (unique), `github_login`, `email` (nullable, not unique), `created_at`.
+
+Primary identifier is `github_user_id` (stable GitHub numeric id). See ADR-012-github-oauth-only-authentication.md.
+
+## Auth session fields
+
+`id`, `user_id` (FK → users), `token_hash` (unique), `created_at`, `expires_at`.
+
+Cookie contains a random opaque token; only its hash is stored. Logout deletes the row. See ADR-012-github-oauth-only-authentication.md.
+
 ## Constraints
 
-- user.email unique
+- user.github_user_id unique
+- user.email nullable, not unique
 - profile.user_id unique
-- profile.slug unique
+- profile.slug unique (lowercase letters, digits, hyphens; length 3–39; reserved words excluded)
+- profile.status is one of PRIVATE, PUBLISHED (see ADR-005-project-lifecycle-and-visibility.md)
+- auth_session.token_hash unique
+- auth_session.expires_at enforced at application level
 - project belongs to an owner
 - project.status is one of DRAFT, PUBLISHED, ARCHIVED (see ADR-005-project-lifecycle-and-visibility.md)
 - project.visibility is one of PUBLIC, PRIVATE, independent of project.status
@@ -90,6 +108,9 @@ Events should include:
 ## Indexing priorities
 
 Consider indexes for:
+- user.github_user_id (unique)
+- auth_session.token_hash (unique)
+- auth_session.user_id
 - profile.slug
 - project.owner_id
 - project.status
