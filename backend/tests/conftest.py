@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 from alembic import command as alembic_command
@@ -18,9 +19,18 @@ os.environ.setdefault(
 _BACKEND_DIR = Path(__file__).parent.parent
 
 
-def _postgres_available(url: str) -> bool:
+def _is_test_database_url(url: str) -> bool:
+    """Returns True only if the database name in the URL contains 'test'."""
     if not url.startswith("postgresql"):
         return False
+    try:
+        db_name = urlparse(url).path.lstrip("/")
+        return "test" in db_name
+    except Exception:
+        return False
+
+
+def _postgres_available(url: str) -> bool:
     try:
         engine = create_engine(url, pool_pre_ping=True)
         with engine.connect() as conn:
@@ -37,11 +47,16 @@ def db_engine():
     Session-scoped engine for database tests.
 
     Runs alembic upgrade head once per test session against the PostgreSQL
-    instance named in DATABASE_URL. Skips the entire session with a clear
-    message if PostgreSQL is not reachable, so tests that do not depend on
-    this fixture (e.g. the health endpoint test) still pass.
+    instance named in DATABASE_URL. Skips if the URL does not point to a
+    test database (name must contain 'test') or if PostgreSQL is not reachable,
+    so tests that do not depend on this fixture (e.g. the health endpoint test)
+    still pass.
     """
     url = os.environ.get("DATABASE_URL", "")
+
+    if not _is_test_database_url(url):
+        pytest.skip("refusing to run against a non-test database")
+
     if not _postgres_available(url):
         pytest.skip(
             "PostgreSQL not reachable — set DATABASE_URL to a running "
@@ -62,20 +77,18 @@ def db_session(db_engine):
     """
     Function-scoped session providing per-test transaction isolation.
 
-    Each test runs inside a database transaction that is rolled back at
-    teardown — the dev database is never touched. Rollback works even after
-    an IntegrityError because PostgreSQL accepts ROLLBACK on aborted
-    transactions.
+    Each test runs inside a transaction rolled back at teardown. The session
+    uses join_transaction_mode="create_savepoint" so that the session's own
+    begin/commit cycle operates via SAVEPOINTs — the outer transaction is
+    never committed and is always rolled back cleanly, even after an
+    IntegrityError that aborts the inner SAVEPOINT.
     """
     connection = db_engine.connect()
     transaction = connection.begin()
-    session = Session(bind=connection)
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
     try:
         yield session
     finally:
         session.close()
-        # After an IntegrityError, SQLAlchemy aborts the transaction internally
-        # and deassociates it from the connection. is_active guards the rollback.
-        if transaction.is_active:
-            transaction.rollback()
+        transaction.rollback()
         connection.close()

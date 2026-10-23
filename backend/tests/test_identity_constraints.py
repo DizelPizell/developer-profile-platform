@@ -192,16 +192,16 @@ def test_slug_length_39_accepted(db_session):
 
 
 def test_slug_length_40_rejected(db_session):
-    from sqlalchemy.exc import DatabaseError
+    from sqlalchemy.exc import DataError
 
     u = _user(70004)
     db_session.add(u)
     db_session.flush()
 
     db_session.add(_profile(u.id, "a" * 40))  # 40 chars — above maximum
-    # VARCHAR(39) raises DataError (truncation) before the CHECK constraint fires;
-    # DatabaseError covers both DataError and IntegrityError.
-    with pytest.raises(DatabaseError):
+    # VARCHAR(39) column raises DataError (StringDataRightTruncation) before
+    # the CHECK constraint fires.
+    with pytest.raises(DataError):
         db_session.flush()
 
 
@@ -273,3 +273,23 @@ def test_cascade_delete_user_removes_dependents(db_session):
             {"id": user_id_str},
         ).scalar()
         assert count == 0, f"Expected {table} rows to be CASCADE-deleted, found {count}"
+
+
+# ---------------------------------------------------------------------------
+# Non-test database guard
+# ---------------------------------------------------------------------------
+
+
+def test_non_test_db_url_rejected():
+    """_is_test_database_url blocks URLs whose database name lacks 'test'."""
+    from tests.conftest import _is_test_database_url
+
+    assert not _is_test_database_url("postgresql+psycopg://u:p@h:5432/myapp")
+    assert not _is_test_database_url("postgresql+psycopg://u:p@h:5432/production")
+    assert not _is_test_database_url("postgresql+psycopg://u:p@h:5432/developer_platform")
+    assert not _is_test_database_url("")
+    assert not _is_test_database_url("sqlite:///app.db")
+
+    assert _is_test_database_url("postgresql+psycopg://u:p@h:5432/developer_platform_test")
+    assert _is_test_database_url("postgresql+psycopg://u:p@h:5432/test")
+    assert _is_test_database_url("postgresql+psycopg://u:p@h:5432/myapp_test_db")
