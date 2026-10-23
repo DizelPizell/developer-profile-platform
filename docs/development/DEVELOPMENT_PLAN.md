@@ -1,26 +1,28 @@
 # Development Plan
 
 ## Phase 0 - Bootstrap
-- repository
-- documentation
-- Git conventions
-- Docker Compose
-- PostgreSQL
-- FastAPI skeleton
-- Next.js skeleton
-- environment configuration
-- CI skeleton
+- repository [done]
+- documentation [done]
+- Git conventions [done]
+- Docker Compose [done]
+- PostgreSQL [done]
+- FastAPI skeleton [done]
+- environment configuration [done]
+- CI skeleton [done]
+
+Next.js skeleton moved to Phase 2.
 
 ## Phase 1 - Authentication and Profile
-- User/Profile models
+- User/Profile/AuthSession models (ADR-012)
 - migrations
-- registration/login/logout
-- sessions
+- GitHub OAuth login — register+login unified, auth_session table, 14-day lifetime (ADR-012)
+- logout
 - current user
 - profile editing/publication
 - ownership tests
 
 ## Phase 2 - Public Profile
+- Next.js skeleton
 - public endpoint
 - public DTOs
 - public page
@@ -31,7 +33,7 @@
 ## Phase 3 - Projects
 - Project model
 - technologies
-- lifecycle
+- lifecycle and visibility (ADR-005)
 - CRUD
 - validation
 - Showcase
@@ -46,23 +48,25 @@
 - demo-first UX
 - click analytics
 
-## Phase 5 - GitHub OAuth and Import
-- OAuth
-- encrypted token storage
+## Phase 5 - GitHub Integration and Import
+- separate OAuth consent for repository access on top of existing login (ADR-012, ADR-003)
+- encrypted token storage (ADR-003)
 - repository listing
 - import
 - repository association
 
 ## Phase 6 - GitHub Sync and Technical Workspace
+- GitHub Sync Worker as a separate process using PostgreSQL polling and SKIP LOCKED (ADR-009)
+- sync jobs and per-category status tables (ADR-011)
+- mandatory sync categories: metadata, README, languages, file tree
+- optional sync categories: contributors, commits (failure does not block SYNCED, commits are append-only)
 - normalized repository data
-- sync state
 - idempotent synchronization
 - file tree
 - code viewer
 - README
 - architecture
-- tests
-- Git information
+- worker deployment task
 
 ## Phase 7 - Analytics
 - event ingestion
