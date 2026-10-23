@@ -5,8 +5,8 @@ Base path: `/api/v1`
 ## Auth
 
 ```http
-POST /auth/register
-POST /auth/login
+GET  /auth/github/login
+GET  /auth/github/callback
 POST /auth/logout
 GET  /auth/me
 ```

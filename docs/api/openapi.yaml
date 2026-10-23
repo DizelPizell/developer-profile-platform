@@ -6,17 +6,17 @@ info:
 servers:
   - url: /api/v1
 paths:
-  /auth/register:
-    post:
-      summary: Register user
+  /auth/github/login:
+    get:
+      summary: Start GitHub OAuth login
       responses:
-        "201": {description: User created}
-        "409": {description: User already exists}
-  /auth/login:
-    post:
-      summary: Login
+        "302": {description: Redirect to GitHub}
+  /auth/github/callback:
+    get:
+      summary: GitHub OAuth login callback
       responses:
-        "200": {description: Authenticated}
+        "302": {description: Redirect after login}
+        "400": {description: Invalid state or code}
   /auth/logout:
     post:
       summary: Logout

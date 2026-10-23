@@ -144,12 +144,9 @@ Analytics must not block core actions.
 ## Authentication and privacy
 
 Authentication:
-- registration
-- login
+- login via GitHub OAuth (registration and login unified; account created automatically on first login)
 - logout
 - current user
-- recovery
-- GitHub OAuth as a separate integration
 
 Cookies:
 - HTTP-only

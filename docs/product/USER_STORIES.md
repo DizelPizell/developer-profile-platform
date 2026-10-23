@@ -1,9 +1,8 @@
 # User Stories
 
 ## Authentication
-- **US-001** Register: create an account and profile.
-- **US-002** Login: authenticate and receive a session.
-- **US-003** Logout: invalidate the session.
+- **US-001** Login with GitHub: authenticate via GitHub OAuth; an account and profile are created automatically on first login.
+- **US-002** Logout: invalidate the session.
 
 ## Profile
 - **US-004** Edit profile.
