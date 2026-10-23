@@ -1,104 +1,123 @@
-# Architecture
+# System Architecture
 
-## Style
+## 1. Context
 
-V1 uses a **modular monolith**. We have multiple domain areas but not enough operational complexity to justify microservices.
+Developer Professional Profile Platform is a modular monolith for publishing professional developer profiles with project evidence.
 
-Principle: establish domain boundaries first; add infrastructure only when a concrete problem requires it.
+## 2. C4 Context
 
-## Stack
+```mermaid
+flowchart LR
+    Developer["Developer"]
+    Recruiter["Recruiter / Employer"]
+    Reviewer["Technical Reviewer"]
 
-### Frontend
-Next.js, TypeScript, Tailwind CSS, shadcn/ui, Vitest, React Testing Library, Playwright.
+    Platform["Developer Professional Profile Platform"]
 
-### Backend
-Python, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL, pytest.
+    GitHub["GitHub"]
+    Storage["S3-compatible Object Storage"]
 
-### Infrastructure
-Docker, Docker Compose, Nginx, GitHub Actions, S3-compatible object storage, MinIO locally.
+    Developer --> Platform
+    Recruiter --> Platform
+    Reviewer --> Platform
 
-### External
-GitHub API.
-
-Redis, Kafka and Kubernetes are not V1 requirements.
-
-## Deployment
-
-```text
-Internet
-   |
-Nginx / Reverse Proxy
-   |
-   +--------------------+
-   |                    |
-Next.js              FastAPI
-                         |
-              +----------+----------+
-              |          |          |
-         PostgreSQL   Object     GitHub API
-                      Storage
+    Platform --> GitHub
+    Platform --> Storage
 ```
 
-A background worker may be added for GitHub synchronization.
+## 3. Container View
 
-## Backend flow
+```mermaid
+flowchart LR
+    Browser["Browser"]
 
-```text
-HTTP -> API/Controller -> Application/Use Case -> Domain -> Repository -> Infrastructure
+    Nginx["Nginx"]
+
+    Frontend["Next.js Web Application"]
+    API["FastAPI Modular Monolith"]
+    DB["PostgreSQL"]
+    Storage["MinIO / S3"]
+    GitHub["GitHub API"]
+    Worker["GitHub Sync Worker"]
+
+    Browser --> Nginx
+    Nginx --> Frontend
+    Nginx --> API
+
+    API --> DB
+    API --> Storage
+    API --> GitHub
+    Worker --> DB
+    Worker --> GitHub
 ```
 
-Do not create abstractions without a reason.
+The Worker claims queued jobs from PostgreSQL via polling and `SELECT ... FOR UPDATE SKIP LOCKED` — it is not Kafka or an Outbox relay. See ADR-008-no-kafka-outbox-v1.md and ADR-009-github-sync-worker-execution-model.md.
 
-## Bounded contexts
+## 4. Synchronous flow
 
-- Identity
-- Profile
-- Projects
-- GitHub
-- Analytics
-- Files
+```text
+Browser
+  ↓
+Nginx
+  ↓
+Next.js
+  ↓
+FastAPI
+  ↓
+PostgreSQL
+```
 
-## Aggregate roots
+Used for normal CRUD operations.
 
-- User
-- Profile
-- Project
-- Analytics
+## 5. Asynchronous GitHub flow
 
-## Domain rules
+```text
+FastAPI
+  ↓
+PostgreSQL (sync status: NOT_SYNCED -> QUEUED)
+  ↓
+GitHub Sync Worker (polls github_sync_jobs, claims via SKIP LOCKED)
+  ↓
+PostgreSQL (sync status: SYNCING -> SYNCED / FAILED)
+  ↓
+GitHub API
+```
 
-- Registration creates User + Profile in one transaction.
-- Profile slug is unique.
-- Profile lifecycle: PRIVATE -> PUBLISHED -> UNPUBLISHED.
-- Project lifecycle: DRAFT -> READY -> PUBLISHED -> ARCHIVED.
-- Project may exist without GitHub or Demo.
-- Maximum 3 featured projects.
-- GitHub OAuth tokens are never stored plaintext.
-- Repository import is not the same thing as a fully enriched Project.
-- GitHub synchronization is idempotent.
-- Analytics failures must not break core navigation.
+GitHub synchronization does not use Kafka or an Outbox pattern in V1. See ADR-008-no-kafka-outbox-v1.md and ADR-009-github-sync-worker-execution-model.md.
 
-## Public API
+## 6. Project and Profile lifecycle
 
-Never serialize domain entities directly. Use explicit DTOs.
+Project lifecycle:
 
-Never expose:
-- password hashes
-- OAuth tokens
-- secrets
-- private settings
-- private projects
+```text
+DRAFT -> PUBLISHED -> ARCHIVED
+```
 
-## Security
+Project visibility (independent of lifecycle):
 
-Security is part of architecture:
-- authentication
-- authorization/ownership checks
-- input validation
-- secret management
-- safe logging
-- CSRF protection where applicable
+```text
+PUBLIC
+PRIVATE
+```
 
-## No arbitrary code execution
+Profile lifecycle:
 
-V1 only provides read-only repository inspection.
+```text
+PRIVATE <-> PUBLISHED
+```
+
+Unpublishing a profile returns it to PRIVATE. There is no separate UNPUBLISHED state.
+
+See ADR-005-project-lifecycle-and-visibility.md.
+
+## 7. Architectural constraints
+
+- Modular monolith.
+- No microservices in V1.
+- No Kafka or Outbox pattern in V1 (see ADR-008-no-kafka-outbox-v1.md).
+- No Redis, Kubernetes or other distributed infrastructure without a separate decision.
+- PostgreSQL is the source of truth.
+- GitHub data is synchronized and cached rather than fetched from GitHub for every public page.
+- GitHub synchronization is asynchronous and idempotent; the worker is a separate process using PostgreSQL polling and `SKIP LOCKED` (ADR-009).
+- GitHub Evidence V1 splits into snapshot data (reconciled: upsert + delete-missing) and history data (append-only commits) — see ADR-010-github-evidence-data-model-v1.md.
+- Arbitrary code execution is not part of V1.

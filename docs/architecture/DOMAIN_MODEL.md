@@ -67,24 +67,56 @@ Analytics:
 ## GitHub sync
 
 ```text
-NOT_SYNCED -> SYNCING -> SYNCED
-                     \-> FAILED
+NOT_SYNCED -> QUEUED -> SYNCING -> SYNCED
+                            \-> FAILED -> QUEUED (retry)
 ```
 
-Persist:
-- sync_status
-- last_synced_at
-- sync_error
+Synchronization is asynchronous and must be idempotent. It does not use Kafka, Outbox or Redis in V1 — see ADR-008-no-kafka-outbox-v1.md. The worker is a separate process that claims jobs via PostgreSQL polling and `SELECT ... FOR UPDATE SKIP LOCKED` — see ADR-009-github-sync-worker-execution-model.md. Within this lifecycle, `FAILED` is only ever observed as terminal (attempts exhausted); a retryable failure transitions directly back to `QUEUED` with a scheduled retry. Whether the API exposes a dedicated sync-status endpoint remains an open decision.
+
+Persisted on `github_sync_jobs` — the single source of truth for sync status, never duplicated on `github_repositories`: status, attempt_count, timestamps, last error.
 
 External GitHub identifiers are unique.
+
+## GitHub Evidence scope
+
+V1 GitHub Evidence: repository metadata, README, languages, file tree metadata (`path`, `type`, `sha`, `size`, no content), contributors — snapshot data, reconciled on each successful sync (upsert current, delete missing). Commits are history data: up to 100 most recent per sync run, added idempotently, never automatically deleted. Dependencies, Pull Requests, Releases and CI/CD are not part of the required V1 scope; file content is not stored in V1. See ADR-010-github-evidence-data-model-v1.md.
+
+Storage shape (separate tables vs JSONB) for README, languages and contributors, and the exact `github_repositories` field list, are not yet confirmed — see Open Questions in `docs/adr/README.md`.
 
 ## Project import
 
 Importing a repository creates an Imported Project. The developer enriches it with role, contribution, description and other context.
 
+Role and contribution are plain fields on the Project (`projects.role`, `projects.contribution`), not a separate entity — see ADR-004-project-contribution.md.
+
+## Project lifecycle and visibility
+
+Project lifecycle:
+
+```text
+DRAFT -> PUBLISHED -> ARCHIVED
+```
+
+Project visibility (independent of lifecycle):
+
+```text
+PUBLIC
+PRIVATE
+```
+
+Lifecycle describes preparation/publication state. Visibility describes whether a project is publicly exposed. Invalid combinations must be rejected in the domain layer. See ADR-005-project-lifecycle-and-visibility.md.
+
+## Profile lifecycle
+
+```text
+PRIVATE <-> PUBLISHED
+```
+
+Unpublishing a profile returns it to PRIVATE. There is no separate UNPUBLISHED state. See ADR-005-project-lifecycle-and-visibility.md.
+
 ## Publish validation
 
-Minimum:
+Minimum, to move a project from DRAFT to PUBLISHED:
 - name
 - description
 - role
@@ -92,3 +124,5 @@ Minimum:
 - at least one technology
 
 Demo, GitHub and screenshots are optional.
+
+This validation governs the DRAFT -> PUBLISHED lifecycle transition only. Visibility (PUBLIC/PRIVATE) is set independently and is not part of publish validation.
