@@ -8,6 +8,7 @@
 - [Architecture](architecture/ARCHITECTURE.md)
 - [C4](architecture/C4.md)
 - [Domain Model](architecture/DOMAIN_MODEL.md)
+- [Architectural Dialogue](architecture/ARCHITECTURAL_DIALOGUE.md)
 
 ## API
 - [API Contract](api/API_CONTRACT.md)
@@ -15,6 +16,7 @@
 
 ## Database
 - [Database Schema](database/DATABASE_SCHEMA.md)
+- [Database Decisions](database/DATABASE_DECISIONS.md)
 
 ## Development
 - [Development Plan](development/DEVELOPMENT_PLAN.md)

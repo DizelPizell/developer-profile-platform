@@ -66,17 +66,16 @@ A project does not require GitHub or a demo.
 
 ### GitHub is source of truth for technical evidence
 
-- repository
+V1 scope (see ADR-010-github-evidence-data-model-v1.md):
+
+- repository (metadata)
 - README
 - languages
-- file tree
-- commits
-- pull requests
-- releases
-- contributors
-- dependencies/configuration
-- Docker configuration
-- tests where verifiable
+- file tree (metadata only — file content is not synced in V1)
+- contributors (GitHub's own reported data, no derived scores)
+- commits (up to 100 most recent per sync)
+
+Not part of the required V1 scope: pull requests, releases, CI/CD as a separate entity, Docker configuration as a separate entity (represented, if at all, through file tree). Dependencies are deferred pending a separate review of GitHub API behavior, not rejected outright.
 
 ### Developer is source of truth for context
 
@@ -133,7 +132,8 @@ V1 events:
 - demo clicks
 - GitHub clicks
 - contact clicks
-- CV downloads
+
+Deferred: CV downloads. V1 does not yet define a CV generation/storage feature, so this event is not part of the active V1 analytics contract until that feature is specified (see docs/architecture/ARCHITECTURAL_DIALOGUE.md section 21).
 
 Funnel:
 

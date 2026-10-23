@@ -56,6 +56,8 @@ POST   /integrations/github/repositories/{id}/sync
 DELETE /integrations/github
 ```
 
+Open question: how a client learns that an asynchronous sync job has finished (a dedicated status endpoint, a `sync_status` field on the repository list, or another mechanism) is not decided. Do not assume a specific mechanism until this is resolved.
+
 ## Analytics
 
 ```http
