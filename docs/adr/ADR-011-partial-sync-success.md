@@ -21,6 +21,10 @@ ADR-010 left open whether all categories have equal weight regarding job outcome
 - Programming languages
 - File tree metadata
 
+  **Special case — truncated tree.** If GitHub returns a truncated tree response, or the entry count exceeds the configured limit, this is treated as a **final outcome for the category**, not a fetch error. The category is marked processed with a `tree_truncated` flag; the job may still reach `SYNCED`. The UI must indicate that the tree is unavailable when this flag is set.
+
+  > ⚠ **Requires project owner confirmation.** Treating truncation as a non-error final outcome changes user-visible behaviour for large repositories. If large repositories should instead fail and retry until the limit is raised, the standard mandatory failure path (retry → FAILED) would apply instead. This must be confirmed before implementation.
+
 **Optional** (failure does not block `SYNCED`):
 
 - Contributors
@@ -55,9 +59,10 @@ A separate table `github_sync_category_status` tracks per-category freshness ind
 
 ### Storage shape (resolves open questions from ADR-010)
 
-- **Contributors**: separate table `github_contributors`, one row per contributor per repository. Snapshot data: reconciled on each successful contributors fetch (upsert current, delete missing in one transaction), consistent with ADR-010's reconciliation algorithm.
-- **README**: stored as a column (or JSONB field) on `github_repositories`, replaced wholesale on each successful README fetch.
-- **Languages**: stored as a JSONB column on `github_repositories`, replaced wholesale on each successful languages fetch.
+- **README**: TEXT column on `github_repositories`, replaced wholesale on each successful README fetch.
+- **Languages**: JSONB column on `github_repositories`, replaced wholesale on each successful languages fetch.
+- **File tree**: JSONB column on `github_repositories`, replaced wholesale on each successful file tree fetch. Each entry stores `path`, `type`, `size` and `sha`. A configurable entry-count limit applies; truncation and limit-exceeded cases are treated as final outcomes rather than fetch errors — see the truncated-tree special case under Category classification above.
+- **Contributors**: separate table `github_contributors`, one row per contributor per repository, unique on `(github_repository_id, github_user_id)`. `github_user_id` is the GitHub numeric user id and the stable identifier; `login` is stored as a regular (non-unique) field. Snapshot data: reconciled on each successful contributors fetch (upsert current, delete missing in one transaction), consistent with ADR-010's reconciliation algorithm.
 
 ## Consequences
 
@@ -65,8 +70,8 @@ A separate table `github_sync_category_status` tracks per-category freshness ind
 
 - A failed contributors fetch no longer blocks sync completion for mandatory data.
 - Per-category freshness is observable — the UI can indicate when each category was last successfully synced.
-- README and languages storage shapes are decided, removing two open questions from ADR-010 and `docs/adr/README.md`.
-- Contributors storage shape is decided (separate table), removing the remaining storage open question from ADR-010.
+- README (TEXT column), languages (JSONB column) and file tree (JSONB column) storage shapes are decided, removing the open questions from ADR-010 and `docs/adr/README.md`.
+- Contributors storage shape is decided (separate table, unique on `(github_repository_id, github_user_id)`), removing the remaining storage open question from ADR-010.
 
 ### Negative
 
@@ -76,7 +81,7 @@ A separate table `github_sync_category_status` tracks per-category freshness ind
 
 ## Not decided by this ADR
 
-- **File tree storage**: whether the full tree is stored in one flat query or loaded lazily by folder. Depends on the Project Workspace UX, which is not yet designed.
+- **File content retrieval for code viewer**: whether file content is fetched on demand from GitHub with a short-lived cache, or stored locally in PostgreSQL. Provisional direction: on-demand requests to GitHub. Not confirmed; a separate decision is required before implementation.
 - **Sync status API endpoint contract**: provisional direction is a `GET` endpoint returning the latest `github_sync_jobs` row together with `github_sync_category_status` rows for that repository. This direction is not confirmed — a separate decision is required before implementation.
 
 ## Refines

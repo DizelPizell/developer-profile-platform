@@ -63,11 +63,11 @@ A "Superseded" status means the decision itself has been replaced; the file is k
 These are known gaps intentionally left unresolved, because resolving them would mean making a new architectural decision rather than reconciling existing ones:
 
 - **Sync status API endpoint contract.** Provisional direction: a `GET` endpoint returning the latest `github_sync_jobs` row together with `github_sync_category_status` rows for that repository. Not confirmed; a separate decision is required before implementation. See ADR-011-partial-sync-success.md.
-- **File tree storage shape.** Whether the full file tree is stored in one flat table or loaded lazily by folder depends on the Project Workspace UX, which is not yet designed. See ADR-011-partial-sync-success.md.
+- **File content retrieval for code viewer.** Whether file content is fetched on demand from GitHub with a short-lived cache, or stored locally. Provisional direction: on-demand. Not confirmed; a separate decision is required before implementation. See ADR-011-partial-sync-success.md.
 - **Exact `github_repositories` field list.** Not fixed by ADR-010 or ADR-011.
 - **CV feature.** Whether V1 includes any CV generation/storage/download capability at all; `CV_DOWNLOAD` stays deferred until this is decided.
 
-Resolved by this round (no longer open): the GitHub sync worker/queue mechanism, GitHub sync status storage shape (ADR-009), and the storage shapes for README, languages and contributors (ADR-011).
+Resolved by this round (no longer open): the GitHub sync worker/queue mechanism, GitHub sync status storage shape (ADR-009), and the storage shapes for README (TEXT column), languages (JSONB), file tree (JSONB) and contributors (ADR-011); contributor unique key `(github_repository_id, github_user_id)` (ADR-011).
 
 ## Deliberately deferred (not open questions — revisit only with a new decision)
 

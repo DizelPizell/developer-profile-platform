@@ -39,11 +39,10 @@ files
 ```
 
 Storage shapes confirmed by ADR-011-partial-sync-success.md:
-- **README**: column (or JSONB field) on `github_repositories`, replaced wholesale on each successful fetch.
+- **README**: TEXT column on `github_repositories`, replaced wholesale on each successful fetch.
 - **Languages**: JSONB column on `github_repositories`, replaced wholesale on each successful fetch.
+- **File tree**: JSONB column on `github_repositories`, replaced wholesale on each successful fetch. Configurable entry limit; truncation is a final outcome, not a retry trigger (see ADR-011).
 - **Contributors**: separate table `github_contributors` (snapshot, upsert + delete missing per successful fetch).
-
-**File tree storage shape is not yet decided** — flat table vs lazy-load by folder depends on Project Workspace UX. See ADR-011, "Not decided by this ADR".
 
 The exact `github_repositories` field list is not fixed by this document.
 
@@ -65,7 +64,7 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 - `github_sync_jobs` allows at most one row with `status IN ('QUEUED','SYNCING')` per `github_repository_id` (partial unique index) — see ADR-009-github-sync-worker-execution-model.md.
 - `github_sync_jobs` columns: `id`, `github_repository_id`, `status`, `attempt_count`, `scheduled_at`, `last_error`, `created_at`, `updated_at`.
 - `github_sync_category_status` is unique on `(github_repository_id, category)` — one row per pair, updated after each category attempt — see ADR-011-partial-sync-success.md.
-- `github_contributors` is unique on `(github_repository_id, external_id_or_login)`; snapshot data, upsert + delete missing per successful contributors fetch — see ADR-011-partial-sync-success.md.
+- `github_contributors` is unique on `(github_repository_id, github_user_id)`; `github_user_id` is the GitHub numeric user id; `login` is a regular field; snapshot data, upsert + delete missing per successful contributors fetch — see ADR-011-partial-sync-success.md.
 - `github_commits` is unique on `(github_repository_id, sha)`; inserted idempotently (`ON CONFLICT ... DO NOTHING`); never automatically deleted; the 100-most-recent limit applies per sync run's fetch, not to the total rows stored for a repository — see ADR-010-github-evidence-data-model-v1.md.
 - Snapshot GitHub data (repository metadata, README, languages, file tree, contributors) and history data (commits) have different deletion rules: snapshot rows absent from a complete, successful fetch are deleted; history rows are never automatically deleted — see ADR-010-github-evidence-data-model-v1.md.
 - Contributors is an optional sync category: a contributors fetch failure does not block `SYNCED`. Mandatory categories (metadata, README, languages, file tree) cause retry/FAILED on failure — see ADR-011-partial-sync-success.md.
