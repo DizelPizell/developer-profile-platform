@@ -160,7 +160,7 @@ External integration:
 
 
 
-Redis, Kafka and Kubernetes are NOT part of V1 unless a concrete requirement appears.
+Redis, Kafka and Kubernetes are NOT part of V1 unless a concrete requirement appears. Kafka and an Outbox pattern were evaluated for GitHub synchronization and explicitly rejected for V1 — see ADR-008-no-kafka-outbox-v1.md.
 
 
 
@@ -288,7 +288,7 @@ PRIVATE
 
 PUBLISHED
 
-UNPUBLISHED
+Unpublishing a profile returns it to PRIVATE. There is no separate UNPUBLISHED state in V1. See ADR-005-project-lifecycle-and-visibility.md.
 
 
 
@@ -302,11 +302,19 @@ Project lifecycle:
 
 DRAFT
 
-READY
-
 PUBLISHED
 
 ARCHIVED
+
+Project visibility (a separate concept from lifecycle):
+
+
+
+PUBLIC
+
+PRIVATE
+
+Lifecycle describes whether the project is being prepared, published or archived. Visibility describes whether a published project is publicly exposed. Invalid combinations must be rejected in the domain layer. See ADR-005-project-lifecycle-and-visibility.md.
 
 
 
@@ -387,6 +395,14 @@ Import creates an imported project which the developer can enrich with context.
 
 
 GitHub sync must be idempotent.
+
+
+
+GitHub synchronization is asynchronous but does not use Kafka, Outbox or Redis in V1. The worker is a separate process using PostgreSQL polling and SKIP LOCKED. See ADR-008-no-kafka-outbox-v1.md and ADR-009-github-sync-worker-execution-model.md.
+
+
+
+GitHub Evidence V1 scope (snapshot data vs history data, and reconciliation rules) is defined in ADR-010-github-evidence-data-model-v1.md.
 
 
 
