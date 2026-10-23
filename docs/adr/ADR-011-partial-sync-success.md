@@ -39,7 +39,7 @@ ADR-010 left open whether all categories have equal weight regarding job outcome
 
 Each successfully fetched category is committed in its own short PostgreSQL transaction. There is no single transaction covering the entire sync job. This allows partial success: a job may reach `SYNCED` with different data freshness across categories.
 
-The transaction-boundary rule from ADR-010 still applies per category: fetch entirely before opening the transaction; no GitHub network calls inside the transaction; upsert current and delete missing in one short transaction.
+The transaction-boundary rule from ADR-010 still applies per category: fetch entirely before opening the transaction; no GitHub network calls inside the transaction. For snapshot categories this means upsert current and delete missing in one short transaction. For history categories (commits) this means insert new rows with `ON CONFLICT DO NOTHING`.
 
 ### Job status remains single, no sub-statuses
 
