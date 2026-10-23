@@ -18,6 +18,21 @@ jobs:
     name: Lint and test
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: developer_platform_test
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci_password_disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     defaults:
       run:
         working-directory: backend
@@ -35,7 +50,12 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
+      - name: Run migrations
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://ci:ci_password_disposable@localhost:5432/developer_platform_test
+
       - name: Test (pytest)
         run: pytest
         env:
-          DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/developer_platform_test
+          DATABASE_URL: postgresql+psycopg://ci:ci_password_disposable@localhost:5432/developer_platform_test
