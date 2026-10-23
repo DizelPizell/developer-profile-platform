@@ -37,6 +37,7 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 | ADR-008-no-kafka-outbox-v1.md | No Kafka or Outbox in V1 | Active |
 | ADR-009-github-sync-worker-execution-model.md | GitHub Sync Worker Execution Model | Active |
 | ADR-010-github-evidence-data-model-v1.md | GitHub Evidence Data Model V1 | Active |
+| ADR-011-partial-sync-success.md | Partial Sync Success — Mandatory and Optional Categories | Active |
 
 ### Legacy series (bare numbers, frozen)
 
@@ -61,14 +62,12 @@ A "Superseded" status means the decision itself has been replaced; the file is k
 
 These are known gaps intentionally left unresolved, because resolving them would mean making a new architectural decision rather than reconciling existing ones:
 
-- **Sync status visibility to the client.** Whether the API needs a dedicated status endpoint, a field on the repository list, or something else, so the frontend can know when an async sync finished. Not decided by ADR-009 or ADR-010.
-- **README storage shape.** Separate table vs a field on `github_repositories`. See ADR-010, "Not decided by this ADR".
-- **Languages storage shape.** Normalized table vs a `JSONB` column. See ADR-010.
-- **Contributors storage shape.** Separate table — recommended in prior analysis, not yet confirmed. See ADR-010.
-- **Exact `github_repositories` field list.** Not fixed by ADR-010.
+- **Sync status API endpoint contract.** Provisional direction: a `GET` endpoint returning the latest `github_sync_jobs` row together with `github_sync_category_status` rows for that repository. Not confirmed; a separate decision is required before implementation. See ADR-011-partial-sync-success.md.
+- **File tree storage shape.** Whether the full file tree is stored in one flat table or loaded lazily by folder depends on the Project Workspace UX, which is not yet designed. See ADR-011-partial-sync-success.md.
+- **Exact `github_repositories` field list.** Not fixed by ADR-010 or ADR-011.
 - **CV feature.** Whether V1 includes any CV generation/storage/download capability at all; `CV_DOWNLOAD` stays deferred until this is decided.
 
-Resolved by this round (no longer open): the GitHub sync worker/queue mechanism and the GitHub sync status storage shape — see ADR-009-github-sync-worker-execution-model.md.
+Resolved by this round (no longer open): the GitHub sync worker/queue mechanism, GitHub sync status storage shape (ADR-009), and the storage shapes for README, languages and contributors (ADR-011).
 
 ## Deliberately deferred (not open questions — revisit only with a new decision)
 

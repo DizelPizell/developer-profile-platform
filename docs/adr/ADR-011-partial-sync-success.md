@@ -1,0 +1,84 @@
+# ADR-011: Partial Sync Success — Mandatory and Optional Categories
+
+## Status
+
+Accepted
+
+## Context
+
+ADR-010 defined the scope and reconciliation rules for GitHub Evidence and established that if a category fetch fails or is incomplete, existing stored data is not modified and the job is retried or marked `FAILED` per ADR-009.
+
+ADR-010 left open whether all categories have equal weight regarding job outcome and left the storage shapes for README, languages and contributors undecided. This ADR resolves those questions.
+
+## Decision
+
+### Category classification
+
+**Mandatory** (failure triggers retry; after attempts exhausted → `FAILED`):
+
+- Repository metadata
+- README
+- Programming languages
+- File tree metadata
+
+**Optional** (failure does not block `SYNCED`):
+
+- Contributors
+
+A failed contributors fetch does not transition the job to retry or `FAILED`. The job may complete with `SYNCED` status even if contributors data could not be fetched. Existing contributors rows are preserved on failure, consistent with ADR-010's rule: if a fetch fails or is incomplete, do not delete or otherwise modify existing stored data for that category.
+
+### Per-category transactions
+
+Each successfully fetched category is committed in its own short PostgreSQL transaction. There is no single transaction covering the entire sync job. This allows partial success: a job may reach `SYNCED` with different data freshness across categories.
+
+The transaction-boundary rule from ADR-010 still applies per category: fetch entirely before opening the transaction; no GitHub network calls inside the transaction; upsert current and delete missing in one short transaction.
+
+### Job status remains single, no sub-statuses
+
+The `github_sync_jobs` status (`QUEUED`, `SYNCING`, `SYNCED`, `FAILED`) represents the overall job outcome. There are no sub-statuses or per-category status fields on `github_sync_jobs`. The lifecycle from ADR-009 is unchanged:
+
+```text
+NOT_SYNCED -> QUEUED -> SYNCING -> SYNCED
+                            \-> FAILED (attempts exhausted)
+```
+
+A job reaches `SYNCED` when all mandatory categories have been successfully fetched and committed. It reaches `FAILED` (after retries exhausted) only when a mandatory category could not be fetched successfully.
+
+### Category freshness tracking
+
+A separate table `github_sync_category_status` tracks per-category freshness independently of job outcome:
+
+- Natural key: `(github_repository_id, category)` — one row per pair.
+- Fields: `category`, `last_success_at`, `last_error`, `last_error_at`.
+- Updated after each category attempt, regardless of whether the overall job succeeds or fails.
+- Enables the application and UI to show which categories were last synced when.
+
+### Storage shape (resolves open questions from ADR-010)
+
+- **Contributors**: separate table `github_contributors`, one row per contributor per repository. Snapshot data: reconciled on each successful contributors fetch (upsert current, delete missing in one transaction), consistent with ADR-010's reconciliation algorithm.
+- **README**: stored as a column (or JSONB field) on `github_repositories`, replaced wholesale on each successful README fetch.
+- **Languages**: stored as a JSONB column on `github_repositories`, replaced wholesale on each successful languages fetch.
+
+## Consequences
+
+### Positive
+
+- A failed contributors fetch no longer blocks sync completion for mandatory data.
+- Per-category freshness is observable — the UI can indicate when each category was last successfully synced.
+- README and languages storage shapes are decided, removing two open questions from ADR-010 and `docs/adr/README.md`.
+- Contributors storage shape is decided (separate table), removing the remaining storage open question from ADR-010.
+
+### Negative
+
+- Data across categories for the same repository may have different freshness at any point in time.
+- An additional table (`github_sync_category_status`) adds schema surface.
+- The mandatory/optional distinction must be maintained consistently across implementation and tests.
+
+## Not decided by this ADR
+
+- **File tree storage**: whether the full tree is stored in one flat query or loaded lazily by folder. Depends on the Project Workspace UX, which is not yet designed.
+- **Sync status API endpoint contract**: provisional direction is a `GET` endpoint returning the latest `github_sync_jobs` row together with `github_sync_category_status` rows for that repository. This direction is not confirmed — a separate decision is required before implementation.
+
+## Refines
+
+ADR-010-github-evidence-data-model-v1.md — this ADR does not replace or invalidate ADR-010. It adds a mandatory/optional category distinction, per-category transaction semantics and storage shape decisions that ADR-010 explicitly left open.
