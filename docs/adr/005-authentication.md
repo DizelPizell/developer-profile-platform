@@ -12,3 +12,7 @@ Use secure HTTP-only cookie sessions for application authentication. GitHub OAut
 - GitHub access tokens encrypted at rest
 - secrets outside source control
 - tokens never logged
+
+## Note (2026-10-03)
+
+GitHub token encryption detail is now specified separately in `ADR-003-github-token-storage.md`. This ADR remains the source of truth for the session/cookie authentication model itself and is still active.
