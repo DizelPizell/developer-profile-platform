@@ -20,13 +20,19 @@ PROJECT_DEMO
 GITHUB_ACCOUNT
 GITHUB_REPOSITORY
 GITHUB_SYNC_JOB
+GITHUB_SYNC_CATEGORY_STATUS
+GITHUB_CONTRIBUTOR
 GITHUB_COMMIT
 ANALYTICS_EVENT
 ```
 
 There is no separate `PROJECT_CONTRIBUTION` entity in V1. `role` and `contribution` are plain fields on `PROJECT` — see ADR-004-project-contribution.md.
 
-Proposed, not yet confirmed (see ADR-010-github-evidence-data-model-v1.md): a README entity, a languages entity, a file-tree-entries entity, a contributors entity. Storage shape (separate table vs field/JSONB) is not decided.
+README and programming languages are stored as columns (or JSONB fields) on `github_repositories`, replaced wholesale on each successful fetch — see ADR-011-partial-sync-success.md.
+
+Contributors are stored as a separate table `github_contributors` (snapshot, upsert + delete missing) — see ADR-011-partial-sync-success.md.
+
+File tree storage shape is not yet decided (flat table vs lazy-load by folder — depends on Project Workspace UX).
 
 ## Relationships
 
@@ -49,6 +55,8 @@ PROJECT 0/1 PROJECT_REPOSITORY
 GITHUB_ACCOUNT 1:N GITHUB_REPOSITORY
 GITHUB_REPOSITORY 0/1 PROJECT_REPOSITORY
 GITHUB_REPOSITORY 1:N GITHUB_SYNC_JOB
+GITHUB_REPOSITORY 1:N GITHUB_SYNC_CATEGORY_STATUS
+GITHUB_REPOSITORY 1:N GITHUB_CONTRIBUTOR
 GITHUB_REPOSITORY 1:N GITHUB_COMMIT
 
 PROFILE/PROJECT 1:N ANALYTICS_EVENT
@@ -67,8 +75,11 @@ PROFILE/PROJECT 1:N ANALYTICS_EVENT
 - GitHub token encrypted at rest
 - timestamps on mutable entities
 - github_sync_job: at most one row with status in (QUEUED, SYNCING) per github_repository (partial unique index) — see ADR-009-github-sync-worker-execution-model.md
+- github_sync_job columns: `id`, `github_repository_id`, `status` (QUEUED/SYNCING/SYNCED/FAILED), `attempt_count`, `scheduled_at`, `last_error`, `created_at`, `updated_at`
+- github_sync_category_status: unique on (github_repository_id, category) — one row per pair; columns: `id`, `github_repository_id`, `category`, `last_success_at`, `last_error`, `last_error_at`
+- sync status (status, attempt_count, scheduled_at, last_error, timestamps) lives only on github_sync_job, never duplicated on github_repository — see ADR-009-github-sync-worker-execution-model.md
+- github_contributor: unique on (github_repository_id, github_login or external_id); snapshot data, upsert + delete missing — see ADR-011-partial-sync-success.md
 - github_commit: unique on (github_repository_id, sha); never automatically deleted; the 100-most-recent limit applies per sync run's fetch, not to total stored rows — see ADR-010-github-evidence-data-model-v1.md
-- sync status (status, attempt_count, timestamps, last error) lives only on github_sync_job, never duplicated on github_repository
 
 ## Analytics
 
@@ -88,6 +99,8 @@ Consider indexes for:
 - showcase profile + order
 - GitHub external IDs
 - github_sync_job repository_id + status (for SKIP LOCKED claim query)
+- github_sync_category_status (repository_id, category) unique
+- github_contributor repository_id + external key (unique)
 - github_commit repository_id + sha (unique)
 - analytics profile/project + timestamp
 
