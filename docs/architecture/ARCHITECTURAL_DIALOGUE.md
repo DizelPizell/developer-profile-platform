@@ -349,6 +349,8 @@ This section fixes the lifecycle and the idempotency requirement only. GitHub sy
 
 # 10. Kafka Decision
 
+> **Historical — superseded by ADR-008-no-kafka-outbox-v1.md (2026-10-03).** The decision described here was reversed in section 28. Retained as the original reasoning.
+
 Kafka was considered because GitHub synchronization is asynchronous and because the project is intentionally being used to learn production-oriented architecture.
 
 Kafka is adopted as an **event transport**, not as a replacement for REST or PostgreSQL.
@@ -380,6 +382,8 @@ Kafka is not a bounded context and does not imply a microservice architecture.
 ---
 
 # 11. Outbox Pattern
+
+> **Historical — superseded by ADR-008-no-kafka-outbox-v1.md (2026-10-03).** The Outbox pattern was rejected for V1 together with Kafka. See section 28. Retained as the original reasoning.
 
 The project uses an Outbox Pattern for reliable publication of asynchronous events.
 
@@ -416,6 +420,8 @@ Kafka is the transport mechanism.
 ---
 
 # 12. Kafka Scope
+
+> **Historical — superseded by ADR-008-no-kafka-outbox-v1.md (2026-10-03).** The scope described here was superseded when Kafka was removed from V1. See section 28. Retained as the original reasoning.
 
 ### V1
 
@@ -881,3 +887,47 @@ Out of required V1 scope: Dependencies (deferred, not rejected — pending a sep
 ## Formal record
 
 See ADR-010-github-evidence-data-model-v1.md.
+
+---
+
+# 31. Partial Sync Success — Mandatory and Optional Categories (2026-10-23)
+
+Resolves the open question from ADR-010 and section 30: what happens when individual category fetches fail, and what the storage shapes for README, languages and contributors are.
+
+## Decision
+
+### Mandatory vs optional categories
+
+Not all categories have the same weight regarding job outcome.
+
+**Mandatory** (metadata, README, languages, file tree): a fetch failure triggers retry per ADR-009; after attempts are exhausted the job transitions to `FAILED`.
+
+**Optional** (contributors): a fetch failure is tolerated. The job may complete with `SYNCED` even when contributors data could not be fetched. Existing contributors rows are preserved on failure, consistent with ADR-010's rule for incomplete fetches.
+
+### Per-category transactions
+
+Each successfully fetched category is committed in its own short PostgreSQL transaction, not one transaction for the whole job. Partial success is intentional: a job may reach `SYNCED` with different data freshness per category. The transaction-boundary rule from ADR-010 still applies per category.
+
+### No sub-statuses on github_sync_jobs
+
+`github_sync_jobs.status` continues to follow the ADR-009 lifecycle — single status, no sub-statuses. Per-category freshness is tracked in a separate table `github_sync_category_status`: natural key `(github_repository_id, category)`, fields `last_success_at`, `last_error`, `last_error_at`.
+
+### Storage shape decisions (closing ADR-010 open questions)
+
+- **README**: column (or JSONB field) on `github_repositories`, replaced wholesale.
+- **Languages**: JSONB column on `github_repositories`, replaced wholesale.
+- **Contributors**: separate table `github_contributors`, snapshot, upsert + delete missing.
+- **File tree**: not decided here — depends on Project Workspace UX.
+
+### Sync status API — provisional direction only
+
+A `GET` endpoint returning the latest `github_sync_jobs` row together with `github_sync_category_status` rows is the provisional direction. This is not confirmed; a separate decision is required before implementation.
+
+## What this does not decide
+
+- File tree storage shape (flat table vs lazy-load by folder).
+- Sync status API endpoint exact contract.
+
+## Formal record
+
+See ADR-011-partial-sync-success.md.

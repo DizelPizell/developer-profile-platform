@@ -68,20 +68,42 @@ Analytics:
 
 ```text
 NOT_SYNCED -> QUEUED -> SYNCING -> SYNCED
-                            \-> FAILED -> QUEUED (retry)
+                            \-> FAILED (attempts exhausted, terminal)
+                                       ^
+                            retryable failure -> QUEUED (with scheduled_at backoff)
 ```
 
-Synchronization is asynchronous and must be idempotent. It does not use Kafka, Outbox or Redis in V1 — see ADR-008-no-kafka-outbox-v1.md. The worker is a separate process that claims jobs via PostgreSQL polling and `SELECT ... FOR UPDATE SKIP LOCKED` — see ADR-009-github-sync-worker-execution-model.md. Within this lifecycle, `FAILED` is only ever observed as terminal (attempts exhausted); a retryable failure transitions directly back to `QUEUED` with a scheduled retry. Whether the API exposes a dedicated sync-status endpoint remains an open decision.
+Synchronization is asynchronous and must be idempotent. It does not use Kafka, Outbox or Redis in V1 — see ADR-008-no-kafka-outbox-v1.md. The worker is a separate process that claims jobs via PostgreSQL polling and `SELECT ... FOR UPDATE SKIP LOCKED` — see ADR-009-github-sync-worker-execution-model.md. Within this lifecycle, `FAILED` is only ever a terminal state (attempts exhausted); a retryable failure transitions the same row directly back to `QUEUED` with a future `scheduled_at`, never resting in `FAILED` while retries remain.
 
-Persisted on `github_sync_jobs` — the single source of truth for sync status, never duplicated on `github_repositories`: status, attempt_count, timestamps, last error.
+Persisted on `github_sync_jobs` — the single source of truth for job status, never duplicated on `github_repositories`: `status`, `attempt_count`, `scheduled_at`, `last_error`, timestamps.
+
+Per-category freshness is tracked separately in `github_sync_category_status` — one row per `(github_repository_id, category)`: `last_success_at`, `last_error`, `last_error_at`. See ADR-011-partial-sync-success.md.
 
 External GitHub identifiers are unique.
 
-## GitHub Evidence scope
+## GitHub Evidence categories
 
-V1 GitHub Evidence: repository metadata, README, languages, file tree metadata (`path`, `type`, `sha`, `size`, no content), contributors — snapshot data, reconciled on each successful sync (upsert current, delete missing). Commits are history data: up to 100 most recent per sync run, added idempotently, never automatically deleted. Dependencies, Pull Requests, Releases and CI/CD are not part of the required V1 scope; file content is not stored in V1. See ADR-010-github-evidence-data-model-v1.md.
+| Category | Classification | Failure behaviour |
+|---|---|---|
+| Repository metadata | Mandatory | Job retry → FAILED |
+| README | Mandatory | Job retry → FAILED |
+| Programming languages | Mandatory | Job retry → FAILED |
+| File tree metadata | Mandatory | Job retry → FAILED |
+| Contributors | Optional | Tolerated; existing data preserved; job may still reach SYNCED |
+| Commits | History (append-only) | Not part of snapshot reconciliation |
 
-Storage shape (separate tables vs JSONB) for README, languages and contributors, and the exact `github_repositories` field list, are not yet confirmed — see Open Questions in `docs/adr/README.md`.
+Each successfully fetched snapshot category is committed in its own short transaction. No single transaction covers the entire job. See ADR-011-partial-sync-success.md.
+
+## GitHub Evidence storage shape
+
+- **Repository metadata**: columns on `github_repositories`.
+- **README**: column (or JSONB field) on `github_repositories`, replaced wholesale.
+- **Languages**: JSONB column on `github_repositories`, replaced wholesale.
+- **File tree**: storage shape not yet decided — depends on Project Workspace UX (flat table vs lazy-load by folder).
+- **Contributors**: separate table `github_contributors` (snapshot, upsert + delete missing per successful fetch).
+- **Commits**: separate table `github_commits` (history, append-only, `ON CONFLICT DO NOTHING`).
+
+Scope: repository metadata, README, languages, file tree metadata (`path`, `type`, `sha`, `size`, no content), contributors, commits (up to 100 most recent per sync run). Dependencies, Pull Requests, Releases and CI/CD are not part of the required V1 scope; file content is not stored in V1. See ADR-010-github-evidence-data-model-v1.md and ADR-011-partial-sync-success.md.
 
 ## Project import
 

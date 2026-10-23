@@ -8,9 +8,9 @@ Developer Professional Profile Platform is a modular monolith for publishing pro
 
 ```mermaid
 flowchart LR
-    Developer["Developer"]
-    Recruiter["Recruiter / Employer"]
-    Reviewer["Technical Reviewer"]
+    Developer["Developer (account holder)"]
+    Recruiter["Recruiter / Employer (anonymous reader, V1)"]
+    Reviewer["Technical Reviewer (anonymous reader, V1)"]
 
     Platform["Developer Professional Profile Platform"]
 
@@ -24,6 +24,8 @@ flowchart LR
     Platform --> GitHub
     Platform --> Storage
 ```
+
+> **V1 note:** Recruiter / Employer and Technical Reviewer are anonymous readers of public profiles and project pages. They have no account and no V1-specific roles or flows. Recruiter accounts, candidate search and vacancies are V2.
 
 ## 3. Container View
 
