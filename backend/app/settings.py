@@ -15,9 +15,7 @@ class Settings(BaseSettings):
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
 
-    database_url: str = (
-        "postgresql+psycopg://developer:change_me@localhost:5432/developer_platform"
-    )
+    database_url: str
 
 
 settings = Settings()
