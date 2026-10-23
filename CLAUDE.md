@@ -836,7 +836,7 @@ Current development stage
 
 
 
-The repository is currently in the bootstrap stage.
+The repository is in the backend skeleton stage.
 
 
 
@@ -854,17 +854,51 @@ PostgreSQL 17 running through Docker Compose
 
 initial infrastructure commit created
 
+FastAPI application with /api/v1/health endpoint
+
+SQLAlchemy 2 + psycopg3 database session and Base
+
+Alembic initialized (no domain migrations yet)
+
+pydantic-settings with required DATABASE_URL (fails at startup if missing)
+
+Dockerfile: Python 3.13-slim, non-root user, alembic files included
+
+docker-compose: backend service, port bound to 127.0.0.1
+
+CI: GitHub Actions backend workflow (ruff + pytest)
+
+Health endpoint test
+
+
+
+Not yet started:
+
+
+
+frontend (Next.js)
+
+domain models and Alembic migrations
+
+authentication (GitHub OAuth, sessions)
+
+GitHub integration
+
+file storage (MinIO/S3)
+
+Docker Compose not verified end-to-end (build + run untested locally)
+
 
 
 Current next goal:
 
 
 
-Build the minimal FastAPI backend skeleton and connect it to PostgreSQL.
+Define the first domain models (User, Profile) and create Alembic migrations.
 
+Keep business logic minimal — schema only.
 
-
-Do not implement business logic yet.
+Do not implement API endpoints yet.
 
 
 
