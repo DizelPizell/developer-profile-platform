@@ -23,7 +23,7 @@ ADR-010 left open whether all categories have equal weight regarding job outcome
 
   **Special case — truncated tree.** If GitHub returns a truncated tree response, or the entry count exceeds the configured limit, this is treated as a **final outcome for the category**, not a fetch error. The category is marked processed with a `tree_truncated` flag; the job may still reach `SYNCED`. The UI must indicate that the tree is unavailable when this flag is set.
 
-  > ⚠ **Requires project owner confirmation.** Treating truncation as a non-error final outcome changes user-visible behaviour for large repositories. If large repositories should instead fail and retry until the limit is raised, the standard mandatory failure path (retry → FAILED) would apply instead. This must be confirmed before implementation.
+  > ✓ **Confirmed by project owner (2026-10-23).** Treating truncation as a non-error final outcome changes user-visible behaviour for large repositories. If large repositories should instead fail and retry until the limit is raised, the standard mandatory failure path (retry → FAILED) would apply instead.
 
 **Optional** (failure does not block `SYNCED`):
 

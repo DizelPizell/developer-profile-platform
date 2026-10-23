@@ -902,6 +902,8 @@ Not all categories have the same weight regarding job outcome.
 
 **Mandatory** (metadata, README, languages, file tree): a fetch failure triggers retry per ADR-009; after attempts are exhausted the job transitions to `FAILED`.
 
+**File tree — truncation handling (confirmed by project owner 2026-10-23):** a truncated GitHub response or exceeded entry limit is treated as a final outcome, not a fetch error; `tree_truncated` flag is set; job may still reach `SYNCED`; UI shows tree unavailable.
+
 **Optional** (contributors): a fetch failure is tolerated. The job may complete with `SYNCED` even when contributors data could not be fetched. Existing contributors rows are preserved on failure, consistent with ADR-010's rule for incomplete fetches.
 
 ### Per-category transactions
