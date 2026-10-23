@@ -8,6 +8,12 @@ This document records database-level decisions from architecture discussions.
 
 PostgreSQL is the application state source of truth.
 
+## Primary key and identifier types
+
+- **`id` columns**: UUID, generated server-side with `gen_random_uuid()`. Applies to all tables (users, github_accounts, profiles, auth_sessions, and all future tables).
+- **`github_user_id`**: BIGINT. GitHub numeric user IDs are currently within int32 range, but BIGINT provides a safe margin.
+- **Cascade on user deletion**: `github_accounts`, `profiles`, and `auth_sessions` carry `ON DELETE CASCADE` foreign keys referencing `users.id`. Dependent rows are deleted automatically when a user row is deleted. Account deletion as a product feature (user-initiated flow, data handling) remains an open question per ADR-012.
+
 ## Core entities
 
 ```text
