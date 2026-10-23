@@ -5,16 +5,15 @@ Revises:
 Create Date: 2026-10-24 00:21:32.006329
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
-
 revision: str = '198d5799de28'
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -53,7 +52,10 @@ def upgrade() -> None:
     sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.CheckConstraint("slug ~ '^[a-z0-9][a-z0-9-]{1,37}[a-z0-9]$'", name='ck_profiles_slug_format'),
+    sa.CheckConstraint(
+        r"slug ~ '^[a-z0-9][a-z0-9-]{1,37}[a-z0-9]$'",
+        name='ck_profiles_slug_format',
+    ),
     sa.CheckConstraint("status IN ('PRIVATE', 'PUBLISHED')", name='ck_profiles_status'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
