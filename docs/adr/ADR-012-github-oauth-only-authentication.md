@@ -1,0 +1,90 @@
+# ADR-012: GitHub OAuth-Only Authentication
+
+## Status
+
+Accepted
+
+## Context
+
+Legacy ADR `005-authentication.md` established HTTP-only cookie sessions as the session mechanism and described GitHub OAuth as "a separate account integration." This left the primary login method — email + password, GitHub OAuth, or both — unspecified. The PRD listed "registration", "login", and "recovery" as authentication features, implying email-based credentials.
+
+The platform's core value is showing real developer work backed by GitHub evidence. Requiring a separate email + password credential adds implementation cost (password storage, hashing, recovery flow) without user-facing benefit: the target audience universally has GitHub accounts. GitHub OAuth-only simplifies the authentication path and removes the need for a password field on `users`.
+
+## Decision
+
+### GitHub OAuth as the only login mechanism
+
+V1 supports login via GitHub OAuth exclusively. There is no email + password registration and no password recovery flow.
+
+Registration and login are unified: a developer authenticating for the first time has an account created automatically. On subsequent logins the existing account is retrieved by `github_user_id`.
+
+Recruiters and public visitors do not authenticate in V1.
+
+### Minimal scopes at login; separate consent for repository access
+
+The login OAuth flow requests only the minimum scopes needed to identify the user (typically `read:user` and `user:email`). The GitHub access token issued during login is **not stored**.
+
+Repository access (required for the import/sync features) is requested through a separate OAuth consent flow during the GitHub integration phase (`/integrations/github/connect`). That token is stored encrypted per ADR-003-github-token-storage.md.
+
+### OAuth state parameter is required
+
+The `state` parameter must be generated, stored server-side for the duration of the authorization request, and validated on callback to prevent CSRF attacks against the OAuth flow.
+
+### User identifier
+
+The primary identifier of a User is `github_user_id` (GitHub's stable numeric user id). Users who rename their GitHub login are still identified correctly.
+
+`github_login` is stored as a convenience field but is not treated as a stable identifier.
+
+`email` is optional (GitHub users may keep their email private) and is **not unique**. The `users.email unique` constraint is removed.
+
+### User — GitHub Account relationship is 1:1
+
+One User has exactly one linked GitHub Account in V1. The earlier `USER 1:N GITHUB_ACCOUNT` schema relationship is replaced with `USER 1:1 GITHUB_ACCOUNT`.
+
+### Session storage
+
+Sessions are stored server-side in a PostgreSQL table `auth_sessions`. The cookie contains a random opaque token; only its hash is stored in the database. This prevents session token theft from a database dump.
+
+`auth_sessions` columns: `id`, `user_id`, `token_hash` (unique), `created_at`, `expires_at`.
+
+Logout deletes the session row. Session lifetime is configurable; the specific value is not decided by this ADR.
+
+Session cookies remain HTTP-only, Secure in production, with an appropriate SameSite policy — consistent with legacy ADR `005-authentication.md`.
+
+### Profile slug generation
+
+A profile slug is generated automatically from `github_login` at account creation:
+
+- Characters: lowercase letters, digits, and hyphens only.
+- Length: 3–39 characters.
+- On conflict: a numeric suffix is appended (e.g. `alice-2`).
+- A configurable list of reserved words may not be used as slugs (e.g. `admin`, `api`, `static`).
+
+The developer may change the slug after creation; uniqueness and format rules always apply.
+
+## Consequences
+
+### Positive
+
+- No password storage, hashing, or recovery flow required.
+- Developers do not need a separate credential; a GitHub account is sufficient.
+- `github_user_id` as the stable identifier is robust to GitHub login renames.
+- Simpler `users` schema: no `password_hash` column.
+
+### Negative
+
+- Developers without a GitHub account cannot register. This is accepted: the platform's value proposition requires GitHub evidence.
+- Two-step OAuth consent (login + separate integration for repository access) adds UX complexity in the import flow.
+- GitHub outages or OAuth service disruptions block login entirely.
+
+## Not decided by this ADR
+
+- **Session lifetime (specific value)**: the duration after which a session token expires. A separate decision or configuration is required before implementation.
+- **Behavior on GitHub login change**: if a user renames their GitHub login, `github_login` in `users` becomes stale. Whether to update it on next login or leave it is not decided.
+- **Account deletion**: how a user deletes their account and what happens to their data is not decided.
+
+## Refines / Supersedes
+
+- **Supersedes the login-method part of legacy ADR `005-authentication.md`**: that ADR described GitHub OAuth as "a separate account integration" and left the primary login method unspecified. This ADR replaces that part: GitHub OAuth is now the only login mechanism. The session/cookie security requirements from that ADR (HTTP-only, Secure, SameSite, CSRF protection) remain in full.
+- **Does not affect ADR-003-github-token-storage.md**, which governs the repository-access token stored during the integration flow — that flow is unchanged.
