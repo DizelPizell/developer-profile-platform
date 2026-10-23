@@ -48,7 +48,9 @@ Sessions are stored server-side in a PostgreSQL table `auth_sessions`. The cooki
 
 `auth_sessions` columns: `id`, `user_id`, `token_hash` (unique), `created_at`, `expires_at`.
 
-Logout deletes the session row. Session lifetime is configurable; the specific value is not decided by this ADR.
+Logout deletes the session row.
+
+Session lifetime is **14 days absolute** — the session expires 14 days after creation regardless of activity. The value is configured via the `SESSION_TTL_DAYS` environment variable.
 
 Session cookies remain HTTP-only, Secure in production, with an appropriate SameSite policy — consistent with legacy ADR `005-authentication.md`.
 
@@ -80,7 +82,6 @@ The developer may change the slug after creation; uniqueness and format rules al
 
 ## Not decided by this ADR
 
-- **Session lifetime (specific value)**: the duration after which a session token expires. A separate decision or configuration is required before implementation.
 - **Behavior on GitHub login change**: if a user renames their GitHub login, `github_login` in `users` becomes stale. Whether to update it on next login or leave it is not decided.
 - **Account deletion**: how a user deletes their account and what happens to their data is not decided.
 
