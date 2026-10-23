@@ -29,7 +29,11 @@ ADR-010 left open whether all categories have equal weight regarding job outcome
 
 - Contributors
 
-A failed contributors fetch does not transition the job to retry or `FAILED`. The job may complete with `SYNCED` status even if contributors data could not be fetched. Existing contributors rows are preserved on failure, consistent with ADR-010's rule: if a fetch fails or is incomplete, do not delete or otherwise modify existing stored data for that category.
+  A failed contributors fetch does not transition the job to retry or `FAILED`. The job may complete with `SYNCED` status even if contributors data could not be fetched. Existing contributors rows are preserved on failure, consistent with ADR-010's rule: if a fetch fails or is incomplete, do not delete or otherwise modify existing stored data for that category.
+
+- Commits
+
+  A failed commits fetch does not transition the job to retry or `FAILED`. The job may complete with `SYNCED` status even if commits could not be fetched. Commits are **history data, not snapshot data** (defined in ADR-010): append-only, `ON CONFLICT DO NOTHING`, never automatically deleted. This means existing rows are always preserved — on failure there is simply nothing new to append, and no rows are ever deleted. Commits freshness is tracked in `github_sync_category_status` on the same terms as contributors: one row per `(github_repository_id, category)`, updated after each category attempt regardless of job outcome.
 
 ### Per-category transactions
 
@@ -63,15 +67,17 @@ A separate table `github_sync_category_status` tracks per-category freshness ind
 - **Languages**: JSONB column on `github_repositories`, replaced wholesale on each successful languages fetch.
 - **File tree**: JSONB column on `github_repositories`, replaced wholesale on each successful file tree fetch. Each entry stores `path`, `type`, `size` and `sha`. A configurable entry-count limit applies; truncation and limit-exceeded cases are treated as final outcomes rather than fetch errors — see the truncated-tree special case under Category classification above.
 - **Contributors**: separate table `github_contributors`, one row per contributor per repository, unique on `(github_repository_id, github_user_id)`. `github_user_id` is the GitHub numeric user id and the stable identifier; `login` is stored as a regular (non-unique) field. Snapshot data: reconciled on each successful contributors fetch (upsert current, delete missing in one transaction), consistent with ADR-010's reconciliation algorithm.
+- **Commits**: separate table `github_commits`, one row per commit per repository, unique on `(github_repository_id, sha)`. History data: append-only, `ON CONFLICT ... DO NOTHING`, never automatically deleted. On a successful fetch, new rows are inserted; existing rows are not overwritten. On a failed fetch, no rows are changed. Up to 100 most recent commits per sync run's fetch — see ADR-010 for the documented gap limitation.
 
 ## Consequences
 
 ### Positive
 
-- A failed contributors fetch no longer blocks sync completion for mandatory data.
+- A failed contributors or commits fetch no longer blocks sync completion for mandatory data.
 - Per-category freshness is observable — the UI can indicate when each category was last successfully synced.
 - README (TEXT column), languages (JSONB column) and file tree (JSONB column) storage shapes are decided, removing the open questions from ADR-010 and `docs/adr/README.md`.
 - Contributors storage shape is decided (separate table, unique on `(github_repository_id, github_user_id)`), removing the remaining storage open question from ADR-010.
+- Commits are classified as optional: a failed commits fetch does not block `SYNCED`. Because commits are history data (append-only), there is no data loss on a failed fetch — no rows are deleted.
 
 ### Negative
 

@@ -90,7 +90,7 @@ External GitHub identifiers are unique.
 | Programming languages | Mandatory | Job retry → FAILED |
 | File tree metadata | Mandatory | Job retry → FAILED |
 | Contributors | Optional | Tolerated; existing data preserved; job may still reach SYNCED |
-| Commits | History (append-only) | Not part of snapshot reconciliation |
+| Commits | Optional (history, not snapshot) | Tolerated; existing commits preserved (append-only, ADR-010); job may still reach SYNCED |
 
 Each successfully fetched snapshot category is committed in its own short transaction. No single transaction covers the entire job. See ADR-011-partial-sync-success.md.
 

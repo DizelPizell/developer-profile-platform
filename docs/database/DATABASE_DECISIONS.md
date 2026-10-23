@@ -67,7 +67,7 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 - `github_contributors` is unique on `(github_repository_id, github_user_id)`; `github_user_id` is the GitHub numeric user id; `login` is a regular field; snapshot data, upsert + delete missing per successful contributors fetch — see ADR-011-partial-sync-success.md.
 - `github_commits` is unique on `(github_repository_id, sha)`; inserted idempotently (`ON CONFLICT ... DO NOTHING`); never automatically deleted; the 100-most-recent limit applies per sync run's fetch, not to the total rows stored for a repository — see ADR-010-github-evidence-data-model-v1.md.
 - Snapshot GitHub data (repository metadata, README, languages, file tree, contributors) and history data (commits) have different deletion rules: snapshot rows absent from a complete, successful fetch are deleted; history rows are never automatically deleted — see ADR-010-github-evidence-data-model-v1.md.
-- Contributors is an optional sync category: a contributors fetch failure does not block `SYNCED`. Mandatory categories (metadata, README, languages, file tree) cause retry/FAILED on failure — see ADR-011-partial-sync-success.md.
+- Contributors and commits are optional sync categories: fetch failures do not block `SYNCED`. Commits are history data (append-only, `ON CONFLICT DO NOTHING`); existing rows are preserved on both success and failure — there is nothing to delete on a failed fetch, and no rows are ever automatically deleted — see ADR-010-github-evidence-data-model-v1.md. Mandatory categories (metadata, README, languages, file tree) cause retry/FAILED on failure — see ADR-011-partial-sync-success.md.
 
 ## Deliberately excluded
 
