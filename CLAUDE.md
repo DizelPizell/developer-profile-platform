@@ -542,7 +542,7 @@ SameSite policy
 
 CSRF protection
 
-GitHub OAuth
+GitHub OAuth — the only login mechanism in V1 (ADR-012); sessions stored server-side in auth_sessions table with token_hash only
 
 
 
@@ -880,7 +880,7 @@ frontend (Next.js)
 
 domain models and Alembic migrations
 
-authentication (GitHub OAuth, sessions)
+authentication (GitHub OAuth only, server-side sessions — ADR-012)
 
 GitHub integration
 
@@ -894,7 +894,7 @@ Current next goal:
 
 
 
-Define the first domain models (User, Profile) and create Alembic migrations.
+Define the first domain models (User, Profile, AuthSession per ADR-012) and create Alembic migrations.
 
 Keep business logic minimal — schema only.
 
