@@ -25,6 +25,7 @@ from app.identity.service import (
     update_user_fields,
 )
 from app.models.identity import AuthSession
+from tests.conftest import HTTPS_BASE_URL
 
 # ---------------------------------------------------------------------------
 # Slug generation — no DB, no network
@@ -226,7 +227,7 @@ def bare_client():
     from fastapi.testclient import TestClient
 
     from app.main import app
-    return TestClient(app, raise_server_exceptions=True, follow_redirects=False)
+    return TestClient(app, base_url=HTTPS_BASE_URL, follow_redirects=False)
 
 
 class TestLoginEndpoint:
@@ -290,7 +291,7 @@ class TestCallbackEndpoint:
         app.dependency_overrides[get_github_client] = lambda: (yield mock_client)
 
         try:
-            with TestClient(app, raise_server_exceptions=True, follow_redirects=False) as client:
+            with TestClient(app, base_url=HTTPS_BASE_URL, follow_redirects=False) as client:
                 # Set cookie directly on client to avoid per-request cookies= deprecation
                 client.cookies.set("oauth_state", "s")
                 resp = client.get("/api/v1/auth/github/callback?code=bad&state=s")
@@ -344,7 +345,7 @@ class TestCallbackEndpoint:
             app.dependency_overrides[get_db] = lambda: (yield db_session)
             app.dependency_overrides[get_github_client] = lambda: (yield mock)
             try:
-                with TestClient(app, raise_server_exceptions=True, follow_redirects=False) as c:
+                with TestClient(app, base_url=HTTPS_BASE_URL, follow_redirects=False) as c:
                     lr = c.get("/api/v1/auth/github/login")
                     state = lr.cookies["oauth_state"]
                     c.get(f"/api/v1/auth/github/callback?code=x&state={state}")

@@ -34,6 +34,7 @@ jobs:
           --health-retries 5
 
     env:
+      APP_ENV: test
       DATABASE_URL: postgresql+psycopg://ci:ci_password_disposable@localhost:5432/developer_platform_test
       GITHUB_CLIENT_ID: ci-test-client-id
       GITHUB_CLIENT_SECRET: ci-test-client-secret

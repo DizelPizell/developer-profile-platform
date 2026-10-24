@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 # Set required env vars before any app module is imported during test collection.
 # DATABASE_URL has no default in settings; this satisfies the validator without
 # connecting to a real database (the health endpoint does not use the DB).
+os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+psycopg://test:test@localhost:5432/developer_platform_test",
@@ -27,6 +28,9 @@ os.environ.setdefault(
 os.environ.setdefault("FRONTEND_URL", "http://localhost:3000")
 
 _BACKEND_DIR = Path(__file__).parent.parent
+
+# Cookies are Secure outside development; the cookie jar sends them only over https.
+HTTPS_BASE_URL = "https://testserver"
 
 
 def _is_test_database_url(url: str) -> bool:
@@ -169,7 +173,7 @@ def auth_client(db_session: Session) -> Generator[TestClient]:
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_github_client] = override_github
 
-    with TestClient(app, raise_server_exceptions=True, follow_redirects=False) as client:
+    with TestClient(app, base_url=HTTPS_BASE_URL, follow_redirects=False) as client:
         yield client
 
     app.dependency_overrides.clear()

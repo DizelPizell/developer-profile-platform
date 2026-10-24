@@ -55,7 +55,7 @@ def github_login() -> RedirectResponse:
         samesite="lax",
         path="/api/v1/auth/github",
         max_age=600,
-        secure=settings.app_env != "development",
+        secure=settings.secure_cookies,
     )
     return resp
 
@@ -83,8 +83,8 @@ def github_callback(
     access_token = github_client.exchange_code(
         code=code,
         client_id=settings.github_client_id,
-        client_secret=settings.github_client_secret,
-        redirect_uri=settings.github_callback_url,
+        client_secret=settings.github_client_secret.get_secret_value(),
+        redirect_uri=str(settings.github_callback_url),
     )
     github_user_data = github_client.get_user(access_token)
     # access_token is intentionally discarded here — never stored
@@ -100,10 +100,10 @@ def github_callback(
     token = service.create_session(db, user.id)
     db.commit()
 
-    resp = RedirectResponse(url=settings.frontend_url, status_code=302)
+    resp = RedirectResponse(url=str(settings.frontend_url), status_code=302)
     resp.set_cookie(
         value=token,
-        **_session_cookie_kwargs(secure=settings.app_env != "development"),
+        **_session_cookie_kwargs(secure=settings.secure_cookies),
     )
     resp.delete_cookie(key=_STATE_COOKIE, path="/api/v1/auth/github")
     return resp
