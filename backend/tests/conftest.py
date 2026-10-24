@@ -15,6 +15,13 @@ os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+psycopg://test:test@localhost:5432/developer_platform_test",
 )
+os.environ.setdefault("GITHUB_CLIENT_ID", "test_client_id")
+os.environ.setdefault("GITHUB_CLIENT_SECRET", "test_client_secret")
+os.environ.setdefault(
+    "GITHUB_CALLBACK_URL",
+    "http://localhost:8000/api/v1/auth/github/callback",
+)
+os.environ.setdefault("FRONTEND_URL", "http://localhost:3000")
 
 _BACKEND_DIR = Path(__file__).parent.parent
 

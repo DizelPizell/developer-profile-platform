@@ -17,5 +17,12 @@ class Settings(BaseSettings):
 
     database_url: str
 
+    github_client_id: str
+    github_client_secret: str
+    github_callback_url: str
+    frontend_url: str
+    session_ttl_days: int = 14
+    session_cookie_name: str = "session"
+
 
 settings = Settings()
