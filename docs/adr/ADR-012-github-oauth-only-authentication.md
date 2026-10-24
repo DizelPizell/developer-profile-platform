@@ -22,7 +22,7 @@ Recruiters and public visitors do not authenticate in V1.
 
 ### Minimal scopes at login; separate consent for repository access
 
-The login OAuth flow requests only the minimum scopes needed to identify the user (typically `read:user` and `user:email`). The GitHub access token issued during login is **not stored**.
+The login OAuth flow requests **no scopes** (empty scope). GitHub still returns a user profile including `id`, `login`, and `email` (if public) with a no-scope token, which is sufficient to identify the user. The GitHub access token issued during login is **not stored**.
 
 Repository access (required for the import/sync features) is requested through a separate OAuth consent flow during the GitHub integration phase (`/integrations/github/connect`). That token is stored encrypted per ADR-003-github-token-storage.md.
 
@@ -44,7 +44,7 @@ One User has exactly one linked GitHub Account in V1. The earlier `USER 1:N GITH
 
 ### Session storage
 
-Sessions are stored server-side in a PostgreSQL table `auth_sessions`. The cookie contains a random opaque token; only its hash is stored in the database. This prevents session token theft from a database dump.
+Sessions are stored server-side in a PostgreSQL table `auth_sessions`. A random opaque token is issued to the browser via an **HttpOnly cookie** (`Path=/`, `SameSite=Lax`, `Secure` in production); only the SHA-256 hash of that token is stored in the database. This prevents session token theft from a database dump.
 
 `auth_sessions` columns: `id`, `user_id`, `token_hash` (unique), `created_at`, `expires_at`.
 
@@ -82,8 +82,9 @@ The developer may change the slug after creation; uniqueness and format rules al
 
 ## Not decided by this ADR
 
-- **Behavior on GitHub login change**: if a user renames their GitHub login, `github_login` in `users` becomes stale. Whether to update it on next login or leave it is not decided.
+- **Behavior on GitHub login change**: implemented as update-on-next-login (`github_login` and `email` are refreshed from the GitHub API on every login). This resolves the open question from the initial ADR text; the user's slug is never changed automatically.
 - **Account deletion**: how a user deletes their account and what happens to their data is not decided.
+- **DateTime vs timestamptz**: `auth_sessions.expires_at` and `auth_sessions.created_at` use SQLAlchemy `DateTime` (naive, no timezone) backed by PostgreSQL `TIMESTAMP WITHOUT TIME ZONE`. The application normalises all timestamps to naive UTC via `_utcnow()`. Consider migrating to `TIMESTAMP WITH TIME ZONE` (`timestamptz`) for correctness if the database server timezone ever changes or a timezone-aware ORM layer is adopted.
 
 ## Refines / Supersedes
 
