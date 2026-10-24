@@ -28,7 +28,9 @@ Repository access (required for the import/sync features) is requested through a
 
 ### OAuth state parameter is required
 
-The `state` parameter must be generated, stored server-side for the duration of the authorization request, and validated on callback to prevent CSRF attacks against the OAuth flow.
+The `state` parameter must be generated and validated on callback to prevent CSRF attacks against the OAuth flow.
+
+Implementation: `state` is `secrets.token_urlsafe(32)` and is kept in the browser in an **HttpOnly cookie** `oauth_state` (`Path=/api/v1/auth/github`, `SameSite=Lax`, `Max-Age=600`, `Secure` outside development). The server keeps no record of it. On callback the query `state` is compared with the cookie using `secrets.compare_digest`. The cookie is deleted on every callback exit, including errors. A replayed callback fails because the cookie is gone and GitHub accepts an authorization code only once.
 
 ### User identifier
 
@@ -44,11 +46,13 @@ One User has exactly one linked GitHub Account in V1. The earlier `USER 1:N GITH
 
 ### Session storage
 
-Sessions are stored server-side in a PostgreSQL table `auth_sessions`. A random opaque token is issued to the browser via an **HttpOnly cookie** (`Path=/`, `SameSite=Lax`, `Secure` in production); only the SHA-256 hash of that token is stored in the database. This prevents session token theft from a database dump.
+Sessions are stored server-side in a PostgreSQL table `auth_sessions`. A random opaque token is issued to the browser via an **HttpOnly cookie** (`Path=/`, `SameSite=Lax`, `Secure` in every environment except development — `APP_ENV` is required and is one of `development`, `test`, `production`); only the SHA-256 hash of that token is stored in the database. This prevents session token theft from a database dump.
 
 `auth_sessions` columns: `id`, `user_id`, `token_hash` (unique), `created_at`, `expires_at`.
 
 Logout deletes the session row.
+
+Every login issues a new token. If the login request carries a session cookie, the session with that token is deleted in the same transaction that creates the new one.
 
 Session lifetime is **14 days absolute** — the session expires 14 days after creation regardless of activity. The value is configured via the `SESSION_TTL_DAYS` environment variable.
 
@@ -60,7 +64,7 @@ A profile slug is generated automatically from `github_login` at account creatio
 
 - Characters: lowercase letters, digits, and hyphens only.
 - Length: 3–39 characters.
-- On conflict: a numeric suffix is appended (e.g. `alice-2`).
+- On conflict: a random 6-character hex suffix is appended (e.g. `alice-3f9a1c`), up to 5 attempts.
 - A configurable list of reserved words may not be used as slugs (e.g. `admin`, `api`, `static`).
 
 The developer may change the slug after creation; uniqueness and format rules always apply.
@@ -79,12 +83,19 @@ The developer may change the slug after creation; uniqueness and format rules al
 - Developers without a GitHub account cannot register. This is accepted: the platform's value proposition requires GitHub evidence.
 - Two-step OAuth consent (login + separate integration for repository access) adds UX complexity in the import flow.
 - GitHub outages or OAuth service disruptions block login entirely.
+- Revoking the application's access on GitHub does not end an existing session: it lives until `expires_at`. This follows from not storing the login access token — the server has nothing to re-validate against GitHub.
 
 ## Not decided by this ADR
 
 - **Behavior on GitHub login change**: implemented as update-on-next-login (`github_login` and `email` are refreshed from the GitHub API on every login). This resolves the open question from the initial ADR text; the user's slug is never changed automatically.
 - **Account deletion**: how a user deletes their account and what happens to their data is not decided.
 - **Database settings isolation**: `Settings` requires `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_CALLBACK_URL`, and `FRONTEND_URL` at startup, so Alembic migrations (which only need `DATABASE_URL`) also require the GitHub keys to be present in the environment. Whether to split settings into a minimal `DatabaseSettings` (for migrations) and a full `AppSettings` (for the running app) is not decided.
+- **CSRF protection**: there is no CSRF token yet. The only state-changing endpoint is `POST /auth/logout`, covered against cross-site requests by `SameSite=Lax` but not against same-site (sibling subdomain) requests. A CSRF mechanism must be decided before the first state-changing endpoint beyond logout.
+- **`__Host-` cookie prefix**: whether to name the session cookie `__Host-session` in production (requires `Secure`, `Path=/`, no `Domain`) is not decided.
+- **Expired session cleanup**: expired rows in `auth_sessions` are filtered out but never deleted, and there is no index on `expires_at`. A cleanup mechanism and the index are not decided.
+- **Session limit per user**: there is no limit on concurrent sessions per user and no "log out everywhere".
+- **`id` in `/auth/me`**: the response includes the internal `users.id`. Whether the frontend needs it is not decided.
+- **Secure cookies behind a reverse proxy**: `Secure` is set from `APP_ENV`, not from the request scheme. End-to-end behavior behind nginx (TLS termination, forwarded headers) has not been verified.
 - **DateTime vs timestamptz**: `auth_sessions.expires_at` and `auth_sessions.created_at` use SQLAlchemy `DateTime` (naive, no timezone) backed by PostgreSQL `TIMESTAMP WITHOUT TIME ZONE`. The application normalises all timestamps to naive UTC via `_utcnow()`. Consider migrating to `TIMESTAMP WITH TIME ZONE` (`timestamptz`) for correctness if the database server timezone ever changes or a timezone-aware ORM layer is adopted.
 
 ## Refines / Supersedes

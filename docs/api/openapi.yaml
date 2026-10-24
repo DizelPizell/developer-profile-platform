@@ -9,25 +9,58 @@ paths:
   /auth/github/login:
     get:
       summary: Start GitHub OAuth login
+      description: Sets the HttpOnly `oauth_state` cookie and redirects to GitHub.
       responses:
         "302": {description: Redirect to GitHub}
+        "500": {$ref: "#/components/responses/InternalError"}
   /auth/github/callback:
     get:
       summary: GitHub OAuth login callback
+      description: >-
+        On success sets the session cookie and redirects to the frontend. The
+        `oauth_state` cookie is deleted on every response, including errors.
+      parameters:
+        - {name: code, in: query, required: false, schema: {type: string}}
+        - {name: state, in: query, required: false, schema: {type: string}}
+        - {name: error, in: query, required: false, schema: {type: string}}
       responses:
-        "302": {description: Redirect after login}
-        "400": {description: Invalid state or code}
+        "302": {description: Redirect to the frontend after login}
+        "400":
+          description: >-
+            ACCESS_DENIED, INVALID_STATE, MISSING_CODE or OAUTH_CODE_INVALID
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
+        "502":
+          description: >-
+            GITHUB_UNAVAILABLE — GitHub timed out, returned an error status, or
+            returned an unexpected response
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
   /auth/logout:
     post:
       summary: Logout
+      description: Deletes the current session (if any) and clears the session cookie.
       responses:
         "204": {description: Logged out}
+        "500": {$ref: "#/components/responses/InternalError"}
   /auth/me:
     get:
       summary: Current user
       responses:
-        "200": {description: Current user}
-        "401": {description: Unauthorized}
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MeResponse"}
+        "401":
+          description: UNAUTHORIZED — no valid session
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /profile:
     get:
       summary: Get own profile
@@ -150,3 +183,60 @@ paths:
       summary: Project analytics
       responses:
         "200": {description: Analytics}
+components:
+  headers:
+    X-Request-ID:
+      description: >-
+        Request id. Taken from the request's X-Request-ID header when it is a
+        canonical UUID, otherwise generated. Present on every response.
+      schema: {type: string, format: uuid}
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details, request_id]
+          properties:
+            code: {type: string, example: VALIDATION_ERROR}
+            message: {type: string, example: Invalid request}
+            details: {type: object, additionalProperties: true}
+            request_id:
+              type: string
+              format: uuid
+              description: Same value as the X-Request-ID response header.
+    MeResponse:
+      type: object
+      required: [id, github_login, email, profile_slug]
+      properties:
+        id: {type: string, format: uuid}
+        github_login: {type: string}
+        email: {type: string, nullable: true}
+        profile_slug: {type: string, nullable: true}
+  responses:
+    ValidationError:
+      description: >-
+        VALIDATION_ERROR — request failed validation. `details.fields` lists
+        each failing field location and error type; input values are never
+        echoed.
+      headers:
+        X-Request-ID: {$ref: "#/components/headers/X-Request-ID"}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: Invalid request
+              details:
+                fields:
+                  - {loc: [path, id], type: uuid_parsing}
+              request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
+    InternalError:
+      description: INTERNAL_ERROR — unexpected server error; no internal details are returned.
+      headers:
+        X-Request-ID: {$ref: "#/components/headers/X-Request-ID"}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
