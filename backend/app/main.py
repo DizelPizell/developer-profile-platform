@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 
-from app.errors import AppError, app_error_handler
+from app.errors import setup_error_handling
 from app.identity.router import router as auth_router
 from app.settings import settings  # validates config at startup
 
 app = FastAPI(title=settings.app_name)
-app.add_exception_handler(AppError, app_error_handler)
+setup_error_handling(app)
 app.include_router(auth_router, prefix="/api/v1")
 
 

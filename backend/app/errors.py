@@ -1,7 +1,14 @@
-import uuid
+import logging
+from http import HTTPStatus
 
-from fastapi import Request
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
+
+logger = logging.getLogger(__name__)
 
 
 class AppError(Exception):
@@ -18,15 +25,71 @@ class AppError(Exception):
         self.details = details or {}
 
 
-async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+def error_response(
+    request: Request,
+    status_code: int,
+    code: str,
+    message: str,
+    details: dict | None = None,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    request_id = request.state.request_id
     return JSONResponse(
-        status_code=exc.status_code,
+        status_code=status_code,
         content={
             "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "details": exc.details,
-                "request_id": str(uuid.uuid4()),
+                "code": code,
+                "message": message,
+                "details": details or {},
+                "request_id": request_id,
             }
         },
+        # Set here as well: the 500 handler runs outside RequestIdMiddleware.
+        headers={**(headers or {}), REQUEST_ID_HEADER: request_id},
     )
+
+
+def app_error_response(request: Request, exc: AppError) -> JSONResponse:
+    return error_response(request, exc.status_code, exc.code, exc.message, exc.details)
+
+
+def internal_error_response(request: Request, exc: Exception) -> JSONResponse:
+    logger.error(
+        "Unhandled exception (request_id=%s)", request.state.request_id, exc_info=exc
+    )
+    return error_response(request, 500, "INTERNAL_ERROR", "Internal server error")
+
+
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    return app_error_response(request, exc)
+
+
+async def validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    # Only location and error type: input values must never be echoed back.
+    fields = [{"loc": list(err["loc"]), "type": err["type"]} for err in exc.errors()]
+    return error_response(
+        request, 422, "VALIDATION_ERROR", "Invalid request", {"fields": fields}
+    )
+
+
+async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    try:
+        status = HTTPStatus(exc.status_code)
+        code, message = status.name, status.phrase
+    except ValueError:
+        code, message = "HTTP_ERROR", "HTTP error"
+    return error_response(request, exc.status_code, code, message, headers=exc.headers)
+
+
+async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    return internal_error_response(request, exc)
+
+
+def setup_error_handling(app: FastAPI) -> None:
+    app.add_middleware(RequestIdMiddleware)
+    app.add_exception_handler(AppError, app_error_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(StarletteHTTPException, http_error_handler)
+    app.add_exception_handler(Exception, unhandled_error_handler)
