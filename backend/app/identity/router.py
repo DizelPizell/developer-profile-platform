@@ -1,11 +1,12 @@
 import secrets
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
-from app.errors import AppError
+from app.errors import AppError, app_error_response, internal_error_response
 from app.identity import service
 from app.identity.github_client import GitHubOAuthClient, get_github_client
 from app.identity.schemas import MeResponse
@@ -15,17 +16,28 @@ from app.settings import settings
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _STATE_COOKIE = "oauth_state"
+_STATE_COOKIE_PATH = "/api/v1/auth/github"
+_STATE_MAX_AGE = 600
 _GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize"
 
 
-def _session_cookie_kwargs(secure: bool) -> dict:
+def _state_cookie_attrs() -> dict:
     return {
-        "key": settings.session_cookie_name,
+        "key": _STATE_COOKIE,
+        "path": _STATE_COOKIE_PATH,
         "httponly": True,
         "samesite": "lax",
+        "secure": settings.secure_cookies,
+    }
+
+
+def _session_cookie_attrs() -> dict:
+    return {
+        "key": settings.session_cookie_name,
         "path": "/",
-        "max_age": settings.session_ttl_days * 86400,
-        "secure": secure,
+        "httponly": True,
+        "samesite": "lax",
+        "secure": settings.secure_cookies,
     }
 
 
@@ -41,22 +53,15 @@ def get_current_user(
 @router.get("/github/login")
 def github_login() -> RedirectResponse:
     state = secrets.token_urlsafe(32)
-    redirect_url = (
-        f"{_GITHUB_AUTH_URL}"
-        f"?client_id={settings.github_client_id}"
-        f"&redirect_uri={settings.github_callback_url}"
-        f"&state={state}"
+    query = urlencode(
+        {
+            "client_id": settings.github_client_id,
+            "redirect_uri": str(settings.github_callback_url),
+            "state": state,
+        }
     )
-    resp = RedirectResponse(url=redirect_url, status_code=302)
-    resp.set_cookie(
-        key=_STATE_COOKIE,
-        value=state,
-        httponly=True,
-        samesite="lax",
-        path="/api/v1/auth/github",
-        max_age=600,
-        secure=settings.secure_cookies,
-    )
+    resp = RedirectResponse(url=f"{_GITHUB_AUTH_URL}?{query}", status_code=302)
+    resp.set_cookie(value=state, max_age=_STATE_MAX_AGE, **_state_cookie_attrs())
     return resp
 
 
@@ -68,12 +73,35 @@ def github_callback(
     error: str | None = Query(default=None),
     db: Session = Depends(get_db),
     github_client: GitHubOAuthClient = Depends(get_github_client),
-) -> RedirectResponse:
+) -> Response:
+    # Errors are turned into responses here so the state cookie is removed on every exit.
+    try:
+        resp = _complete_github_login(request, code, state, error, db, github_client)
+    except AppError as exc:
+        resp = app_error_response(request, exc)
+    except Exception as exc:
+        resp = internal_error_response(request, exc)
+    resp.delete_cookie(**_state_cookie_attrs())
+    return resp
+
+
+def _complete_github_login(
+    request: Request,
+    code: str | None,
+    state: str | None,
+    error: str | None,
+    db: Session,
+    github_client: GitHubOAuthClient,
+) -> Response:
     if error:
         raise AppError("ACCESS_DENIED", "GitHub OAuth access was denied", 400)
 
     expected_state = request.cookies.get(_STATE_COOKIE)
-    if not expected_state or state != expected_state:
+    if (
+        not expected_state
+        or not state
+        or not secrets.compare_digest(state.encode(), expected_state.encode())
+    ):
         raise AppError("INVALID_STATE", "OAuth state mismatch or missing state cookie", 400)
 
     if not code:
@@ -86,26 +114,27 @@ def github_callback(
         client_secret=settings.github_client_secret.get_secret_value(),
         redirect_uri=str(settings.github_callback_url),
     )
-    github_user_data = github_client.get_user(access_token)
+    github_user = github_client.get_user(access_token)
     # access_token is intentionally discarded here — never stored
 
-    github_user_id: int = github_user_data["id"]
-    github_login: str = github_user_data["login"]
-    email: str | None = github_user_data.get("email")
-
-    user, is_new = service.get_or_create_user(db, github_user_id, github_login, email)
+    user, is_new = service.get_or_create_user(
+        db, github_user.id, github_user.login, github_user.email
+    )
     if not is_new:
-        service.update_user_fields(db, user, github_login, email)
+        service.update_user_fields(db, user, github_user.login, github_user.email)
 
+    previous_token = request.cookies.get(settings.session_cookie_name)
+    if previous_token:
+        service.delete_session(db, previous_token)
     token = service.create_session(db, user.id)
     db.commit()
 
     resp = RedirectResponse(url=str(settings.frontend_url), status_code=302)
     resp.set_cookie(
         value=token,
-        **_session_cookie_kwargs(secure=settings.secure_cookies),
+        max_age=settings.session_ttl_days * 86400,
+        **_session_cookie_attrs(),
     )
-    resp.delete_cookie(key=_STATE_COOKIE, path="/api/v1/auth/github")
     return resp
 
 
@@ -116,7 +145,7 @@ def logout(request: Request, db: Session = Depends(get_db)) -> Response:
         service.delete_session(db, token)
     db.commit()
     resp = Response(status_code=204)
-    resp.delete_cookie(key=settings.session_cookie_name, path="/")
+    resp.delete_cookie(**_session_cookie_attrs())
     return resp
 
 

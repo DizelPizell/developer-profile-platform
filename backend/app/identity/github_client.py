@@ -1,10 +1,32 @@
 from collections.abc import Generator
+from dataclasses import dataclass
 
 import httpx
 
 from app.errors import AppError
 
 _TIMEOUT = httpx.Timeout(10.0)
+
+
+@dataclass(frozen=True)
+class GitHubUser:
+    id: int
+    login: str
+    email: str | None
+
+
+def _unavailable() -> AppError:
+    return AppError("GITHUB_UNAVAILABLE", "GitHub is unavailable", 502)
+
+
+def _json_object(response: httpx.Response) -> dict:
+    try:
+        data = response.json()
+    except ValueError:
+        raise _unavailable() from None
+    if not isinstance(data, dict):
+        raise _unavailable()
+    return data
 
 
 class GitHubOAuthClient:
@@ -32,21 +54,18 @@ class GitHubOAuthClient:
                 timeout=_TIMEOUT,
             )
             response.raise_for_status()
-        except httpx.TimeoutException as exc:
-            raise AppError("GITHUB_UNAVAILABLE", "GitHub OAuth is unavailable", 502) from exc
-        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-            raise AppError("GITHUB_UNAVAILABLE", "GitHub OAuth is unavailable", 502) from exc
+        except (httpx.HTTPStatusError, httpx.RequestError):
+            raise _unavailable() from None
 
-        data = response.json()
+        data = _json_object(response)
         if "error" in data:
-            raise AppError(
-                "OAUTH_CODE_INVALID",
-                "Invalid or expired OAuth code",
-                400,
-            )
-        return data["access_token"]
+            raise AppError("OAUTH_CODE_INVALID", "Invalid or expired OAuth code", 400)
+        access_token = data.get("access_token")
+        if not isinstance(access_token, str) or not access_token:
+            raise _unavailable()
+        return access_token
 
-    def get_user(self, access_token: str) -> dict:
+    def get_user(self, access_token: str) -> GitHubUser:
         """Fetch authenticated GitHub user (id, login, email)."""
         try:
             response = self._client.get(
@@ -58,12 +77,18 @@ class GitHubOAuthClient:
                 timeout=_TIMEOUT,
             )
             response.raise_for_status()
-        except httpx.TimeoutException as exc:
-            raise AppError("GITHUB_UNAVAILABLE", "GitHub API is unavailable", 502) from exc
-        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-            raise AppError("GITHUB_UNAVAILABLE", "GitHub API is unavailable", 502) from exc
+        except (httpx.HTTPStatusError, httpx.RequestError):
+            raise _unavailable() from None
 
-        return response.json()
+        data = _json_object(response)
+        user_id = data.get("id")
+        login = data.get("login")
+        if isinstance(user_id, bool) or not isinstance(user_id, int):
+            raise _unavailable()
+        if not isinstance(login, str) or not login:
+            raise _unavailable()
+        email = data.get("email")
+        return GitHubUser(id=user_id, login=login, email=email if isinstance(email, str) else None)
 
 
 def get_github_client() -> Generator[GitHubOAuthClient]:
