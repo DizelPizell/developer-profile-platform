@@ -84,6 +84,7 @@ The developer may change the slug after creation; uniqueness and format rules al
 
 - **Behavior on GitHub login change**: implemented as update-on-next-login (`github_login` and `email` are refreshed from the GitHub API on every login). This resolves the open question from the initial ADR text; the user's slug is never changed automatically.
 - **Account deletion**: how a user deletes their account and what happens to their data is not decided.
+- **Database settings isolation**: `Settings` requires `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_CALLBACK_URL`, and `FRONTEND_URL` at startup, so Alembic migrations (which only need `DATABASE_URL`) also require the GitHub keys to be present in the environment. Whether to split settings into a minimal `DatabaseSettings` (for migrations) and a full `AppSettings` (for the running app) is not decided.
 - **DateTime vs timestamptz**: `auth_sessions.expires_at` and `auth_sessions.created_at` use SQLAlchemy `DateTime` (naive, no timezone) backed by PostgreSQL `TIMESTAMP WITHOUT TIME ZONE`. The application normalises all timestamps to naive UTC via `_utcnow()`. Consider migrating to `TIMESTAMP WITH TIME ZONE` (`timestamptz`) for correctness if the database server timezone ever changes or a timezone-aware ORM layer is adopted.
 
 ## Refines / Supersedes
