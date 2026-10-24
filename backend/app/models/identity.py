@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, String, func, text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,11 +48,28 @@ class GitHubAccount(Base):
         unique=True,
         nullable=False,
     )
+    # GitHub data, refreshed on every login.
+    avatar_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
 
     user: Mapped["User"] = relationship(back_populates="github_account")
+
+
+PROFILE_TEXT_LIMITS: dict[str, int] = {
+    "display_name": 100,
+    "headline": 160,
+    "bio": 2000,
+    "location": 100,
+}
+
+
+def _text_check(column: str, max_length: int) -> CheckConstraint:
+    return CheckConstraint(
+        f"char_length({column}) <= {max_length} AND btrim({column}) <> ''",
+        name=f"ck_profiles_{column}",
+    )
 
 
 class Profile(Base):
@@ -62,6 +79,11 @@ class Profile(Base):
         CheckConstraint(
             r"slug ~ '^[a-z0-9][a-z0-9-]{1,37}[a-z0-9]$'",
             name="ck_profiles_slug_format",
+        ),
+        *(_text_check(column, limit) for column, limit in PROFILE_TEXT_LIMITS.items()),
+        CheckConstraint(
+            "status <> 'PUBLISHED' OR (display_name IS NOT NULL AND headline IS NOT NULL)",
+            name="ck_profiles_published_complete",
         ),
     )
 
@@ -78,6 +100,10 @@ class Profile(Base):
     )
     slug: Mapped[str] = mapped_column(String(39), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    headline: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    location: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

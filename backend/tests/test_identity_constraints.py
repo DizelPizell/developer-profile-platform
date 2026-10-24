@@ -136,7 +136,11 @@ def test_profile_status_published_accepted(db_session):
     db_session.add(u)
     db_session.flush()
 
-    db_session.add(_profile(u.id, "status-ok-pub", status="PUBLISHED"))
+    profile = _profile(u.id, "status-ok-pub", status="PUBLISHED")
+    # ck_profiles_published_complete requires both fields on a published profile.
+    profile.display_name = "Name"
+    profile.headline = "Headline"
+    db_session.add(profile)
     db_session.flush()  # must not raise
 
 

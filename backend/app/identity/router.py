@@ -118,10 +118,12 @@ def _complete_github_login(
     # access_token is intentionally discarded here — never stored
 
     user, is_new = service.get_or_create_user(
-        db, github_user.id, github_user.login, github_user.email
+        db, github_user.id, github_user.login, github_user.email, github_user.avatar_url
     )
     if not is_new:
-        service.update_user_fields(db, user, github_user.login, github_user.email)
+        service.update_user_fields(
+            db, user, github_user.login, github_user.email, avatar_url=github_user.avatar_url
+        )
 
     previous_token = request.cookies.get(settings.session_cookie_name)
     if previous_token:

@@ -158,7 +158,7 @@ class TestGetOrCreateUser:
 class TestUpdateUserFields:
     def test_login_and_email_updated(self, db_session):
         user, _ = get_or_create_user(db_session, 4001, "dave", "dave@example.com")
-        update_user_fields(db_session, user, "dave-renamed", "new@example.com")
+        update_user_fields(db_session, user, "dave-renamed", "new@example.com", avatar_url=None)
         assert user.github_login == "dave-renamed"
         assert user.email == "new@example.com"
 
@@ -168,7 +168,7 @@ class TestUpdateUserFields:
         assert profile_before is not None
         slug_before = profile_before.slug
 
-        update_user_fields(db_session, user, "eve-renamed", None)
+        update_user_fields(db_session, user, "eve-renamed", None, avatar_url=None)
 
         profile_after = get_user_profile(db_session, user.id)
         assert profile_after is not None

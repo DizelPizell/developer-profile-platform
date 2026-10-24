@@ -92,6 +92,7 @@ def get_or_create_user(
     github_user_id: int,
     github_login: str,
     email: str | None,
+    avatar_url: str | None = None,
 ) -> tuple[User, bool]:
     """
     Find or create User + GitHubAccount + Profile in one SAVEPOINT.
@@ -112,7 +113,7 @@ def get_or_create_user(
                 # pre-flush snapshot (autoflush) finds nothing pending and the
                 # SAVEPOINT is created before any INSERT is attempted.
                 user = User(github_user_id=github_user_id, github_login=github_login, email=email)
-                user.github_account = GitHubAccount()
+                user.github_account = GitHubAccount(avatar_url=avatar_url)
                 user.profile = Profile(slug=slug, status="PRIVATE")
                 db.add(user)
                 db.flush()
@@ -127,11 +128,17 @@ def get_or_create_user(
 
 
 def update_user_fields(
-    db: Session, user: User, github_login: str, email: str | None
+    db: Session,
+    user: User,
+    github_login: str,
+    email: str | None,
+    *,
+    avatar_url: str | None,
 ) -> None:
     """Update mutable GitHub fields on repeat login. Slug is never changed here."""
     user.github_login = github_login
     user.email = email
+    user.github_account.avatar_url = avatar_url
     db.flush()
 
 

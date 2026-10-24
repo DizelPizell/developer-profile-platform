@@ -8,11 +8,22 @@ from app.errors import AppError
 _TIMEOUT = httpx.Timeout(10.0)
 
 
+_MAX_AVATAR_URL = 2048
+
+
 @dataclass(frozen=True)
 class GitHubUser:
     id: int
     login: str
     email: str | None
+    avatar_url: str | None
+
+
+def _avatar_url(value: object) -> str | None:
+    # Rendered as <img src> by the frontend: accept only bounded https URLs.
+    if isinstance(value, str) and value.startswith("https://") and len(value) <= _MAX_AVATAR_URL:
+        return value
+    return None
 
 
 def _unavailable() -> AppError:
@@ -88,7 +99,12 @@ class GitHubOAuthClient:
         if not isinstance(login, str) or not login:
             raise _unavailable()
         email = data.get("email")
-        return GitHubUser(id=user_id, login=login, email=email if isinstance(email, str) else None)
+        return GitHubUser(
+            id=user_id,
+            login=login,
+            email=email if isinstance(email, str) else None,
+            avatar_url=_avatar_url(data.get("avatar_url")),
+        )
 
 
 def get_github_client() -> Generator[GitHubOAuthClient]:
