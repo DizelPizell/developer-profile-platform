@@ -1,5 +1,5 @@
 import os
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -118,6 +118,9 @@ class _MockTransport(httpx.BaseTransport):
         return self._handler(request)
 
 
+GitHubResponder = Callable[[httpx.Request], httpx.Response]
+
+
 def make_github_transport(
     *,
     access_token: str = "gha_test_token",
@@ -125,21 +128,28 @@ def make_github_transport(
     github_login: str = "testuser",
     email: str | None = "test@example.com",
     code_error: str | None = None,
+    token_response: GitHubResponder | None = None,
+    user_response: GitHubResponder | None = None,
 ) -> _MockTransport:
     """
     Returns a synchronous mock transport that handles GitHub OAuth and user API calls.
 
     Pass code_error to simulate GitHub returning an error body on code exchange (e.g.
-    'bad_verification_code').
+    'bad_verification_code'). token_response / user_response replace the default
+    responses entirely; they may also raise httpx exceptions (e.g. ReadTimeout).
     """
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
         if "login/oauth/access_token" in url:
+            if token_response is not None:
+                return token_response(request)
             if code_error:
                 return httpx.Response(200, json={"error": code_error})
             return httpx.Response(200, json={"access_token": access_token})
         if "api.github.com/user" in url:
+            if user_response is not None:
+                return user_response(request)
             return httpx.Response(
                 200,
                 json={"id": github_user_id, "login": github_login, "email": email},
@@ -150,30 +160,48 @@ def make_github_transport(
 
 
 @pytest.fixture
-def auth_client(db_session: Session) -> Generator[TestClient]:
+def make_auth_client(db_session: Session) -> Generator[Callable[..., TestClient]]:
     """
-    TestClient with get_db and get_github_client both overridden.
+    Factory for TestClients with get_db and get_github_client overridden.
 
-    Uses a default GitHub mock (user id=10001, login='testuser'). Individual tests
-    that need a different mock can override get_github_client themselves.
+    The GitHub override is global to the app, so the transport passed to the most
+    recent call is used by every client created in the test.
     """
     from app.dependencies import get_db
     from app.identity.github_client import GitHubOAuthClient, get_github_client
     from app.main import app
 
-    transport = make_github_transport()
-    mock_client = GitHubOAuthClient(httpx.Client(transport=transport))
+    clients: list[TestClient] = []
 
     def override_db() -> Generator[Session]:
         yield db_session
 
-    def override_github() -> Generator[GitHubOAuthClient]:
-        yield mock_client
+    def make(
+        transport: _MockTransport | None = None, **client_kwargs
+    ) -> TestClient:
+        mock_client = GitHubOAuthClient(
+            httpx.Client(transport=transport or make_github_transport())
+        )
 
-    app.dependency_overrides[get_db] = override_db
-    app.dependency_overrides[get_github_client] = override_github
+        def override_github() -> Generator[GitHubOAuthClient]:
+            yield mock_client
 
-    with TestClient(app, base_url=HTTPS_BASE_URL, follow_redirects=False) as client:
-        yield client
+        app.dependency_overrides[get_db] = override_db
+        app.dependency_overrides[get_github_client] = override_github
+        client = TestClient(
+            app, base_url=HTTPS_BASE_URL, follow_redirects=False, **client_kwargs
+        )
+        clients.append(client)
+        return client
 
+    yield make
+
+    for client in clients:
+        client.close()
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_client(make_auth_client) -> TestClient:
+    """TestClient with the default GitHub mock (user id=10001, login='testuser')."""
+    return make_auth_client()
