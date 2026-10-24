@@ -256,23 +256,21 @@ class TestLoginEndpoint:
 
 
 class TestCallbackEndpoint:
-    def test_access_denied_returns_400(self, auth_client):
-        resp = auth_client.get("/api/v1/auth/github/callback?error=access_denied")
+    def test_access_denied_returns_400(self, bare_client):
+        resp = bare_client.get("/api/v1/auth/github/callback?error=access_denied")
         assert resp.status_code == 400
         body = resp.json()
         assert body["error"]["code"] == "ACCESS_DENIED"
 
-    def test_missing_state_returns_400(self, auth_client):
-        resp = auth_client.get("/api/v1/auth/github/callback?code=abc")
+    def test_missing_state_returns_400(self, bare_client):
+        resp = bare_client.get("/api/v1/auth/github/callback?code=abc")
         assert resp.status_code == 400
         body = resp.json()
         assert body["error"]["code"] == "INVALID_STATE"
 
-    def test_state_mismatch_returns_400(self, auth_client):
-        resp = auth_client.get(
-            "/api/v1/auth/github/callback?code=abc&state=wrong",
-            cookies={"oauth_state": "correct_state"},
-        )
+    def test_state_mismatch_returns_400(self, bare_client):
+        bare_client.cookies.set("oauth_state", "correct_state")
+        resp = bare_client.get("/api/v1/auth/github/callback?code=abc&state=wrong")
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "INVALID_STATE"
 
