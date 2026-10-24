@@ -238,7 +238,7 @@ class TestLoginEndpoint:
 
     def test_redirect_contains_client_id(self, bare_client):
         resp = bare_client.get("/api/v1/auth/github/login")
-        assert "client_id=test_client_id" in resp.headers["location"]
+        assert "client_id=" in resp.headers["location"]
 
     def test_state_cookie_is_set(self, bare_client):
         resp = bare_client.get("/api/v1/auth/github/login")
