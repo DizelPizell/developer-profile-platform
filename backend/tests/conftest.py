@@ -1,10 +1,13 @@
 import os
+from collections.abc import Generator
 from pathlib import Path
 from urllib.parse import urlparse
 
+import httpx
 import pytest
 from alembic import command as alembic_command
 from alembic.config import Config
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
@@ -99,3 +102,74 @@ def db_session(db_engine):
         session.close()
         transaction.rollback()
         connection.close()
+
+
+class _MockTransport(httpx.BaseTransport):
+    """Minimal synchronous mock transport for httpx.Client."""
+
+    def __init__(self, handler):
+        self._handler = handler
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return self._handler(request)
+
+
+def make_github_transport(
+    *,
+    access_token: str = "gha_test_token",
+    github_user_id: int = 10001,
+    github_login: str = "testuser",
+    email: str | None = "test@example.com",
+    code_error: str | None = None,
+) -> _MockTransport:
+    """
+    Returns a synchronous mock transport that handles GitHub OAuth and user API calls.
+
+    Pass code_error to simulate GitHub returning an error body on code exchange (e.g.
+    'bad_verification_code').
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "login/oauth/access_token" in url:
+            if code_error:
+                return httpx.Response(200, json={"error": code_error})
+            return httpx.Response(200, json={"access_token": access_token})
+        if "api.github.com/user" in url:
+            return httpx.Response(
+                200,
+                json={"id": github_user_id, "login": github_login, "email": email},
+            )
+        return httpx.Response(404, json={"message": "Not Found"})
+
+    return _MockTransport(handler)
+
+
+@pytest.fixture
+def auth_client(db_session: Session) -> Generator[TestClient]:
+    """
+    TestClient with get_db and get_github_client both overridden.
+
+    Uses a default GitHub mock (user id=10001, login='testuser'). Individual tests
+    that need a different mock can override get_github_client themselves.
+    """
+    from app.dependencies import get_db
+    from app.identity.github_client import GitHubOAuthClient, get_github_client
+    from app.main import app
+
+    transport = make_github_transport()
+    mock_client = GitHubOAuthClient(httpx.Client(transport=transport))
+
+    def override_db() -> Generator[Session]:
+        yield db_session
+
+    def override_github() -> Generator[GitHubOAuthClient]:
+        yield mock_client
+
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_github_client] = override_github
+
+    with TestClient(app, raise_server_exceptions=True, follow_redirects=False) as client:
+        yield client
+
+    app.dependency_overrides.clear()
