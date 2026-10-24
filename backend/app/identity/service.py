@@ -106,14 +106,15 @@ def get_or_create_user(
     for attempt in range(5):
         slug = base_slug if attempt == 0 else _slug_with_random_suffix(base_slug)
 
-        user = User(github_user_id=github_user_id, github_login=github_login, email=email)
-        # SQLAlchemy sets FKs (user_id) from the relationship during flush
-        user.github_account = GitHubAccount()
-        user.profile = Profile(slug=slug, status="PRIVATE")
-        db.add(user)
-
         try:
             with db.begin_nested():
+                # Objects are added INSIDE the SAVEPOINT so that begin_nested()'s
+                # pre-flush snapshot (autoflush) finds nothing pending and the
+                # SAVEPOINT is created before any INSERT is attempted.
+                user = User(github_user_id=github_user_id, github_login=github_login, email=email)
+                user.github_account = GitHubAccount()
+                user.profile = Profile(slug=slug, status="PRIVATE")
+                db.add(user)
                 db.flush()
             return user, True
         except IntegrityError:

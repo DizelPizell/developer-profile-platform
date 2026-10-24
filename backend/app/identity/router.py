@@ -1,7 +1,7 @@
 import secrets
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
@@ -120,20 +120,17 @@ def logout(request: Request, db: Session = Depends(get_db)) -> Response:
     return resp
 
 
-@router.get("/me", response_model=MeResponse)
+@router.get("/me")
 def me(
-    request: Request,
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user),
-) -> JSONResponse:
+) -> MeResponse:
     if current_user is None:
         raise AppError("UNAUTHORIZED", "Authentication required", 401)
     profile = service.get_user_profile(db, current_user.id)
-    return JSONResponse(
-        content={
-            "id": str(current_user.id),
-            "github_login": current_user.github_login,
-            "email": current_user.email,
-            "profile_slug": profile.slug if profile else None,
-        }
+    return MeResponse(
+        id=current_user.id,
+        github_login=current_user.github_login,
+        email=current_user.email,
+        profile_slug=profile.slug if profile else None,
     )

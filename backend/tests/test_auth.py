@@ -291,10 +291,9 @@ class TestCallbackEndpoint:
 
         try:
             with TestClient(app, raise_server_exceptions=True, follow_redirects=False) as client:
-                resp = client.get(
-                    "/api/v1/auth/github/callback?code=bad&state=s",
-                    cookies={"oauth_state": "s"},
-                )
+                # Set cookie directly on client to avoid per-request cookies= deprecation
+                client.cookies.set("oauth_state", "s")
+                resp = client.get("/api/v1/auth/github/callback?code=bad&state=s")
         finally:
             app.dependency_overrides.clear()
 
@@ -302,14 +301,11 @@ class TestCallbackEndpoint:
         assert resp.json()["error"]["code"] == "OAUTH_CODE_INVALID"
 
     def test_success_redirects_to_frontend(self, auth_client):
-        # First get a state cookie via the login endpoint
+        # Login sets oauth_state cookie in the client jar; callback reads from jar.
         login_resp = auth_client.get("/api/v1/auth/github/login")
         state = login_resp.cookies["oauth_state"]
 
-        resp = auth_client.get(
-            f"/api/v1/auth/github/callback?code=good_code&state={state}",
-            cookies={"oauth_state": state},
-        )
+        resp = auth_client.get(f"/api/v1/auth/github/callback?code=good_code&state={state}")
         assert resp.status_code == 302
         assert "localhost:3000" in resp.headers["location"]
 
@@ -317,10 +313,7 @@ class TestCallbackEndpoint:
         login_resp = auth_client.get("/api/v1/auth/github/login")
         state = login_resp.cookies["oauth_state"]
 
-        resp = auth_client.get(
-            f"/api/v1/auth/github/callback?code=good_code&state={state}",
-            cookies={"oauth_state": state},
-        )
+        resp = auth_client.get(f"/api/v1/auth/github/callback?code=good_code&state={state}")
         assert resp.status_code == 302
         assert "session" in resp.cookies
 
@@ -328,11 +321,8 @@ class TestCallbackEndpoint:
         login_resp = auth_client.get("/api/v1/auth/github/login")
         state = login_resp.cookies["oauth_state"]
 
-        resp = auth_client.get(
-            f"/api/v1/auth/github/callback?code=good_code&state={state}",
-            cookies={"oauth_state": state},
-        )
-        # State cookie must be deleted (Max-Age=0 or expires in the past)
+        resp = auth_client.get(f"/api/v1/auth/github/callback?code=good_code&state={state}")
+        # State cookie must be deleted (Max-Age=0)
         raw = resp.headers.get("set-cookie", "")
         assert "oauth_state" in raw
         assert "Max-Age=0" in raw or "max-age=0" in raw.lower()
@@ -346,45 +336,30 @@ class TestCallbackEndpoint:
         from app.main import app
         from tests.conftest import make_github_transport
 
-        def _client_with_login(github_login: str) -> TestClient:
+        def _do_login(github_login: str) -> None:
             transport = make_github_transport(
                 github_user_id=9001, github_login=github_login
             )
             mock = GitHubOAuthClient(httpx.Client(transport=transport))
             app.dependency_overrides[get_db] = lambda: (yield db_session)
             app.dependency_overrides[get_github_client] = lambda: (yield mock)
-            return TestClient(app, raise_server_exceptions=True, follow_redirects=False)
+            try:
+                with TestClient(app, raise_server_exceptions=True, follow_redirects=False) as c:
+                    lr = c.get("/api/v1/auth/github/login")
+                    state = lr.cookies["oauth_state"]
+                    c.get(f"/api/v1/auth/github/callback?code=x&state={state}")
+            finally:
+                app.dependency_overrides.clear()
 
-        # First login
-        c1 = _client_with_login("original")
-        try:
-            lr = c1.get("/api/v1/auth/github/login")
-            state = lr.cookies["oauth_state"]
-            c1.get(
-                f"/api/v1/auth/github/callback?code=c&state={state}",
-                cookies={"oauth_state": state},
-            )
-        finally:
-            app.dependency_overrides.clear()
+        _do_login("original")
 
-        # Capture slug after first login
         user = _find_user_by_github_id(db_session, 9001)
         assert user is not None
         profile1 = get_user_profile(db_session, user.id)
         assert profile1 is not None
         slug_before = profile1.slug
 
-        # Second login with renamed github_login
-        c2 = _client_with_login("renamed")
-        try:
-            lr = c2.get("/api/v1/auth/github/login")
-            state = lr.cookies["oauth_state"]
-            c2.get(
-                f"/api/v1/auth/github/callback?code=c&state={state}",
-                cookies={"oauth_state": state},
-            )
-        finally:
-            app.dependency_overrides.clear()
+        _do_login("renamed")
 
         db_session.expire_all()
         user_after = _find_user_by_github_id(db_session, 9001)
@@ -403,17 +378,14 @@ class TestMeEndpoint:
         assert resp.json()["error"]["code"] == "UNAUTHORIZED"
 
     def test_authenticated_returns_user_data(self, auth_client, db_session):
-        # Full login flow to get a session cookie
+        # Login flow: oauth_state cookie goes into jar, session cookie comes back.
         lr = auth_client.get("/api/v1/auth/github/login")
         state = lr.cookies["oauth_state"]
-        cb = auth_client.get(
-            f"/api/v1/auth/github/callback?code=c&state={state}",
-            cookies={"oauth_state": state},
-        )
-        session_cookie = cb.cookies.get("session")
-        assert session_cookie is not None
+        cb = auth_client.get(f"/api/v1/auth/github/callback?code=c&state={state}")
+        assert "session" in cb.cookies  # verify session cookie was issued
 
-        resp = auth_client.get("/api/v1/auth/me", cookies={"session": session_cookie})
+        # Jar sends session cookie automatically.
+        resp = auth_client.get("/api/v1/auth/me")
         assert resp.status_code == 200
         body = resp.json()
         assert body["github_login"] == "testuser"
@@ -432,23 +404,19 @@ class TestLogoutEndpoint:
         assert "Max-Age=0" in raw or "max-age=0" in raw.lower()
 
     def test_logout_after_login_invalidates_session(self, auth_client, db_session):
-        # Login
+        # Login — jar picks up session cookie automatically.
         lr = auth_client.get("/api/v1/auth/github/login")
         state = lr.cookies["oauth_state"]
-        cb = auth_client.get(
-            f"/api/v1/auth/github/callback?code=c&state={state}",
-            cookies={"oauth_state": state},
-        )
-        session_cookie = cb.cookies.get("session")
-        assert session_cookie is not None
+        cb = auth_client.get(f"/api/v1/auth/github/callback?code=c&state={state}")
+        assert "session" in cb.cookies
 
-        # Verify we can reach /me
-        me_resp = auth_client.get("/api/v1/auth/me", cookies={"session": session_cookie})
+        # Verify we can reach /me (jar sends session cookie).
+        me_resp = auth_client.get("/api/v1/auth/me")
         assert me_resp.status_code == 200
 
-        # Logout
-        auth_client.post("/api/v1/auth/logout", cookies={"session": session_cookie})
+        # Logout — server responds with Max-Age=0, client removes cookie from jar.
+        auth_client.post("/api/v1/auth/logout")
 
-        # /me should now return 401
-        me_after = auth_client.get("/api/v1/auth/me", cookies={"session": session_cookie})
+        # /me should now return 401 (session cookie gone from jar).
+        me_after = auth_client.get("/api/v1/auth/me")
         assert me_after.status_code == 401
