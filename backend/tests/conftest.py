@@ -169,7 +169,7 @@ def make_auth_client(db_session: Session) -> Generator[Callable[..., TestClient]
     """
     from app.dependencies import get_db
     from app.identity.github_client import GitHubOAuthClient, get_github_client
-    from app.main import app
+    from app.main import app, frontend_origin
 
     clients: list[TestClient] = []
 
@@ -177,8 +177,14 @@ def make_auth_client(db_session: Session) -> Generator[Callable[..., TestClient]
         yield db_session
 
     def make(
-        transport: _MockTransport | None = None, **client_kwargs
+        transport: _MockTransport | None = None,
+        *,
+        send_origin: bool = True,
+        **client_kwargs,
     ) -> TestClient:
+        # State-changing requests must carry the frontend Origin, as a browser would.
+        if send_origin:
+            client_kwargs.setdefault("headers", {"Origin": frontend_origin})
         mock_client = GitHubOAuthClient(
             httpx.Client(transport=transport or make_github_transport())
         )

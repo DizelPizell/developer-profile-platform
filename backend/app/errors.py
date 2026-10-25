@@ -5,8 +5,9 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
+from app.request_id import REQUEST_ID_HEADER
 
 logger = logging.getLogger(__name__)
 
@@ -83,13 +84,41 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException) -> J
     return error_response(request, exc.status_code, code, message, headers=exc.headers)
 
 
-async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    return internal_error_response(request, exc)
+class UnhandledErrorMiddleware:
+    """
+    Turns unexpected exceptions into 500 INTERNAL_ERROR responses.
+
+    Replaces an Exception handler, which Starlette runs in ServerErrorMiddleware
+    outside every user middleware; placed inside CORSMiddleware, the 500 response
+    gets CORS headers like any other response.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        response_started = False
+
+        async def send_tracking(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_tracking)
+        except Exception as exc:
+            if response_started:
+                raise
+            response = internal_error_response(Request(scope), exc)
+            await response(scope, receive, send)
 
 
-def setup_error_handling(app: FastAPI) -> None:
-    app.add_middleware(RequestIdMiddleware)
+def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_error_handler)
-    app.add_exception_handler(Exception, unhandled_error_handler)

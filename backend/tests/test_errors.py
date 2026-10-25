@@ -8,8 +8,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.dependencies import get_current_user
-from app.errors import setup_error_handling
+from app.errors import register_error_handlers
 from app.main import app
+from app.request_id import RequestIdMiddleware
 
 ERROR_KEYS = {"code", "message", "details", "request_id"}
 
@@ -64,7 +65,8 @@ def test_422_lists_fields_and_types_without_input_values():
     # No V1 endpoint can currently fail request validation, so use a minimal app
     # wired with the same error handling.
     validation_app = FastAPI()
-    setup_error_handling(validation_app)
+    register_error_handlers(validation_app)
+    validation_app.add_middleware(RequestIdMiddleware)
 
     @validation_app.get("/items/{item_id}")
     def get_item(item_id: int) -> dict:
