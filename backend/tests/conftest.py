@@ -127,6 +127,7 @@ def make_github_transport(
     github_user_id: int = 10001,
     github_login: str = "testuser",
     email: str | None = "test@example.com",
+    avatar_url: str | None = "https://avatars.githubusercontent.com/u/10001?v=4",
     code_error: str | None = None,
     token_response: GitHubResponder | None = None,
     user_response: GitHubResponder | None = None,
@@ -137,6 +138,7 @@ def make_github_transport(
     Pass code_error to simulate GitHub returning an error body on code exchange (e.g.
     'bad_verification_code'). token_response / user_response replace the default
     responses entirely; they may also raise httpx exceptions (e.g. ReadTimeout).
+    avatar_url=None omits the field from the user response.
     """
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -150,10 +152,10 @@ def make_github_transport(
         if "api.github.com/user" in url:
             if user_response is not None:
                 return user_response(request)
-            return httpx.Response(
-                200,
-                json={"id": github_user_id, "login": github_login, "email": email},
-            )
+            user = {"id": github_user_id, "login": github_login, "email": email}
+            if avatar_url is not None:
+                user["avatar_url"] = avatar_url
+            return httpx.Response(200, json=user)
         return httpx.Response(404, json={"message": "Not Found"})
 
     return _MockTransport(handler)
@@ -205,6 +207,16 @@ def make_auth_client(db_session: Session) -> Generator[Callable[..., TestClient]
     for client in clients:
         client.close()
     app.dependency_overrides.clear()
+
+
+def login(client: TestClient) -> str:
+    """Run the OAuth flow against the mocked GitHub; returns the session token."""
+    from app.settings import settings
+
+    state = client.get("/api/v1/auth/github/login").cookies["oauth_state"]
+    resp = client.get(f"/api/v1/auth/github/callback?code=c&state={state}")
+    assert resp.status_code == 302, resp.text
+    return resp.cookies[settings.session_cookie_name]
 
 
 @pytest.fixture
