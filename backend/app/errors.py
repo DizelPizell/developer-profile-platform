@@ -19,11 +19,16 @@ class AppError(Exception):
         message: str,
         status_code: int = 400,
         details: dict | None = None,
+        *,
+        log_context: dict[str, str | int | None] | None = None,
     ) -> None:
         self.code = code
         self.message = message
         self.status_code = status_code
         self.details = details or {}
+        # Server-side diagnostics only; never part of the response. Callers must
+        # not put secrets, URLs with parameters or upstream response bodies here.
+        self.log_context = log_context
 
 
 def error_response(
@@ -51,6 +56,9 @@ def error_response(
 
 
 def app_error_response(request: Request, exc: AppError) -> JSONResponse:
+    if exc.log_context:
+        context = " ".join(f"{key}={value}" for key, value in exc.log_context.items())
+        logger.warning("%s (request_id=%s) %s", exc.code, request.state.request_id, context)
     return error_response(request, exc.status_code, exc.code, exc.message, exc.details)
 
 

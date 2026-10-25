@@ -26,17 +26,29 @@ def _avatar_url(value: object) -> str | None:
     return None
 
 
-def _unavailable() -> AppError:
-    return AppError("GITHUB_UNAVAILABLE", "GitHub is unavailable", 502)
+def _unavailable(reason: str, github_status: int | None) -> AppError:
+    # Logged as the failure reason: exception type or a fixed label plus GitHub's
+    # HTTP status — never the response body, URLs, code, state or tokens.
+    return AppError(
+        "GITHUB_UNAVAILABLE",
+        "GitHub is unavailable",
+        502,
+        log_context={"reason": reason, "github_status": github_status},
+    )
+
+
+def _request_failed(exc: httpx.HTTPError) -> AppError:
+    status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+    return _unavailable(type(exc).__name__, status)
 
 
 def _json_object(response: httpx.Response) -> dict:
     try:
         data = response.json()
-    except ValueError:
-        raise _unavailable() from None
+    except ValueError as exc:
+        raise _unavailable(type(exc).__name__, response.status_code) from None
     if not isinstance(data, dict):
-        raise _unavailable()
+        raise _unavailable("non_object_body", response.status_code)
     return data
 
 
@@ -65,15 +77,15 @@ class GitHubOAuthClient:
                 timeout=_TIMEOUT,
             )
             response.raise_for_status()
-        except (httpx.HTTPStatusError, httpx.RequestError):
-            raise _unavailable() from None
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            raise _request_failed(exc) from None
 
         data = _json_object(response)
         if "error" in data:
             raise AppError("OAUTH_CODE_INVALID", "Invalid or expired OAuth code", 400)
         access_token = data.get("access_token")
         if not isinstance(access_token, str) or not access_token:
-            raise _unavailable()
+            raise _unavailable("missing_access_token", response.status_code)
         return access_token
 
     def get_user(self, access_token: str) -> GitHubUser:
@@ -88,16 +100,16 @@ class GitHubOAuthClient:
                 timeout=_TIMEOUT,
             )
             response.raise_for_status()
-        except (httpx.HTTPStatusError, httpx.RequestError):
-            raise _unavailable() from None
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            raise _request_failed(exc) from None
 
         data = _json_object(response)
         user_id = data.get("id")
         login = data.get("login")
         if isinstance(user_id, bool) or not isinstance(user_id, int):
-            raise _unavailable()
+            raise _unavailable("invalid_user_id", response.status_code)
         if not isinstance(login, str) or not login:
-            raise _unavailable()
+            raise _unavailable("invalid_login", response.status_code)
         email = data.get("email")
         return GitHubUser(
             id=user_id,
