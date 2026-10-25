@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db
 from app.errors import AppError, app_error_response, internal_error_response
 from app.identity import service
 from app.identity.github_client import GitHubOAuthClient, get_github_client
@@ -39,15 +39,6 @@ def _session_cookie_attrs() -> dict:
         "samesite": "lax",
         "secure": settings.secure_cookies,
     }
-
-
-def get_current_user(
-    request: Request, db: Session = Depends(get_db)
-) -> User | None:
-    token = request.cookies.get(settings.session_cookie_name)
-    if not token:
-        return None
-    return service.get_session_user(db, token)
 
 
 @router.get("/github/login")
@@ -154,10 +145,8 @@ def logout(request: Request, db: Session = Depends(get_db)) -> Response:
 @router.get("/me")
 def me(
     db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> MeResponse:
-    if current_user is None:
-        raise AppError("UNAUTHORIZED", "Authentication required", 401)
     profile = service.get_user_profile(db, current_user.id)
     return MeResponse(
         id=current_user.id,

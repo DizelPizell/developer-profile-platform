@@ -7,8 +7,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.dependencies import get_current_user
 from app.errors import setup_error_handling
-from app.identity.router import get_current_user
 from app.main import app
 
 ERROR_KEYS = {"code", "message", "details", "request_id"}

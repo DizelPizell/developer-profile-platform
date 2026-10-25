@@ -138,7 +138,9 @@ def update_user_fields(
     """Update mutable GitHub fields on repeat login. Slug is never changed here."""
     user.github_login = github_login
     user.email = email
-    user.github_account.avatar_url = avatar_url
+    # A response without a usable avatar keeps the stored one.
+    if avatar_url is not None:
+        user.github_account.avatar_url = avatar_url
     db.flush()
 
 
