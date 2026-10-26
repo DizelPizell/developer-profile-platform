@@ -47,6 +47,37 @@ def test_migrations_apply_to_empty_database(db_engine, monkeypatch):
                 "ck_profiles_published_complete",
             } <= checks
 
+            assert {"projects", "technologies", "project_technologies", "project_showcases"} <= set(
+                schema.get_table_names()
+            )
+            project_checks = {c["name"] for c in schema.get_check_constraints("projects")}
+            assert {
+                "ck_projects_state",
+                "ck_projects_title",
+                "ck_projects_summary",
+                "ck_projects_description",
+                "ck_projects_problem",
+                "ck_projects_results",
+                "ck_projects_role",
+                "ck_projects_contribution",
+                "ck_projects_published_complete",
+            } <= project_checks
+            technology_indexes = {i["name"]: i for i in schema.get_indexes("technologies")}
+            assert technology_indexes["uq_technologies_name_lower"]["unique"]
+            with engine.connect() as conn:
+                deferrable = conn.execute(
+                    text(
+                        "SELECT condeferrable, condeferred FROM pg_constraint "
+                        "WHERE conname = 'uq_project_showcases_position'"
+                    )
+                ).one()
+            # DEFERRABLE INITIALLY IMMEDIATE (ADR-015).
+            assert tuple(deferrable) == (True, False)
+
+            alembic_command.downgrade(cfg, "a3f1c9e27b54")
+            assert "projects" not in inspect(engine).get_table_names()
+            assert "profiles" in inspect(engine).get_table_names()
+
             alembic_command.downgrade(cfg, "base")
             assert set(inspect(engine).get_table_names()) == {"alembic_version"}
 
