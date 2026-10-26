@@ -17,7 +17,7 @@ Stages of the V1 frontend. Stack and rendering: ADR-014-frontend-stack.md. Scree
 
 **Tests**: none.
 
-## F1 — Next.js skeleton, tokens, API client, CI
+## F1 — Next.js skeleton, tokens, API client, CI [done]
 
 **Goal**: an empty but working application that later stages build on.
 
@@ -30,12 +30,15 @@ Stages of the V1 frontend. Stack and rendering: ADR-014-frontend-stack.md. Scree
   - turns the shared error format into a typed error with `code`, `message`, `details` and `request_id`;
   - reports a network failure (including an unreadable CORS response) as a separate error kind;
   - handles 204 without a body.
-- Both API variables are documented in `.env.example`.
-- Lint, typecheck and tests run in CI and pass. The job shape (separate workflow or shared) is an open question in ADR-014.
+- Both API variables are documented in `frontend/.env.example` and checked at server start and during the build.
+- Lint, typecheck, tests and build run in CI (`.github/workflows/frontend.yml`, ADR-014) and pass.
 
 **Tests** (Vitest):
 - API client: success JSON, error format parsing, 204, network failure, `credentials: "include"`.
-- One component test proving that a base component renders with the tokens and a visible focus state.
+- Address selection: `NEXT_PUBLIC_API_URL` in the browser, `API_INTERNAL_URL` on the server; missing and invalid values.
+- Smoke test of the start page; the font configuration keeps the cyrillic subset.
+
+Done in F1: Node 24 LTS, the shadcn/ui components Button, Input, Textarea and Label restyled with the tokens, and a stub start page.
 
 ## F2 — Sign-in via GitHub, current user, logout
 

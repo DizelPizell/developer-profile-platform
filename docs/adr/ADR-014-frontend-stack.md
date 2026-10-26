@@ -37,9 +37,22 @@ The backend now has GitHub login, the current user, profile editing and publicat
 
 Routes and screens are described in `docs/frontend/DESIGN.md`.
 
+- Both addresses are checked when the server starts and during `next build` (which inlines `NEXT_PUBLIC_API_URL`); a missing or non-http(s) value stops the process.
+
 ### Running locally
 
 For now the frontend runs with `npm run dev` on the host, not in Docker Compose.
+
+### Versions (fixed in F1)
+
+- **Node.js 24 LTS** (`frontend/.nvmrc`, `engines: ">=24 <25"`). Node 20 is end-of-life, and the current Vitest, jsdom, ESLint and Vite releases no longer support it.
+- **npm**, with `package-lock.json` committed; exact library versions are in the lock file.
+- Next.js 16.4, React 19.3, TypeScript 5 (the version Next.js supports; TypeScript 7 is not used yet), Tailwind CSS 4, ESLint 9 with `eslint-config-next`, Vitest 5 with React Testing Library and jsdom.
+- Next.js `cacheComponents` and `partialPrefetching` are off: they change the caching model, which is still open (see "Caching of public pages").
+
+### Frontend CI
+
+A separate workflow, `.github/workflows/frontend.yml`, runs on changes to `frontend/**` and to the workflow itself, with `permissions: contents: read`. It uses the Node version from `.nvmrc` with the npm cache and runs `npm ci`, lint, typecheck, test and build. It is separate from the backend workflow so each runs only when its own code changes.
 
 ## Consequences
 
@@ -66,8 +79,6 @@ For now the frontend runs with `npm run dev` on the host, not in Docker Compose.
 
 - **Session cookie on the server**: how server-side Next.js code sees the session cookie when the frontend and the API run on different ports (and, later, different hosts). Needed only if a server-rendered page must know the user.
 - **Production topology**: one origin behind Nginx as in `ARCHITECTURE.md`, or a separate API host; this decides whether CORS stays and how `FRONTEND_URL` is set.
-- **Frontend CI job shape**: F1 requires lint, typecheck and tests to run in CI (`FRONTEND_PLAN.md`). Not decided: a separate workflow file or a job in a shared one, and path filters.
 - **Playwright**: when end-to-end tests are introduced (sign-in in F2 or the SSR 404 in F4).
 - **Caching of public pages**: whether to cache or statically regenerate `/u/[slug]`, and how unpublishing invalidates it.
 - **Sync status and file content for the IDE view**: how the frontend learns the GitHub sync status and loads file contents for the read-only code viewer. Depends on ADR-009, ADR-010 and ADR-011, where these are still open.
-- **Exact versions** of Node.js, Next.js and the libraries; fixed when the skeleton is created (F1).

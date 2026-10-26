@@ -31,7 +31,7 @@ Order relative to the backend:
 - Origin check and CORS for state-changing requests (ADR-013) [done]
 
 ## Phase 2 - Public Profile
-- Next.js skeleton (FRONTEND_PLAN F1)
+- Next.js skeleton (FRONTEND_PLAN F1) [done]
 - public endpoint (ADR-013) [done]
 - public DTOs (ADR-013) [done]
 - public page (FRONTEND_PLAN F4)
