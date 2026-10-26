@@ -43,7 +43,7 @@ A public profile contains:
 
 The developer controls which projects are featured and their order.
 
-Implemented so far (ADR-013): photo is the GitHub avatar, name is `display_name`, specialization is `headline`, short description is `bio` (plain text), plus `location`; GitHub is shown as `github_login`. A profile can be published only with a name and a headline. Experience, skills, education, contacts and projects come with later phases.
+Implemented so far (ADR-013): photo is the GitHub avatar, name is `display_name`, specialization is `headline`, short description is `bio` (plain text), plus `location`; GitHub is shown as `github_login`. A profile can be published only with a name and a headline. Projects and up to 3 featured projects come in Phase 3 (ADR-015); a profile can be published without projects. Experience, skills, education and contacts come with later phases.
 
 ## Project
 
@@ -63,6 +63,10 @@ A project can contain:
 - highlights
 
 A project does not require GitHub or a demo.
+
+Phase 3 (ADR-015) defines `title` (name), `summary` (short description), `description` (full description), `problem`, `results`, `role`, `contribution` and technologies. Publishing a project requires the title, the short description, role, contribution and at least one technology. Goals, architecture, highlights, screenshots, the demo URL and the GitHub repository come in later phases.
+
+A project is `DRAFT`, `PUBLISHED` or `ARCHIVED`. A published project is public or hidden. It is shown on the public profile only when it is published, public, and the profile itself is published.
 
 ## Evidence model
 

@@ -104,7 +104,7 @@ GET /public/profiles/{slug}
 
 No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A private profile, a missing profile and a malformed slug return the same 404 body as an unknown URL (only `request_id` differs).
 
-`PublicProfileResponse` (whitelist — never email, internal ids or status):
+`PublicProfileResponse` (whitelist — never email, internal user/profile ids or status):
 
 ```json
 {
@@ -114,9 +114,30 @@ No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A pr
   "bio": "string | null",
   "location": "string | null",
   "avatar_url": "string | null",
-  "github_login": "string"
+  "github_login": "string",
+  "featured": [
+    {
+      "id": "uuid",
+      "title": "string",
+      "summary": "string",
+      "role": "string",
+      "technologies": ["string"],
+      "position": 1
+    }
+  ],
+  "other": [
+    {
+      "id": "uuid",
+      "title": "string",
+      "summary": "string",
+      "role": "string",
+      "technologies": ["string"]
+    }
+  ]
 }
 ```
+
+`featured` and `other` contain only projects that are `PUBLISHED` + `PUBLIC` (ADR-015). `featured` is ordered by `position` (1..3); `other` holds the remaining public projects, newest first. Both are empty arrays when there are none. A project carries only the fields shown; never `status`, `visibility`, `description`, `contribution` or timestamps. `technologies` are names in the developer's order. The public project page (`/u/{slug}/projects/{id}` on the frontend) and its endpoint come in Phase 4.
 
 ## Projects
 
@@ -126,16 +147,114 @@ POST   /projects
 GET    /projects/{id}
 PATCH  /projects/{id}
 DELETE /projects/{id}
+POST   /projects/{id}/publish
+POST   /projects/{id}/archive
+POST   /projects/{id}/visibility
 ```
 
-## Showcase
+All require a session and act only on the current user's projects. A missing project, another user's project and a malformed id all return the same 404 `NOT_FOUND` as an unknown URL (only `request_id` differs). See ADR-015-project-model.md.
+
+| Endpoint | Success | Errors |
+|---|---|---|
+| `GET /projects` | 200 `ProjectListResponse` | 401 |
+| `POST /projects` | 201 `ProjectResponse` | 401; 403 `CSRF_ORIGIN_INVALID`; 409 `PROJECT_LIMIT_REACHED`; 422 `VALIDATION_ERROR` |
+| `GET /projects/{id}` | 200 `ProjectResponse` | 401; 404 `NOT_FOUND` |
+| `PATCH /projects/{id}` | 200 `ProjectResponse` | 401; 403; 404; 422 `VALIDATION_ERROR`; 422 `PROJECT_INCOMPLETE` (emptying a required field of a published project) |
+| `DELETE /projects/{id}` | 204 | 401; 403; 404 |
+| `POST /projects/{id}/publish` | 200 `ProjectResponse` (idempotent) | 401; 403; 404; 422 `PROJECT_INCOMPLETE` |
+| `POST /projects/{id}/archive` | 200 `ProjectResponse` (idempotent) | 401; 403; 404; 409 `PROJECT_TRANSITION_INVALID` (from `DRAFT`) |
+| `POST /projects/{id}/visibility` | 200 `ProjectResponse` (idempotent) | 401; 403; 404; 409 `PROJECT_TRANSITION_INVALID` (not `PUBLISHED`); 422 `VALIDATION_ERROR` |
+
+Every endpoint may also return 500 `INTERNAL_ERROR`.
+
+States (ADR-015): a new project is `DRAFT` + `PRIVATE`. Allowed pairs: `DRAFT`+`PRIVATE`, `PUBLISHED`+`PUBLIC`, `PUBLISHED`+`PRIVATE`, `ARCHIVED`+`PRIVATE`.
+
+- publish: `DRAFT` or `ARCHIVED` → `PUBLISHED` + `PUBLIC`; already `PUBLISHED` → no change (a hidden project stays hidden).
+- archive: `PUBLISHED` → `ARCHIVED` + `PRIVATE`; already `ARCHIVED` → no change; `DRAFT` → 409.
+- visibility: only while `PUBLISHED`; the same value → no change.
+- Archiving, hiding and deleting remove the project from featured projects.
+
+`ProjectWrite` (request body of `POST /projects` and `PATCH /projects/{id}`): any subset of the fields below; `POST` may send `{}`. On `PATCH` a field that is present changes, `null` clears it. Unknown fields (including `status`, `visibility`, `id`) give 422 `extra_forbidden`. Text values are trimmed, blank becomes `null`, control characters are rejected; `description`, `problem`, `results` and `contribution` allow newlines (`\r\n` → `\n`).
+
+```json
+{
+  "title": "string (≤ 100) | null",
+  "summary": "string (≤ 300) | null",
+  "description": "string (≤ 5000, plain text) | null",
+  "problem": "string (≤ 2000, plain text) | null",
+  "results": "string (≤ 2000, plain text) | null",
+  "role": "string (≤ 100) | null",
+  "contribution": "string (≤ 2000, plain text) | null",
+  "technologies": ["string (1–50)"]
+}
+```
+
+`technologies` replaces the whole list in the given order (at most 20). It cannot be `null`; `[]` clears it. Names are trimmed and inner whitespace is collapsed; two names equal ignoring case give 422 `VALIDATION_ERROR`. A name that already exists ignoring case is linked to the existing technology and shown in its stored spelling.
+
+`ProjectResponse`:
+
+```json
+{
+  "id": "uuid",
+  "status": "DRAFT | PUBLISHED | ARCHIVED",
+  "visibility": "PUBLIC | PRIVATE",
+  "title": "string | null",
+  "summary": "string | null",
+  "description": "string | null",
+  "problem": "string | null",
+  "results": "string | null",
+  "role": "string | null",
+  "contribution": "string | null",
+  "technologies": ["string"],
+  "featured_position": "1 | 2 | 3 | null"
+}
+```
+
+`ProjectListResponse`: `{"items": [ProjectSummary]}`, newest first by creation time, at most 50 items (the project limit), no pagination. `ProjectSummary`:
+
+```json
+{
+  "id": "uuid",
+  "status": "DRAFT | PUBLISHED | ARCHIVED",
+  "visibility": "PUBLIC | PRIVATE",
+  "title": "string | null",
+  "summary": "string | null",
+  "technologies": ["string"],
+  "featured_position": "1 | 2 | 3 | null"
+}
+```
+
+`ProjectVisibilityUpdate` (body of `POST /projects/{id}/visibility`): `{"visibility": "PUBLIC | PRIVATE"}`.
+
+`PROJECT_INCOMPLETE` details: `{"missing_fields": ["title", "summary", "role", "contribution", "technologies"]}` (only the missing ones).
+
+## Showcase (featured projects)
 
 ```http
 POST   /projects/{id}/showcase
-PATCH  /projects/{id}/showcase
 DELETE /projects/{id}/showcase
 POST   /profile/featured-projects/reorder
 ```
+
+A featured project is a showcase record with a position 1..3 without gaps; at most three per profile (ADR-015). The profile may be private. `PATCH /projects/{id}/showcase` is not part of the contract until the showcase has its own fields (description, highlights).
+
+| Endpoint | Success | Errors |
+|---|---|---|
+| `POST /projects/{id}/showcase` | 200 `FeaturedProjectsResponse`; adds the project last; already featured → no change | 401; 403; 404; 409 `PROJECT_NOT_FEATURABLE`; 409 `FEATURED_LIMIT_REACHED` |
+| `DELETE /projects/{id}/showcase` | 200 `FeaturedProjectsResponse`; the rest move up; not featured → no change | 401; 403; 404 |
+| `POST /profile/featured-projects/reorder` | 200 `FeaturedProjectsResponse` | 401; 403; 409 `FEATURED_ORDER_MISMATCH`; 422 `VALIDATION_ERROR` |
+
+`FeaturedProjectsResponse`:
+
+```json
+{
+  "items": [
+    {"project_id": "uuid", "position": 1}
+  ]
+}
+```
+
+`FeaturedReorderRequest`: `{"project_ids": ["uuid"]}`, the complete current featured set in the new order (0–3 unique UUIDs). A list that is not the current set gives 409 `FEATURED_ORDER_MISMATCH`; the client should reload.
 
 ## GitHub
 
@@ -166,15 +285,15 @@ GET  /analytics/projects/{id}
 - Public endpoints expose only public information.
 - Sensitive values are never returned.
 - Every `POST`, `PUT`, `PATCH` and `DELETE` must carry an `Origin` header equal to the frontend origin (from `FRONTEND_URL`); otherwise 403 `CSRF_ORIGIN_INVALID`. `GET`, `HEAD` and `OPTIONS` are not checked. See ADR-013.
-- CORS allows only the frontend origin, with credentials; methods `GET`, `POST`, `PATCH`, `OPTIONS`; request header `Content-Type`; `X-Request-ID` is exposed to the frontend.
+- CORS allows only the frontend origin, with credentials; methods `GET`, `POST`, `PATCH`, `DELETE`, `OPTIONS` (`DELETE` added by ADR-015; the code change in `backend/app/main.py` comes with the Phase 3 implementation); request header `Content-Type`; `X-Request-ID` is exposed to the frontend.
 
 ## Error shape
 
 ```json
 {
   "error": {
-    "code": "PROJECT_NOT_FOUND",
-    "message": "Project was not found",
+    "code": "NOT_FOUND",
+    "message": "Not found",
     "details": {},
     "request_id": "uuid"
   }
@@ -188,6 +307,13 @@ Every error response, including framework errors, uses this shape:
 - 404 / 405 and other HTTP errors: `code` is the HTTP status name (`NOT_FOUND`, `METHOD_NOT_ALLOWED`).
 - 403 `CSRF_ORIGIN_INVALID`: missing or foreign `Origin` on a state-changing request. The response has `Vary: Origin` and `X-Request-ID` but no `Access-Control-Allow-Origin`.
 - 422 `PROFILE_INCOMPLETE`: `details.missing_fields` lists the fields required for publication that are empty.
+- 422 `PROJECT_INCOMPLETE`: `details.missing_fields` lists the project fields required for publication that are empty (ADR-015).
+- 409 `PROJECT_LIMIT_REACHED`: the user already has the maximum number of projects; `details.limit` (50).
+- 409 `PROJECT_TRANSITION_INVALID`: the action is not allowed in the project's current state; `details.status`.
+- 409 `PROJECT_NOT_FEATURABLE`: only a `PUBLISHED` + `PUBLIC` project can be featured; `details.status`, `details.visibility`.
+- 409 `FEATURED_LIMIT_REACHED`: three projects are already featured; `details.limit` (3).
+- 409 `FEATURED_ORDER_MISMATCH`: the reorder list is not the current featured set.
+- A resource owned by another user returns the same 404 `NOT_FOUND` as a missing one; a malformed id in a project path is also `NOT_FOUND`, not `VALIDATION_ERROR`.
 - 500 `INTERNAL_ERROR`: generic message, empty `details`; the exception is logged server-side with the `request_id`.
 
 ## Status codes

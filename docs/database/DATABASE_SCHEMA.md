@@ -40,10 +40,11 @@ USER 1:1 PROFILE
 USER 1:N AUTH_SESSION
 USER 1:N EXPERIENCE
 USER 1:N EDUCATION
-USER 1:N SKILL
+USER 1:N SKILL (not in Phase 3; see ADR-015)
 USER 1:1 GITHUB_ACCOUNT
+USER 1:N PROJECT (owner)
 
-PROFILE 1:N PROJECT_SHOWCASE
+PROFILE 1:N PROJECT_SHOWCASE (0..3)
 PROJECT 1:0/1 PROJECT_SHOWCASE
 
 PROJECT 1:N PROJECT_TECHNOLOGY
@@ -84,6 +85,24 @@ The four text fields are nullable; stored values are trimmed and never blank. `u
 
 `id`, `user_id` (unique, FK → users), `avatar_url` (nullable, ≤ 2048, GitHub data refreshed on login), `created_at`. Token columns are added with the repository-access integration (ADR-003).
 
+## Project fields (Phase 3)
+
+`id`, `owner_id` (FK → users, `ON DELETE CASCADE`), `status` (DRAFT/PUBLISHED/ARCHIVED, default DRAFT), `visibility` (PUBLIC/PRIVATE, default PRIVATE), `title` (≤ 100), `summary` (≤ 300), `description` (≤ 5000), `problem` (≤ 2000), `results` (≤ 2000), `role` (≤ 100), `contribution` (≤ 2000), `created_at`, `updated_at`.
+
+The seven text fields are nullable plain text; stored values are trimmed and never blank. `updated_at` is set by application code when a value changes. Demo, screenshots, repository link and further fields come in later phases. See ADR-015-project-model.md.
+
+## Technology fields
+
+`id`, `name` (≤ 50; trimmed, inner whitespace collapsed), `created_at`. Shared by all users; unique ignoring case. The stored spelling is the one used when the row was created.
+
+## Project technology fields
+
+`id`, `project_id` (FK → projects, `ON DELETE CASCADE`), `technology_id` (FK → technologies), `position` (1..20, the developer's order).
+
+## Project showcase fields
+
+`id`, `project_id` (unique, FK → projects, `ON DELETE CASCADE`), `profile_id` (FK → profiles, `ON DELETE CASCADE`), `position` (1..3, no gaps), `created_at`. A row means the project is featured. Showcase description and highlights come later. See ADR-015-project-model.md.
+
 ## Constraints
 
 - user.github_user_id unique
@@ -95,10 +114,18 @@ The four text fields are nullable; stored values are trimmed and never blank. `u
 - profile published only when complete: CHECK `status <> 'PUBLISHED' OR (display_name IS NOT NULL AND headline IS NOT NULL)` (`ck_profiles_published_complete`) — see ADR-013
 - auth_session.token_hash unique
 - auth_session.expires_at enforced at application level
-- project belongs to an owner
+- project belongs to an owner: project.owner_id FK → users `ON DELETE CASCADE`
 - project.status is one of DRAFT, PUBLISHED, ARCHIVED (see ADR-005-project-lifecycle-and-visibility.md)
-- project.visibility is one of PUBLIC, PRIVATE, independent of project.status
-- featured project count <= 3
+- project.visibility is one of PUBLIC, PRIVATE
+- project (status, visibility) is one of (DRAFT, PRIVATE), (PUBLISHED, PUBLIC), (PUBLISHED, PRIVATE), (ARCHIVED, PRIVATE) (`ck_projects_state`) — see ADR-015-project-model.md
+- project.title / summary / description / problem / results / role / contribution: CHECK `char_length(x) <= limit AND btrim(x) <> ''` (`ck_projects_<field>`)
+- project published only with text fields complete: CHECK `status <> 'PUBLISHED' OR (title, summary, role, contribution IS NOT NULL)` (`ck_projects_published_complete`); "at least one technology" is enforced in the domain only
+- at most 50 projects per user: enforced in the domain under a lock on the owner's profile row
+- technology.name: CHECK `char_length(name) <= 50 AND btrim(name) <> ''`; unique index on `lower(name)` (`uq_technologies_name_lower`)
+- project_technology: unique (project_id, technology_id); unique (project_id, position); position CHECK 1..20 (at most 20 per project)
+- project_showcase.project_id unique (a project is featured at most once)
+- featured project count <= 3: project_showcase.position CHECK 1..3 and unique (profile_id, position), declared `DEFERRABLE INITIALLY IMMEDIATE` so a reorder is one UPDATE statement — see ADR-015
+- only a PUBLISHED + PUBLIC project is featured: enforced in the domain (crosses tables)
 - GitHub user/repository external IDs unique
 - GitHub token encrypted at rest
 - timestamps on mutable entities
@@ -124,10 +151,11 @@ Consider indexes for:
 - auth_session.token_hash (unique)
 - auth_session.user_id
 - profile.slug
-- project.owner_id
-- project.status
-- project.visibility
-- showcase profile + order
+- project.owner_id (every project query starts from the owner; at most 50 rows per owner, so status and visibility need no separate indexes)
+- technology lower(name) (unique)
+- project_technology project_id + position (unique)
+- project_showcase project_id (unique)
+- project_showcase profile_id + position (unique, deferrable)
 - GitHub external IDs
 - github_sync_job repository_id + status (for SKIP LOCKED claim query)
 - github_sync_category_status (repository_id, category) unique

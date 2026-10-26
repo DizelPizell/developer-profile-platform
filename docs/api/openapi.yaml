@@ -115,7 +115,9 @@ paths:
       summary: Get public profile
       description: >-
         PUBLISHED profiles only; the slug is case-insensitive. Private, missing
-        and malformed slugs return the same 404 as an unknown URL.
+        and malformed slugs return the same 404 as an unknown URL. Includes the
+        profile's PUBLISHED + PUBLIC projects as `featured` and `other`
+        (ADR-015).
       parameters:
         - name: slug
           in: path
@@ -136,52 +138,215 @@ paths:
   /projects:
     get:
       summary: List own projects
+      description: >-
+        Requires a session; only the current user's projects, newest first, at
+        most 50 (the project limit), no pagination. See ADR-015.
       responses:
-        "200": {description: Projects}
+        "200":
+          description: Own projects
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ProjectListResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
     post:
       summary: Create project
+      description: >-
+        Creates a DRAFT + PRIVATE project. Any subset of the fields, including
+        none. Values are normalized as in PATCH.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ProjectWrite"}
       responses:
-        "201": {description: Project created}
+        "201": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "409":
+          description: PROJECT_LIMIT_REACHED — the user already has 50 projects
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+              example:
+                error:
+                  code: PROJECT_LIMIT_REACHED
+                  message: Project limit reached
+                  details: {limit: 50}
+                  request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /projects/{id}:
+    parameters:
+      - {$ref: "#/components/parameters/ProjectId"}
     get:
-      summary: Get project
-      parameters:
-        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      summary: Get own project
       responses:
-        "200": {description: Project}
-        "404": {description: Not found}
+        "200": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
     patch:
-      summary: Update project
-      parameters:
-        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      summary: Update own project
+      description: >-
+        Partial update: fields present in the body change, null clears a field,
+        unknown fields (including status and visibility) are rejected. Text
+        values are trimmed, blank becomes null, control characters are rejected
+        (description, problem, results and contribution allow newlines).
+        `technologies` replaces the whole list in the given order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ProjectWrite"}
       responses:
-        "200": {description: Updated}
+        "200": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422":
+          description: >-
+            VALIDATION_ERROR (see ValidationError), or PROJECT_INCOMPLETE when
+            the change would empty a field required for publication of a
+            PUBLISHED project
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
     delete:
-      summary: Delete project
-      parameters:
-        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      summary: Delete own project
+      description: >-
+        Hard delete in any state. Removes the project from featured projects
+        and moves the remaining ones up.
       responses:
         "204": {description: Deleted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /projects/{id}/publish:
+    parameters:
+      - {$ref: "#/components/parameters/ProjectId"}
+    post:
+      summary: Publish project
+      description: >-
+        DRAFT or ARCHIVED → PUBLISHED + PUBLIC. Requires title, summary, role,
+        contribution and at least one technology. Already PUBLISHED: 200 without
+        changes (a hidden project stays hidden).
+      responses:
+        "200": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ProjectIncomplete"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /projects/{id}/archive:
+    parameters:
+      - {$ref: "#/components/parameters/ProjectId"}
+    post:
+      summary: Archive project
+      description: >-
+        PUBLISHED → ARCHIVED + PRIVATE; removes the project from featured
+        projects. Already ARCHIVED: 200 without changes.
+      responses:
+        "200": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/ProjectTransitionInvalid"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /projects/{id}/visibility:
+    parameters:
+      - {$ref: "#/components/parameters/ProjectId"}
+    post:
+      summary: Change project visibility
+      description: >-
+        Only while PUBLISHED. The same value: 200 without changes. PRIVATE
+        removes the project from featured projects.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ProjectVisibilityUpdate"}
+      responses:
+        "200": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/ProjectTransitionInvalid"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /projects/{id}/showcase:
     parameters:
-      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      - {$ref: "#/components/parameters/ProjectId"}
     post:
-      summary: Create showcase
+      summary: Feature project
+      description: >-
+        Adds the project as the last featured project. Only PUBLISHED + PUBLIC
+        projects; at most three per profile. Already featured: 200 without
+        changes.
       responses:
-        "201": {description: Created}
-    patch:
-      summary: Update showcase
-      responses:
-        "200": {description: Updated}
+        "200": {$ref: "#/components/responses/FeaturedProjects"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: >-
+            PROJECT_NOT_FEATURABLE (details.status, details.visibility) or
+            FEATURED_LIMIT_REACHED (details.limit = 3)
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+              examples:
+                notFeaturable:
+                  value:
+                    error:
+                      code: PROJECT_NOT_FEATURABLE
+                      message: Only a published public project can be featured
+                      details: {status: DRAFT, visibility: PRIVATE}
+                      request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
+                limitReached:
+                  value:
+                    error:
+                      code: FEATURED_LIMIT_REACHED
+                      message: Featured project limit reached
+                      details: {limit: 3}
+                      request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
+        "500": {$ref: "#/components/responses/InternalError"}
     delete:
-      summary: Delete showcase
+      summary: Unfeature project
+      description: >-
+        Removes the project from featured projects; the remaining ones move up.
+        Not featured: 200 without changes.
       responses:
-        "204": {description: Deleted}
+        "200": {$ref: "#/components/responses/FeaturedProjects"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /profile/featured-projects/reorder:
     post:
       summary: Reorder featured projects
+      description: >-
+        The body is the complete current featured set in the new order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FeaturedReorderRequest"}
       responses:
-        "200": {description: Reordered}
+        "200": {$ref: "#/components/responses/FeaturedProjects"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "409":
+          description: >-
+            FEATURED_ORDER_MISMATCH — the list is not the current featured set;
+            the client should reload
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /integrations/github/connect:
     get:
       summary: Start GitHub OAuth
@@ -240,6 +405,15 @@ components:
         Request id. Taken from the request's X-Request-ID header when it is a
         canonical UUID, otherwise generated. Present on every response.
       schema: {type: string, format: uuid}
+  parameters:
+    ProjectId:
+      name: id
+      in: path
+      required: true
+      description: >-
+        Project id. A malformed id, a missing project and another user's
+        project all return the same 404 NOT_FOUND.
+      schema: {type: string, format: uuid}
   schemas:
     Error:
       type: object
@@ -286,7 +460,7 @@ components:
         github_login: {type: string}
     PublicProfileResponse:
       type: object
-      required: [slug, display_name, headline, bio, location, avatar_url, github_login]
+      required: [slug, display_name, headline, bio, location, avatar_url, github_login, featured, other]
       properties:
         slug: {type: string}
         display_name: {type: string, nullable: true}
@@ -295,6 +469,137 @@ components:
         location: {type: string, nullable: true}
         avatar_url: {type: string, nullable: true}
         github_login: {type: string}
+        featured:
+          type: array
+          maxItems: 3
+          description: Featured PUBLISHED + PUBLIC projects in position order.
+          items: {$ref: "#/components/schemas/PublicFeaturedProject"}
+        other:
+          type: array
+          description: The remaining PUBLISHED + PUBLIC projects, newest first.
+          items: {$ref: "#/components/schemas/PublicProject"}
+    PublicProject:
+      type: object
+      description: Public project whitelist (ADR-015); nothing else is returned.
+      required: [id, title, summary, role, technologies]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        summary: {type: string}
+        role: {type: string}
+        technologies:
+          type: array
+          description: Technology names in the developer's order.
+          items: {type: string}
+    PublicFeaturedProject:
+      allOf:
+        - {$ref: "#/components/schemas/PublicProject"}
+        - type: object
+          required: [position]
+          properties:
+            position: {type: integer, minimum: 1, maximum: 3}
+    ProjectStatus:
+      type: string
+      enum: [DRAFT, PUBLISHED, ARCHIVED]
+    ProjectVisibility:
+      type: string
+      enum: [PUBLIC, PRIVATE]
+    TechnologyName:
+      type: string
+      minLength: 1
+      maxLength: 50
+      description: >-
+        Trimmed, inner whitespace collapsed to one space, no control
+        characters. Compared ignoring case; an existing technology keeps its
+        stored spelling.
+    ProjectWrite:
+      type: object
+      additionalProperties: false
+      description: >-
+        Body of POST /projects and PATCH /projects/{id}. Any subset of the
+        fields; null clears a text field. Text is plain, trimmed, blank becomes
+        null.
+      properties:
+        title: {type: string, maxLength: 100, nullable: true}
+        summary: {type: string, maxLength: 300, nullable: true}
+        description: {type: string, maxLength: 5000, nullable: true, description: Plain text; newlines allowed}
+        problem: {type: string, maxLength: 2000, nullable: true, description: Plain text; newlines allowed}
+        results: {type: string, maxLength: 2000, nullable: true, description: Plain text; newlines allowed}
+        role: {type: string, maxLength: 100, nullable: true}
+        contribution: {type: string, maxLength: 2000, nullable: true, description: Plain text; newlines allowed}
+        technologies:
+          type: array
+          maxItems: 20
+          description: >-
+            Replaces the whole list in this order. Names must be unique
+            ignoring case. Not nullable; [] clears the list.
+          items: {$ref: "#/components/schemas/TechnologyName"}
+    ProjectResponse:
+      type: object
+      required: [id, status, visibility, title, summary, description, problem, results, role, contribution, technologies, featured_position]
+      properties:
+        id: {type: string, format: uuid}
+        status: {$ref: "#/components/schemas/ProjectStatus"}
+        visibility: {$ref: "#/components/schemas/ProjectVisibility"}
+        title: {type: string, nullable: true}
+        summary: {type: string, nullable: true}
+        description: {type: string, nullable: true}
+        problem: {type: string, nullable: true}
+        results: {type: string, nullable: true}
+        role: {type: string, nullable: true}
+        contribution: {type: string, nullable: true}
+        technologies: {type: array, items: {type: string}}
+        featured_position: {type: integer, minimum: 1, maximum: 3, nullable: true}
+    ProjectSummary:
+      type: object
+      required: [id, status, visibility, title, summary, technologies, featured_position]
+      properties:
+        id: {type: string, format: uuid}
+        status: {$ref: "#/components/schemas/ProjectStatus"}
+        visibility: {$ref: "#/components/schemas/ProjectVisibility"}
+        title: {type: string, nullable: true}
+        summary: {type: string, nullable: true}
+        technologies: {type: array, items: {type: string}}
+        featured_position: {type: integer, minimum: 1, maximum: 3, nullable: true}
+    ProjectListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: {$ref: "#/components/schemas/ProjectSummary"}
+    ProjectVisibilityUpdate:
+      type: object
+      additionalProperties: false
+      required: [visibility]
+      properties:
+        visibility: {$ref: "#/components/schemas/ProjectVisibility"}
+    FeaturedProjectsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 3
+          description: Featured projects in position order; positions are 1..n without gaps.
+          items:
+            type: object
+            required: [project_id, position]
+            properties:
+              project_id: {type: string, format: uuid}
+              position: {type: integer, minimum: 1, maximum: 3}
+    FeaturedReorderRequest:
+      type: object
+      additionalProperties: false
+      required: [project_ids]
+      properties:
+        project_ids:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: The complete current featured set in the new order.
+          items: {type: string, format: uuid}
   responses:
     ValidationError:
       description: >-
@@ -312,7 +617,49 @@ components:
               message: Invalid request
               details:
                 fields:
-                  - {loc: [path, id], type: uuid_parsing}
+                  - {loc: [body, title], type: string_too_long}
+              request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
+    NotFound:
+      description: >-
+        NOT_FOUND — missing, another user's or malformed id; the same body as
+        an unknown URL (only request_id differs)
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Project:
+      description: Own project
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ProjectResponse"}
+    FeaturedProjects:
+      description: Featured projects after the change
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/FeaturedProjectsResponse"}
+    ProjectIncomplete:
+      description: PROJECT_INCOMPLETE — fields required for publication are empty
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+          example:
+            error:
+              code: PROJECT_INCOMPLETE
+              message: Project is missing fields required for publication
+              details:
+                missing_fields: [summary, technologies]
+              request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
+    ProjectTransitionInvalid:
+      description: >-
+        PROJECT_TRANSITION_INVALID — the action is not allowed in the current
+        state; details.status is the current lifecycle state
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+          example:
+            error:
+              code: PROJECT_TRANSITION_INVALID
+              message: Action is not allowed in the current project state
+              details: {status: DRAFT}
               request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
     OwnProfile:
       description: Own profile

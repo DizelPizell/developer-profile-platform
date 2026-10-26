@@ -12,7 +12,8 @@ PostgreSQL is the application state source of truth.
 
 - **`id` columns**: UUID, generated server-side with `gen_random_uuid()`. Applies to all tables (users, github_accounts, profiles, auth_sessions, and all future tables).
 - **`github_user_id`**: BIGINT. GitHub numeric user IDs are currently within int32 range, but BIGINT provides a safe margin.
-- **Cascade on user deletion**: `github_accounts`, `profiles`, and `auth_sessions` carry `ON DELETE CASCADE` foreign keys referencing `users.id`. Dependent rows are deleted automatically when a user row is deleted. Account deletion as a product feature (user-initiated flow, data handling) remains an open question per ADR-012.
+- **Cascade on user deletion**: `github_accounts`, `profiles`, `auth_sessions` and `projects` (ADR-015) carry `ON DELETE CASCADE` foreign keys referencing `users.id`. Dependent rows are deleted automatically when a user row is deleted. Account deletion as a product feature (user-initiated flow, data handling) remains an open question per ADR-012.
+- **Cascade on project deletion**: projects are hard-deleted; `project_showcases` and `project_technologies` carry `ON DELETE CASCADE` foreign keys referencing `projects.id`, and `project_showcases` also cascades from `profiles.id`. Tables added later with a `project_id` cascade too unless their own decision says otherwise — see ADR-015-project-model.md.
 
 ## Core entities
 
@@ -66,13 +67,18 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 - `profiles.status` is one of PRIVATE, PUBLISHED — see ADR-005-project-lifecycle-and-visibility.md.
 - `profiles.display_name` (≤ 100), `headline` (≤ 160), `bio` (≤ 2000, plain text) and `location` (≤ 100) are nullable TEXT columns; CHECK constraints enforce the length and reject blank values. A `PUBLISHED` profile must have `display_name` and `headline` (`ck_profiles_published_complete`); the same rule is enforced in the domain layer — see ADR-013.
 - `github_accounts.avatar_url` is nullable GitHub data, refreshed on every login; a login response without a usable avatar keeps the stored value — see ADR-013.
-- One project has at most one showcase record.
+- One project has at most one showcase record (`project_showcases.project_id` unique); a showcase row means the project is featured.
 - One project has at most one Demo.
 - One project has at most one linked GitHub repository in V1.
 - GitHub external IDs are unique.
-- Featured projects are limited to three per profile.
+- Featured projects are limited to three per profile, held by the database: `project_showcases.position` CHECK 1..3 and UNIQUE (`profile_id`, `position`). The unique constraint is `DEFERRABLE INITIALLY IMMEDIATE`, so it is checked at the end of each statement and a reorder or gap renumbering is a single `UPDATE`. Positions have no gaps. Only `PUBLISHED` + `PUBLIC` projects are featured; that rule crosses tables and is enforced in the domain — see ADR-015-project-model.md.
+- `projects.owner_id` references `users.id`; at most 50 projects per user, checked in the domain under a lock on the owner's profile row.
 - `projects.status` is one of DRAFT, PUBLISHED, ARCHIVED (see ADR-005-project-lifecycle-and-visibility.md).
-- `projects.visibility` is one of PUBLIC, PRIVATE, independent of `projects.status`.
+- `projects.visibility` is one of PUBLIC, PRIVATE.
+- `(projects.status, projects.visibility)` is one of (DRAFT, PRIVATE), (PUBLISHED, PUBLIC), (PUBLISHED, PRIVATE), (ARCHIVED, PRIVATE) (`ck_projects_state`) — see ADR-015.
+- `projects.title` (≤ 100), `summary` (≤ 300), `description` (≤ 5000), `problem` (≤ 2000), `results` (≤ 2000), `role` (≤ 100) and `contribution` (≤ 2000) are nullable TEXT columns; CHECK constraints enforce the length and reject blank values. A `PUBLISHED` project must have `title`, `summary`, `role` and `contribution` (`ck_projects_published_complete`); "at least one technology" is enforced in the domain only — see ADR-015.
+- `technologies` is shared by all users; `name` ≤ 50, unique ignoring case (unique index on `lower(name)`); the spelling of the first creator is kept.
+- `project_technologies`: unique (`project_id`, `technology_id`) and (`project_id`, `position`), `position` 1..20 — at most 20 technologies per project, in the developer's order.
 - GitHub sync must be idempotent.
 - `github_sync_jobs` allows at most one row with `status IN ('QUEUED','SYNCING')` per `github_repository_id` (partial unique index) — see ADR-009-github-sync-worker-execution-model.md.
 - `github_sync_jobs` columns: `id`, `github_repository_id`, `status`, `attempt_count`, `scheduled_at`, `last_error`, `created_at`, `updated_at`.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. Amended by ADR-015-project-model.md: the public profile includes the profile's public projects, and CORS allows `DELETE`.
 
 ## Context
 
@@ -55,6 +55,7 @@ The database repeats the length limits and rejects blank values with CHECK const
 - `GET /public/profiles/{slug}` returns only `PUBLISHED` profiles. The slug is lowercased first.
 - A private profile, a missing profile and a malformed slug all return the same 404 as an unknown URL (`NOT_FOUND`); only `request_id` differs. This prevents probing which slugs exist or are private.
 - The public DTO is a whitelist: `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`. Never email, internal ids or status.
+- Since ADR-015 the public DTO also has `featured` and `other`: the profile's `PUBLISHED` + `PUBLIC` projects, each with its own whitelist (`id`, `title`, `summary`, `role`, `technologies`, plus `position` in `featured`). A profile can still be published without projects.
 
 ### Origin check instead of a CSRF token
 
@@ -72,7 +73,9 @@ What would change this decision: a frontend served from a different domain or se
 
 ### CORS
 
-`CORSMiddleware` allows only the frontend origin, with credentials, methods `GET`, `POST`, `PATCH`, `OPTIONS`, request header `Content-Type`, and exposes `X-Request-ID`.
+`CORSMiddleware` allows only the frontend origin, with credentials, methods `GET`, `POST`, `PATCH`, `DELETE`, `OPTIONS`, request header `Content-Type`, and exposes `X-Request-ID`.
+
+`DELETE` was added by ADR-015 for `DELETE /projects/{id}` and `DELETE /projects/{id}/showcase`. The code (`backend/app/main.py`) gets it with the Phase 3 implementation; until then it allows only `GET`, `POST`, `PATCH`, `OPTIONS`.
 
 Middleware order, outermost first: request id, CORS, Origin check, unhandled-error handler, routes.
 

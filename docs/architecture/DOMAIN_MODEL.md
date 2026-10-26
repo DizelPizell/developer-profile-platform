@@ -44,12 +44,16 @@ Profile:
 - GetPublicProfile
 
 Projects:
+- ListOwnProjects
+- GetOwnProject
 - CreateProject
 - UpdateProject
 - DeleteProject
 - PublishProject
 - ArchiveProject
-- ConfigureProjectShowcase
+- ChangeProjectVisibility
+- FeatureProject
+- UnfeatureProject
 
 GitHub:
 - ConnectGitHub
@@ -118,22 +122,55 @@ Importing a repository creates an Imported Project. The developer enriches it wi
 
 Role and contribution are plain fields on the Project (`projects.role`, `projects.contribution`), not a separate entity — see ADR-004-project-contribution.md.
 
+## Project ownership
+
+A Project belongs to one User (`projects.owner_id`). A user has at most 50 projects (`PROJECT_LIMIT_REACHED`). A project of another user is indistinguishable from a missing one (same 404). See ADR-015-project-model.md.
+
 ## Project lifecycle and visibility
 
 Project lifecycle:
 
 ```text
 DRAFT -> PUBLISHED -> ARCHIVED
+            ^             |
+            +-- publish --+
 ```
 
-Project visibility (independent of lifecycle):
+Project visibility (a separate concept from lifecycle):
 
 ```text
 PUBLIC
 PRIVATE
 ```
 
-Lifecycle describes preparation/publication state. Visibility describes whether a project is publicly exposed. Invalid combinations must be rejected in the domain layer. See ADR-005-project-lifecycle-and-visibility.md.
+Lifecycle describes preparation/publication state. Visibility describes whether a published project is publicly exposed. See ADR-005-project-lifecycle-and-visibility.md.
+
+Allowed combinations (ADR-015-project-model.md); any other is rejected in the domain layer and by a database CHECK:
+
+| Lifecycle | Visibility |
+|---|---|
+| DRAFT | PRIVATE |
+| PUBLISHED | PUBLIC |
+| PUBLISHED | PRIVATE |
+| ARCHIVED | PRIVATE |
+
+Transitions (idempotent):
+
+- **PublishProject**: DRAFT or ARCHIVED → PUBLISHED + PUBLIC, after the completeness check. Already PUBLISHED: no change.
+- **ArchiveProject**: PUBLISHED → ARCHIVED + PRIVATE. Already ARCHIVED: no change. DRAFT: `PROJECT_TRANSITION_INVALID`.
+- **ChangeProjectVisibility**: only while PUBLISHED; otherwise `PROJECT_TRANSITION_INVALID`.
+
+There is no transition back to DRAFT in Phase 3.
+
+A project is public only when it is PUBLISHED + PUBLIC and its owner's profile is PUBLISHED. Unpublishing the profile hides its projects without changing their states or featured positions.
+
+## Project fields and technologies
+
+Phase 3 fields (plain text, all optional while DRAFT): `title`, `summary` (short description), `description` (full description), `problem`, `results`, `role`, `contribution`. Technologies are a shared catalogue; a project has 0–20 of them in the developer's order, names compared ignoring case. See ADR-015-project-model.md.
+
+## Featured projects
+
+A featured project is a Project Showcase record: the project, its owner's profile and a position 1..3 without gaps. At most three per profile, enforced by the database. Only a PUBLISHED + PUBLIC project can be featured (`PROJECT_NOT_FEATURABLE`); a fourth gives `FEATURED_LIMIT_REACHED`. Archiving, hiding or deleting a project removes it from featured projects and closes the gap. ReorderFeaturedProjects takes the complete featured set in the new order (`FEATURED_ORDER_MISMATCH` otherwise). See ADR-015-project-model.md.
 
 ## Profile lifecycle
 
@@ -153,13 +190,13 @@ A public profile is visible only while PUBLISHED. Private, missing and malformed
 
 ## Publish validation
 
-Minimum, to move a project from DRAFT to PUBLISHED:
-- name
-- description
+Minimum, to move a project from DRAFT or ARCHIVED to PUBLISHED:
+- title
+- summary (the short description)
 - role
 - contribution
 - at least one technology
 
-Demo, GitHub and screenshots are optional.
+`description` (the full description), `problem` and `results` are optional. Demo, GitHub and screenshots are optional. Otherwise `PROJECT_INCOMPLETE` with the missing fields.
 
-This validation governs the DRAFT -> PUBLISHED lifecycle transition only. Visibility (PUBLIC/PRIVATE) is set independently and is not part of publish validation.
+A PUBLISHED project cannot lose a required field through an update (same error). Publishing always makes the project PUBLIC; visibility is changed afterwards and is not part of publish validation. See ADR-015-project-model.md.
