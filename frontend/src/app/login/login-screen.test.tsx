@@ -3,13 +3,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { LoginScreen } from "./login-screen";
 
-const navigation = vi.hoisted(() => ({
-  replace: vi.fn(),
-  query: "",
-}));
+const navigation = vi.hoisted(() => {
+  const replace = vi.fn();
+  // Stable like the real router: a new object per render would re-run effects.
+  return { replace, router: { replace }, query: "" };
+});
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: navigation.replace }),
+  useRouter: () => navigation.router,
   useSearchParams: () => new URLSearchParams(navigation.query),
 }));
 
