@@ -12,6 +12,14 @@
 
 Next.js skeleton moved to Phase 2.
 
+## Frontend
+
+Frontend stages F0–F5+ are planned in `docs/frontend/FRONTEND_PLAN.md` (stack: ADR-014-frontend-stack.md; screens: `docs/frontend/DESIGN.md`).
+
+Order relative to the backend:
+- F1–F4 build only on Phase 1 and the Phase 2 API, which are done. They cover the rest of Phase 2: the Next.js skeleton is F1, the public page is F4.
+- F5+ follow backend Phases 3–6 and start only when the matching API contract exists.
+
 ## Phase 1 - Authentication and Profile
 - User/Profile/AuthSession models (ADR-012) [done]
 - migrations [done]
@@ -23,10 +31,10 @@ Next.js skeleton moved to Phase 2.
 - Origin check and CORS for state-changing requests (ADR-013) [done]
 
 ## Phase 2 - Public Profile
-- Next.js skeleton
+- Next.js skeleton (FRONTEND_PLAN F1)
 - public endpoint (ADR-013) [done]
 - public DTOs (ADR-013) [done]
-- public page
+- public page (FRONTEND_PLAN F4)
 - slug
 - privacy
 - featured project placeholders
