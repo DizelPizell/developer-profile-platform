@@ -31,7 +31,7 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 | ADR-002-kafka-and-outbox.md | Kafka and Outbox for Asynchronous GitHub Synchronization | **Superseded by ADR-008-no-kafka-outbox-v1.md** |
 | ADR-003-github-token-storage.md | Encrypted GitHub OAuth Token Storage | Active |
 | ADR-004-project-contribution.md | Project Contribution as Project Fields in V1 | Active |
-| ADR-005-project-lifecycle-and-visibility.md | Separate Project Lifecycle and Visibility | Active |
+| ADR-005-project-lifecycle-and-visibility.md | Separate Project Lifecycle and Visibility | Active (allowed combinations and transitions fixed by ADR-015) |
 | ADR-006-project-workspace-not-sandbox.md | Read-only Project Workspace in V1 | Active |
 | ADR-007-github-is-source-of-technical-evidence.md | GitHub as Technical Evidence Source | Active |
 | ADR-008-no-kafka-outbox-v1.md | No Kafka or Outbox in V1 | Active |
@@ -39,8 +39,9 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 | ADR-010-github-evidence-data-model-v1.md | GitHub Evidence Data Model V1 | Active |
 | ADR-011-partial-sync-success.md | Partial Sync Success — Mandatory and Optional Categories | Active |
 | ADR-012-github-oauth-only-authentication.md | GitHub OAuth-Only Authentication | Active (CSRF question resolved by ADR-013) |
-| ADR-013-profile-editing-and-origin-check.md | Profile Editing, Publication and Origin Check for State-Changing Requests | Active |
+| ADR-013-profile-editing-and-origin-check.md | Profile Editing, Publication and Origin Check for State-Changing Requests | Active (public profile gains projects and CORS gains `DELETE` per ADR-015) |
 | ADR-014-frontend-stack.md | Frontend Stack and Rendering Model | Active (open questions listed in the file) |
+| ADR-015-project-model.md | Project Model, Technologies and Featured Projects | Active (amends ADR-005 and ADR-013; open questions listed in the file) |
 
 ### Legacy series (bare numbers, frozen)
 
@@ -71,8 +72,9 @@ These are known gaps intentionally left unresolved, because resolving them would
 - **CV feature.** Whether V1 includes any CV generation/storage/download capability at all; `CV_DOWNLOAD` stays deferred until this is decided.
 - **Profile follow-ups.** Markdown in `bio`, profile photo upload, slug change, rate limiting and the `__Host-` cookie prefix. See ADR-013.
 - **Frontend follow-ups.** How server-side Next.js code sees the session cookie across ports; production topology (one origin behind Nginx or a separate API host); when Playwright is introduced; caching of public pages; sync status and file content for the IDE view (depends on ADR-009–011). See ADR-014.
+- **Project follow-ups.** Returning a published project to draft; skills as technologies confirmed by published projects (deferred, unresolved); technology spelling and curation; showcase description and highlights; fields of later phases; the public project page (Phase 4); imported projects (Phase 5); deletion side effects in object storage and analytics; markdown in project fields; the project and technology limits. See ADR-015.
 
-Resolved by this round (no longer open): the GitHub sync worker/queue mechanism, GitHub sync status storage shape (ADR-009), and the storage shapes for README (TEXT column), languages (JSONB), file tree (JSONB) and contributors (ADR-011); contributor unique key `(github_repository_id, github_user_id)` (ADR-011); commits classified as optional history category — fetch failure does not block `SYNCED`, append-only model, freshness tracked in `github_sync_category_status` (ADR-011); GitHub OAuth as the only login mechanism, email nullable and not unique, USER 1:1 GITHUB_ACCOUNT, auth_sessions table with token_hash only, slug rules (ADR-012); session lifetime fixed at 14 days absolute via `SESSION_TTL_DAYS` (ADR-012); `github_login` and `email` refreshed from GitHub on every login (ADR-012); profile fields, publication rules, identical 404 for non-public profiles, Origin check instead of a CSRF token, and CORS policy (ADR-013); frontend stack, direct browser-to-API calls in development, SSR for the public profile and a client-side cabinet (ADR-014).
+Resolved by this round (no longer open): the GitHub sync worker/queue mechanism, GitHub sync status storage shape (ADR-009), and the storage shapes for README (TEXT column), languages (JSONB), file tree (JSONB) and contributors (ADR-011); contributor unique key `(github_repository_id, github_user_id)` (ADR-011); commits classified as optional history category — fetch failure does not block `SYNCED`, append-only model, freshness tracked in `github_sync_category_status` (ADR-011); GitHub OAuth as the only login mechanism, email nullable and not unique, USER 1:1 GITHUB_ACCOUNT, auth_sessions table with token_hash only, slug rules (ADR-012); session lifetime fixed at 14 days absolute via `SESSION_TTL_DAYS` (ADR-012); `github_login` and `email` refreshed from GitHub on every login (ADR-012); profile fields, publication rules, identical 404 for non-public profiles, Origin check instead of a CSRF token, and CORS policy (ADR-013); frontend stack, direct browser-to-API calls in development, SSR for the public profile and a client-side cabinet (ADR-014); project owner and 404 rule, the four allowed lifecycle/visibility pairs and the transitions, Phase 3 project fields and publish requirements, shared technologies, featured projects in `project_showcases` with a database-held limit of three and deferrable ordering, hard delete, the project limit, project error codes, projects in the public profile, `DELETE` in CORS (ADR-015).
 
 ## Deliberately deferred (not open questions — revisit only with a new decision)
 
