@@ -56,9 +56,7 @@ def error_log(caplog, monkeypatch):
 def test_reason_logged_without_secrets(
     make_auth_client, error_log, transport_kwargs, reason, github_status
 ):
-    client = make_auth_client(
-        make_github_transport(access_token=GITHUB_TOKEN, **transport_kwargs)
-    )
+    client = make_auth_client(make_github_transport(access_token=GITHUB_TOKEN, **transport_kwargs))
     state = client.get("/api/v1/auth/github/login").cookies["oauth_state"]
     resp = client.get(f"{CALLBACK}?code={CODE}&state={state}")
 
@@ -75,6 +73,13 @@ def test_reason_logged_without_secrets(
     assert f"reason={reason}" in message
     assert f"github_status={github_status}" in message
 
-    for secret in (CODE, state, GITHUB_TOKEN, BODY_MARKER,
-                   settings.github_client_secret.get_secret_value(), "?code=", "https://"):
+    for secret in (
+        CODE,
+        state,
+        GITHUB_TOKEN,
+        BODY_MARKER,
+        settings.github_client_secret.get_secret_value(),
+        "?code=",
+        "https://",
+    ):
         assert secret not in error_log.text

@@ -178,6 +178,4 @@ def delete_session(db: Session, token: str) -> None:
 
 
 def get_user_profile(db: Session, user_id: uuid.UUID) -> Profile | None:
-    return db.execute(
-        select(Profile).where(Profile.user_id == user_id)
-    ).scalar_one_or_none()
+    return db.execute(select(Profile).where(Profile.user_id == user_id)).scalar_one_or_none()

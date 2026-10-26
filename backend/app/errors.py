@@ -62,9 +62,7 @@ def log_app_error(request: Request, exc: AppError) -> None:
 
 
 def log_unhandled_exception(request: Request, exc: Exception) -> None:
-    logger.error(
-        "Unhandled exception (request_id=%s)", request.state.request_id, exc_info=exc
-    )
+    logger.error("Unhandled exception (request_id=%s)", request.state.request_id, exc_info=exc)
 
 
 def app_error_response(request: Request, exc: AppError) -> JSONResponse:
@@ -81,14 +79,10 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return app_error_response(request, exc)
 
 
-async def validation_error_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     # Only location and error type: input values must never be echoed back.
     fields = [{"loc": list(err["loc"]), "type": err["type"]} for err in exc.errors()]
-    return error_response(
-        request, 422, "VALIDATION_ERROR", "Invalid request", {"fields": fields}
-    )
+    return error_response(request, 422, "VALIDATION_ERROR", "Invalid request", {"fields": fields})
 
 
 async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:

@@ -176,16 +176,12 @@ class TestCallbackErrors:
                 {"token_response": _status(200, json={"token_type": "bearer"})},
                 id="exchange-without-access-token",
             ),
-            pytest.param(
-                {"token_response": _status(200, text="not json")}, id="exchange-not-json"
-            ),
+            pytest.param({"token_response": _status(200, text="not json")}, id="exchange-not-json"),
             pytest.param({"token_response": _status(200, json=["x"])}, id="exchange-not-dict"),
             pytest.param(
                 {"user_response": _status(200, json={"login": "u"})}, id="user-without-id"
             ),
-            pytest.param(
-                {"user_response": _status(200, json={"id": 1})}, id="user-without-login"
-            ),
+            pytest.param({"user_response": _status(200, json={"id": 1})}, id="user-without-login"),
             pytest.param({"user_response": _status(200, text="<html>")}, id="user-not-json"),
             pytest.param({"user_response": _status(200, json=[1])}, id="user-not-dict"),
         ],
@@ -206,9 +202,7 @@ class TestCallbackErrors:
         _assert_login_error(resp, "INVALID_STATE")
         assert _set_cookies(resp)["oauth_state"]["max-age"] == "0"
 
-    def test_unexpected_error_redirects_and_deletes_state_cookie(
-        self, auth_client, monkeypatch
-    ):
+    def test_unexpected_error_redirects_and_deletes_state_cookie(self, auth_client, monkeypatch):
         def boom(*args, **kwargs):
             raise RuntimeError("internal detail")
 

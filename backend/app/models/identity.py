@@ -26,9 +26,7 @@ class User(Base):
     github_account: Mapped["GitHubAccount"] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    profile: Mapped["Profile"] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
+    profile: Mapped["Profile"] = relationship(back_populates="user", cascade="all, delete-orphan")
     auth_sessions: Mapped[list["AuthSession"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )

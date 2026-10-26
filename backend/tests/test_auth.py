@@ -201,6 +201,7 @@ class TestSessionLifecycle:
         # Manually expire the session
         token_hash = hash_token(token)
         from sqlalchemy import select
+
         session_row = db_session.execute(
             select(AuthSession).where(AuthSession.token_hash == token_hash)
         ).scalar_one()
@@ -230,6 +231,7 @@ def bare_client():
     from fastapi.testclient import TestClient
 
     from app.main import app
+
     return TestClient(app, base_url=HTTPS_BASE_URL, follow_redirects=False)
 
 
@@ -339,9 +341,7 @@ class TestCallbackEndpoint:
         from tests.conftest import make_github_transport
 
         def _do_login(github_login: str) -> None:
-            transport = make_github_transport(
-                github_user_id=9001, github_login=github_login
-            )
+            transport = make_github_transport(github_user_id=9001, github_login=github_login)
             mock = GitHubOAuthClient(httpx.Client(transport=transport))
             app.dependency_overrides[get_db] = lambda: (yield db_session)
             app.dependency_overrides[get_github_client] = lambda: (yield mock)

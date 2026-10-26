@@ -110,8 +110,13 @@ class TestOwnProfile:
 
     @pytest.mark.parametrize(
         "payload",
-        [{"slug": "new-slug"}, {"status": "PUBLISHED"}, {"avatar_url": "https://x"},
-         {"unknown": 1}, {"display_name": "Ann", "slug": "new-slug"}],
+        [
+            {"slug": "new-slug"},
+            {"status": "PUBLISHED"},
+            {"avatar_url": "https://x"},
+            {"unknown": 1},
+            {"display_name": "Ann", "slug": "new-slug"},
+        ],
     )
     def test_unknown_fields_rejected(self, client, payload):
         before = client.get(PROFILE).json()

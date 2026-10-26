@@ -20,9 +20,7 @@ def _profile_text(field: str, *, allow_newline: bool = False) -> AfterValidator:
         value = value.strip()
         if not value:
             return None
-        if any(
-            unicodedata.category(ch) == "Cc" and ch not in allowed_controls for ch in value
-        ):
+        if any(unicodedata.category(ch) == "Cc" and ch not in allowed_controls for ch in value):
             raise PydanticCustomError("control_characters", "Control characters are not allowed")
         if len(value) > max_length:
             raise PydanticCustomError("string_too_long", "String is too long")

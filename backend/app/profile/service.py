@@ -60,9 +60,7 @@ def update_profile(db: Session, profile: Profile, changes: dict[str, str | None]
 def publish(db: Session, profile: Profile) -> None:
     if profile.status == PUBLISHED:
         return
-    missing = _missing_for_publication(
-        {f: getattr(profile, f) for f in REQUIRED_FOR_PUBLICATION}
-    )
+    missing = _missing_for_publication({f: getattr(profile, f) for f in REQUIRED_FOR_PUBLICATION})
     if missing:
         raise _incomplete(missing)
     profile.status = PUBLISHED
@@ -78,9 +76,7 @@ def unpublish(db: Session, profile: Profile) -> None:
     db.flush()
 
 
-def get_public_profile(
-    db: Session, slug: str
-) -> tuple[Profile, User, GitHubAccount | None] | None:
+def get_public_profile(db: Session, slug: str) -> tuple[Profile, User, GitHubAccount | None] | None:
     """A PUBLISHED profile by slug (case-insensitive); None for anything else."""
     slug = slug.lower()
     if not _SLUG_RE.fullmatch(slug):

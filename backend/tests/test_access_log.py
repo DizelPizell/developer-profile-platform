@@ -20,8 +20,13 @@ def _record(msg, args) -> logging.LogRecord:
 def test_uvicorn_shaped_record_loses_query_string():
     record = _record(
         _UVICORN_MSG,
-        ("127.0.0.1:5000", "GET", "/api/v1/auth/github/callback?code=SECRET&state=SECRET",
-         "1.1", 302),
+        (
+            "127.0.0.1:5000",
+            "GET",
+            "/api/v1/auth/github/callback?code=SECRET&state=SECRET",
+            "1.1",
+            302,
+        ),
     )
     assert StripQueryStringFilter().filter(record) is True
     message = record.getMessage()

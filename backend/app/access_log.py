@@ -22,9 +22,7 @@ class StripQueryStringFilter(logging.Filter):
         elif isinstance(args, tuple):
             record.args = tuple(_strip_query(a) if isinstance(a, str) else a for a in args)
         elif isinstance(args, dict):
-            record.args = {
-                k: _strip_query(v) if isinstance(v, str) else v for k, v in args.items()
-            }
+            record.args = {k: _strip_query(v) if isinstance(v, str) else v for k, v in args.items()}
         if not record.args and isinstance(record.msg, str):
             record.msg = _strip_query(record.msg)
         return True

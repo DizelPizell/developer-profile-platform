@@ -196,9 +196,7 @@ def make_auth_client(db_session: Session) -> Generator[Callable[..., TestClient]
 
         app.dependency_overrides[get_db] = override_db
         app.dependency_overrides[get_github_client] = override_github
-        client = TestClient(
-            app, base_url=HTTPS_BASE_URL, follow_redirects=False, **client_kwargs
-        )
+        client = TestClient(app, base_url=HTTPS_BASE_URL, follow_redirects=False, **client_kwargs)
         clients.append(client)
         return client
 
