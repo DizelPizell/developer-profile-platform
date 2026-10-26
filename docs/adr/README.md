@@ -17,7 +17,7 @@ The two series were numbered independently, so numbers repeat across them (for e
 
 - A bare reference such as "ADR-003" means the current-series file, `ADR-003-...`.
 - The legacy series is always referred to by its full filename (e.g. "legacy ADR `003-postgresql.md`"), never by a bare number.
-- **All future ADRs continue the current series**, starting at `ADR-008-no-kafka-outbox-v1.md` (already used) and incrementing from there. No new legacy-style (unprefixed) ADR is created.
+- **All new ADRs continue the current series.** It currently runs from `ADR-001-modular-monolith.md` to `ADR-015-project-model.md`; the next ADR is ADR-016. No new legacy-style (unprefixed) ADR is created.
 
 This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A one-time rename to unify both series into a single sequence was considered and rejected here — it would rewrite file history across every existing cross-reference for a cosmetic gain; if this is revisited, it should be a deliberate, discussed, separate change rather than an automatic one.
 
@@ -27,40 +27,40 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 
 | ADR | Title | Status |
 |---|---|---|
-| ADR-001-modular-monolith.md | Modular Monolith | Active |
+| ADR-001-modular-monolith.md | Modular Monolith | Accepted |
 | ADR-002-kafka-and-outbox.md | Kafka and Outbox for Asynchronous GitHub Synchronization | **Superseded by ADR-008-no-kafka-outbox-v1.md** |
-| ADR-003-github-token-storage.md | Encrypted GitHub OAuth Token Storage | Active |
-| ADR-004-project-contribution.md | Project Contribution as Project Fields in V1 | Active |
-| ADR-005-project-lifecycle-and-visibility.md | Separate Project Lifecycle and Visibility | Active (allowed combinations and transitions fixed by ADR-015) |
-| ADR-006-project-workspace-not-sandbox.md | Read-only Project Workspace in V1 | Active |
-| ADR-007-github-is-source-of-technical-evidence.md | GitHub as Technical Evidence Source | Active |
-| ADR-008-no-kafka-outbox-v1.md | No Kafka or Outbox in V1 | Active |
-| ADR-009-github-sync-worker-execution-model.md | GitHub Sync Worker Execution Model | Active |
-| ADR-010-github-evidence-data-model-v1.md | GitHub Evidence Data Model V1 | Active |
-| ADR-011-partial-sync-success.md | Partial Sync Success — Mandatory and Optional Categories | Active |
-| ADR-012-github-oauth-only-authentication.md | GitHub OAuth-Only Authentication | Active (CSRF question resolved by ADR-013) |
-| ADR-013-profile-editing-and-origin-check.md | Profile Editing, Publication and Origin Check for State-Changing Requests | Active (public profile gains projects and CORS gains `DELETE` per ADR-015) |
-| ADR-014-frontend-stack.md | Frontend Stack and Rendering Model | Active (open questions listed in the file) |
-| ADR-015-project-model.md | Project Model, Technologies and Featured Projects | Active (amends ADR-005 and ADR-013; open questions listed in the file) |
+| ADR-003-github-token-storage.md | Encrypted GitHub OAuth Token Storage | Accepted |
+| ADR-004-project-contribution.md | Project Contribution as Project Fields in V1 | Accepted |
+| ADR-005-project-lifecycle-and-visibility.md | Separate Project Lifecycle and Visibility | Accepted (allowed combinations and transitions fixed by ADR-015) |
+| ADR-006-project-workspace-not-sandbox.md | Read-only Project Workspace in V1 | Accepted |
+| ADR-007-github-is-source-of-technical-evidence.md | GitHub as Technical Evidence Source | Accepted |
+| ADR-008-no-kafka-outbox-v1.md | No Kafka or Outbox in V1 | Accepted |
+| ADR-009-github-sync-worker-execution-model.md | GitHub Sync Worker Execution Model | Accepted |
+| ADR-010-github-evidence-data-model-v1.md | GitHub Evidence Data Model V1 | Accepted |
+| ADR-011-partial-sync-success.md | Partial Sync Success — Mandatory and Optional Categories | Accepted |
+| ADR-012-github-oauth-only-authentication.md | GitHub OAuth-Only Authentication | Accepted (CSRF question resolved by ADR-013) |
+| ADR-013-profile-editing-and-origin-check.md | Profile Editing, Publication and Origin Check for State-Changing Requests | Accepted (public profile gains projects and CORS gains `DELETE` per ADR-015) |
+| ADR-014-frontend-stack.md | Frontend Stack and Rendering Model | Accepted (open questions listed in the file) |
+| ADR-015-project-model.md | Project Model, Technologies and Featured Projects | Accepted (amends ADR-005 and ADR-013; open questions listed in the file) |
 
 ### Legacy series (bare numbers, frozen)
 
 | ADR | Title | Status |
 |---|---|---|
 | 001-modular-monolith.md | Modular Monolith | Superseded by ADR-001-modular-monolith.md |
-| 002-nextjs.md | Next.js | Active |
-| 003-postgresql.md | PostgreSQL | Active |
-| 004-rest-api.md | REST API | Active |
-| 005-authentication.md | HTTP-only Cookie Sessions and GitHub OAuth | Active (token-storage extended by ADR-003; login method superseded by ADR-012-github-oauth-only-authentication.md; session/cookie security requirements remain) |
+| 002-nextjs.md | Next.js | Accepted |
+| 003-postgresql.md | PostgreSQL | Accepted |
+| 004-rest-api.md | REST API | Accepted |
+| 005-authentication.md | HTTP-only Cookie Sessions and GitHub OAuth | Accepted (token-storage extended by ADR-003; login method superseded by ADR-012-github-oauth-only-authentication.md; session/cookie security requirements remain) |
 | 006-github-source-of-truth.md | GitHub as Technical Evidence Source | Superseded by ADR-007-github-is-source-of-technical-evidence.md |
-| 007-object-storage.md | S3-compatible Object Storage | Active |
+| 007-object-storage.md | S3-compatible Object Storage | Accepted |
 | 008-no-microservices-v1.md | No Microservices in V1 | Superseded by ADR-001-modular-monolith.md |
-| 009-analytics-first-class.md | Analytics as a First-Class Domain | Active (CV_DOWNLOAD amended to deferred — see note in the file) |
+| 009-analytics-first-class.md | Analytics as a First-Class Domain | Accepted (CV_DOWNLOAD amended to deferred — see note in the file) |
 | 010-no-arbitrary-code-execution.md | No Arbitrary Repository Execution in V1 | Superseded by ADR-006-project-workspace-not-sandbox.md |
-| 011-evidence-over-score.md | Evidence Over Scores | Active (GitHub-specific application formalized in ADR-007-github-is-source-of-technical-evidence.md) |
-| 012-github-sync-model.md | Normalize GitHub Data Locally | Active (transport decision now in ADR-008-no-kafka-outbox-v1.md) |
+| 011-evidence-over-score.md | Evidence Over Scores | Accepted (GitHub-specific application formalized in ADR-007-github-is-source-of-technical-evidence.md) |
+| 012-github-sync-model.md | Normalize GitHub Data Locally | Accepted (transport decision now in ADR-008-no-kafka-outbox-v1.md) |
 
-A "Superseded" status means the decision itself has been replaced; the file is kept, unedited in substance, as the historical record of what was decided and why at the time. "Active" means the decision still holds, whether or not it has since been amended with a note.
+A "Superseded" status means the decision itself has been replaced; the file is kept, unedited in substance, as the historical record of what was decided and why at the time. "Accepted" means the decision still holds, whether or not it has since been amended by a note or a later ADR; this is the status written in each ADR file.
 
 ## Open decisions requiring discussion
 

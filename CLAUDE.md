@@ -836,7 +836,7 @@ Current development stage
 
 
 
-The repository is in the backend skeleton stage.
+The repository is in Phase 3 (projects).
 
 
 
@@ -844,31 +844,23 @@ Completed:
 
 
 
-repository initialized
+backend Phase 0: Docker Compose with PostgreSQL 17, FastAPI skeleton, settings, Dockerfile, CI (ruff lint, ruff format check, pytest)
 
-project directory structure created
+backend Phase 1: GitHub OAuth login, server-side sessions, logout, current user (ADR-012); profile editing and publication, Origin check and CORS (ADR-013)
 
-Git initialized
+backend Phase 2: public profile endpoint with a whitelisted DTO (ADR-013)
 
-PostgreSQL 17 running through Docker Compose
+frontend F1–F4: Next.js skeleton, sign-in, cabinet, public page /u/[slug] (ADR-014; manual checks against the backend pending)
 
-initial infrastructure commit created
+ADR-015 accepted: project model, technologies, featured projects
 
-FastAPI application with /api/v1/health endpoint
 
-SQLAlchemy 2 + psycopg3 database session and Base
 
-Alembic initialized (no domain migrations yet)
+In progress:
 
-pydantic-settings with required DATABASE_URL (fails at startup if missing)
 
-Dockerfile: Python 3.13-slim, non-root user, alembic files included
 
-docker-compose: backend service, port bound to 127.0.0.1
-
-CI: GitHub Actions backend workflow (ruff + pytest)
-
-Health endpoint test
+Phase 3 — Projects (DEVELOPMENT_PLAN steps 3.1–3.5): models and migration, cabinet API, public API, frontend F5 and F6.
 
 
 
@@ -876,15 +868,9 @@ Not yet started:
 
 
 
-frontend (Next.js)
+demo, screenshots and file storage (MinIO/S3) — Phase 4
 
-domain models and Alembic migrations
-
-authentication (GitHub OAuth only, server-side sessions — ADR-012)
-
-GitHub integration
-
-file storage (MinIO/S3)
+GitHub repository integration, import and sync — Phases 5–6
 
 Docker Compose not verified end-to-end (build + run untested locally)
 
@@ -894,11 +880,9 @@ Current next goal:
 
 
 
-Define the first domain models (User, Profile, AuthSession per ADR-012) and create Alembic migrations.
+Phase 3 steps in order, per ADR-015: 3.1 models and Alembic migration (schema only), then 3.2 cabinet API, 3.3 public API, F5, F6.
 
-Keep business logic minimal — schema only.
-
-Do not implement API endpoints yet.
+Do not start a step before the previous one is merged.
 
 
 
