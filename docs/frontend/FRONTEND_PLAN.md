@@ -60,20 +60,22 @@ Done in F1: Node 24 LTS, the shadcn/ui components Button, Input, Textarea and La
 
 Done in F2: `/login` per `login.png` (without the example-profile link), the neutral text for an unknown `error` value, a temporary `/me` page (replaced by the F3 cabinet), `getMe` / `logout` / `githubLoginUrl` in the API client, and the restyled shadcn Alert. The full flow against GitHub is checked manually (`frontend/README.md`).
 
-## F3 — Cabinet
+## F3 — Cabinet [done; manual check pending]
 
 **Goal**: the developer edits their profile and controls its publication.
 
 **Done when**:
 - The cabinet matches `DESIGN.md`: header, status, a form with four fields (`display_name`, `headline`, `bio`, `location`), counters with the API limits.
 - «Сохранить» sends only the changed fields; the form shows the normalized values from the response.
-- Publish and unpublish work and update the status from the response; they are disabled while the form has unsaved changes.
+- Publish and unpublish work and update the status from the response; publish is disabled while the form has unsaved changes, unpublish is available only for a published profile.
 - API errors are shown as in `DESIGN.md`: `VALIDATION_ERROR` per field, `PROFILE_INCOMPLETE` with the missing fields highlighted, network error (including the unreadable `CSRF_ORIGIN_INVALID`) with entered data kept, 5xx with `request_id`, 401 → `/login`.
 
 **Tests**:
 - `PATCH` body contains only the changed fields.
 - Each error state from the `DESIGN.md` table renders as described.
 - Publish is disabled while the form is dirty; the status changes from the response.
+
+Done in F3: the cabinet per `cabinet.png` with the decisions recorded in `DESIGN.md` (labels, badges, three buttons, no status legend), `getProfile` / `updateProfile` / `publishProfile` / `unpublishProfile` in the API client, the `FormField` component, and a yellow `label` button variant. The temporary F2 session page is gone. Unpublish keeps unsaved edits; a second click during a request sends nothing. The manual check against the backend is in `frontend/README.md`.
 
 ## F4 — Public page `/u/[slug]`
 

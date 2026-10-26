@@ -43,6 +43,23 @@ Needs a GitHub OAuth app whose callback is `http://localhost:8000/api/v1/auth/gi
 7. Start sign-in and press "Cancel" on GitHub → `/login?error=ACCESS_DENIED` with its text.
 8. Open `/login?error=WHATEVER` → the neutral text, the value is not shown.
 
+## Manual cabinet check
+
+Signed in as above, on `http://localhost:3000/me`:
+
+1. The header shows the avatar, `@your-login` with «Источник: GitHub» and «Выйти»; the status is «Черновик · PRIVATE»; the address `/u/<slug>` is plain text.
+2. «Сохранить» is disabled. Type into «Имя» → it becomes active; restore the old value → disabled again.
+3. Enter «Имя» with spaces around it and save → «Сохранено», the value is shown trimmed. In DevTools → Network the `PATCH` body has only that field.
+4. Reload the page → the saved values are there.
+5. With «Заголовок» empty press «Опубликовать» → «Нельзя опубликовать» naming «Заголовок», the field is highlighted, the status stays PRIVATE.
+6. Change a field without saving → «Опубликовать» is disabled with the hint to save.
+7. Fill «Заголовок», save, publish → «В сети · PUBLISHED», the address becomes a link (the page itself is F4), «Скрыть» is active.
+8. Clear «Имя» and save → «Нельзя сохранить», nothing changes on the server (reload to check).
+9. «Скрыть» → «Черновик · PRIVATE», the link is plain text again.
+10. Limits: «Имя» and «Локация» stop at 100 characters, «Заголовок» at 160, «О себе» at 2000; the counters match.
+11. Stop the backend and press «Сохранить» → «Не удалось связаться с сервером.», the entered text stays.
+12. «Выйти» → `/login`.
+
 ## Checks
 
 ```bash

@@ -59,7 +59,7 @@ Rules that follow:
 
 ## Typography
 
-- **Press Start 2P**: only short headings and labels (section titles, the «Класс» label, status badges). Not for sentences, form values or long names.
+- **Press Start 2P**: only short headings and labels (section titles, the «Класс» label, form labels, status badges). Not for sentences, form values or long names.
 - **Pixelify Sans**: body text, form fields, buttons, names.
 - **Decision**: buttons with an important action (sign-in) are written in normal case, in Pixelify Sans, at a large size. Uppercase in Press Start 2P reads poorly.
 - Both fonts must include the Cyrillic subset; check this when the fonts are added (F1).
@@ -123,35 +123,58 @@ States:
 
 ### Cabinet — `/me`
 
-Data: `GET /api/v1/auth/me`, then `GET /api/v1/profile` → `slug`, `status`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`.
+Data: `GET /api/v1/profile` → `slug`, `status`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`. The cabinet does not call `/auth/me`: the profile response carries everything it shows, and its 401 means there is no session.
+
+The mockup `cabinet.png` sets the layout and texts. Where it differs from the rules above, the decisions are:
+
+- the cabinet labels `headline` «Заголовок»; the public page keeps «Класс»;
+- buttons stay in Pixelify Sans, normal case (Typography decision), with the mockup's colors: «Сохранить» accent, «Опубликовать» `label` fill with `outline` text, «Скрыть» panel;
+- the header keeps «Источник: GitHub» under the login, although the mockup omits it;
+- the mockup's «Состояния статуса» legend is an annotation and is not built; its sentence sits under the public address.
 
 Blocks:
 
 | Block | Data | Notes |
 |---|---|---|
-| Header | `avatar_url`, `github_login`, `slug` | Round avatar and login with «Источник: GitHub»; link to the public page `/u/{slug}`; «Выйти» button. |
-| Status | `status` | `PRIVATE` → «Скрыт», `PUBLISHED` → «Опубликован». «Опубликовать» or «Скрыть» button (`POST /profile/publish`, `POST /profile/unpublish`). |
-| Form | `display_name`, `headline`, `bio`, `location` | Four fields; `headline` is labelled «Класс». Character counters with the limits 100 / 160 / 2000 / 100. «Сохранить» button. |
+| Header | `avatar_url`, `github_login` | «DEV.PROFILE» on the left. On the right: round avatar (`null` → default pixel avatar), `@github_login` with «Источник: GitHub», «Выйти» (secondary). While loading or after a load error only «Выйти» is shown. |
+| «Мой профиль» | `slug`, `status` | «Публичный адрес: /u/{slug} (не меняется)» and «Опубликованный профиль видят все по этой ссылке.» The address is a link only while `PUBLISHED`; the page itself comes in F4, until then the link leads to the 404 screen. On the right «Статус» and a badge: `PRIVATE` → «Черновик · PRIVATE» (`label`), `PUBLISHED` → «В сети · PUBLISHED» (`success`). |
+| Form | `display_name`, `headline`, `bio`, `location` | Fields in mockup order, labels in Press Start 2P uppercase, required ones marked «*» (required for publication, not for saving). Each has a hint and a counter «N / limit». Buttons «Сохранить», «Опубликовать», «Скрыть» and the saved message. |
+
+Fields:
+
+| Field | Label | Placeholder | Hint | Limit |
+|---|---|---|---|---|
+| `display_name` | «Имя *» | «Как вас называть» | «Обязательно для публикации» | 100 |
+| `location` | «Локация» | «Город, страна» | «Необязательно» | 100 |
+| `headline` | «Заголовок *» | «Например: Fullstack-разработчик, Python и TypeScript» | «Одна строка под именем. Обязательно для публикации» | 160 |
+| `bio` | «О себе» (multi-line) | «Чем занимаетесь, что умеете, какие задачи решаете лучше всего» | «Простой текст, без разметки» | 2000 |
+
+Input placeholders are hints for typing, so they have no square brackets; the bracket rule is for placeholders shown in place of missing content.
 
 Behavior:
 
-- «Сохранить» sends `PATCH /profile` with only the changed fields. The form shows the values from the response, which are normalized by the server (trimmed, blank → `null`).
-- Publish and unpublish use the stored values, so their button is disabled while the form has unsaved changes.
-- The status and the form are updated from the `OwnProfileResponse` that every call returns.
-- Client-side limits mirror the API, but the API is the source of truth.
+- «Сохранить» is active only when a field differs from the stored value. It sends `PATCH /profile` with only the changed fields; an emptied field is sent as `null`. The form then shows the values from the response, which are normalized by the server (trimmed, blank → `null`), and «Сохранено» appears in `success` until the next edit.
+- «Опубликовать» is active only in `PRIVATE` without unsaved changes, because publish checks the stored values. With unsaved changes it shows «Сохраните изменения, чтобы опубликовать профиль.»
+- «Скрыть» is active only in `PUBLISHED`; in `PRIVATE` it shows the hint `«Скрыть» доступно, когда профиль опубликован.` Unpublish does not use the form, so unsaved edits do not block it and stay in the form.
+- While a request runs, all three buttons are disabled and the fields are read-only. A second click or Enter during a request sends nothing.
+- The status is updated from the `OwnProfileResponse` that every call returns.
+- Client-side limits (`maxLength`) mirror the API, but the API is the source of truth.
+- Errors stay until the next save, publish or unpublish.
 
 States and errors:
 
 | Case | Shown as |
 |---|---|
-| Loading | Panel placeholders |
+| Loading | «Загрузка…» in a panel |
 | 401 from any call | Redirect to `/login` (the session is missing or expired) |
-| 422 `VALIDATION_ERROR` | Error under each field from `details.fields` (`loc` `["body", "<field>"]`; `type` such as `string_too_long`, `control_characters`) |
-| 422 `PROFILE_INCOMPLETE` | Fields from `details.missing_fields` are highlighted with «Для публикации заполните: …». Comes from publish, and from a save that clears `display_name` or `headline` of a published profile |
+| Load fails | The network or generic text below, and «Повторить» |
+| 422 `VALIDATION_ERROR` | Error under each field from `details.fields` (`loc` `["body", "<field>"]`): `string_too_long` → «Не больше N символов.», `control_characters` → «Недопустимые символы.», any other type → «Некорректное значение.». Entries for other locations are ignored; without any field entry the generic text is shown |
+| 422 `PROFILE_INCOMPLETE` from publish | Alert «Нельзя опубликовать» with «Заполните обязательные поля: «Имя» и «Заголовок».» (or «Заполните обязательное поле: «Имя».»), listing `details.missing_fields`; those fields are highlighted |
+| 422 `PROFILE_INCOMPLETE` from save | A save that clears `display_name` or `headline` of a published profile. Alert «Нельзя сохранить» with the same list and «Очистить их можно только у скрытого профиля.»; the fields are highlighted |
 | 403 `CSRF_ORIGIN_INVALID` | Cannot be read by the browser: the response has no `Access-Control-Allow-Origin` (ADR-013), so `fetch` fails like a network error. Shown as the network error below. In practice it means `FRONTEND_URL` does not match the frontend's origin (for example `127.0.0.1` instead of `localhost`) |
-| Network error or API unreachable | «Не удалось связаться с сервером.», with a retry; entered data is kept |
+| Network error or API unreachable | «Не удалось связаться с сервером.»; entered data is kept and the action can be repeated |
 | 500 `INTERNAL_ERROR`, other errors | «Что-то пошло не так. Попробуйте ещё раз.» and «Код запроса: <request_id>» from the error body (or `X-Request-ID`) when present |
-| Saved | Short success message in `success` |
+| Saved | «Сохранено» in `success` |
 
 ### Sign-in — `/login`
 
@@ -199,18 +222,6 @@ Texts for `?error=<CODE>`:
 No `error` parameter: no error block. The texts come from this table only; the value of `error` is never shown.
 
 Logout (from the cabinet): `POST /api/v1/auth/logout` → 204 → redirect to `/login`. A failure keeps the user on the page and shows the network or generic error text from the cabinet table.
-
-### Temporary session page — `/me` in F2
-
-Until the F3 cabinet, `/me` only proves the session:
-
-| Case | Shown as |
-|---|---|
-| Loading | «Загрузка…» |
-| 200 | «Вы вошли как», `@github_login` with «Источник: GitHub», the «Выйти» button |
-| 401 | Redirect to `/login` |
-| Network error | «Не удалось связаться с сервером.» and «Повторить» |
-| Other API error | «Что-то пошло не так. Попробуйте ещё раз.», «Код запроса: <request_id>» when present, and «Повторить» |
 
 ### 404
 
