@@ -62,8 +62,10 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 - One user has one GitHub Account (1:1 — see ADR-012). The earlier `USER 1:N GITHUB_ACCOUNT` relationship is replaced.
 - `auth_sessions.token_hash` is unique; `auth_sessions` columns: `id`, `user_id`, `token_hash`, `created_at`, `expires_at` — see ADR-012.
 - One user has one profile.
-- `profiles.slug` is unique; format: lowercase letters, digits, hyphens; length 3–39 characters; reserved words excluded; generated from `github_login` on account creation, conflict resolved with a numeric suffix — see ADR-012-github-oauth-only-authentication.md.
+- `profiles.slug` is unique; format: lowercase letters, digits, hyphens; length 3–39 characters; reserved words excluded; generated from `github_login` on account creation, conflict resolved with a random 6-character hex suffix — see ADR-012-github-oauth-only-authentication.md. The slug cannot be changed in V1 — see ADR-013-profile-editing-and-origin-check.md.
 - `profiles.status` is one of PRIVATE, PUBLISHED — see ADR-005-project-lifecycle-and-visibility.md.
+- `profiles.display_name` (≤ 100), `headline` (≤ 160), `bio` (≤ 2000, plain text) and `location` (≤ 100) are nullable TEXT columns; CHECK constraints enforce the length and reject blank values. A `PUBLISHED` profile must have `display_name` and `headline` (`ck_profiles_published_complete`); the same rule is enforced in the domain layer — see ADR-013.
+- `github_accounts.avatar_url` is nullable GitHub data, refreshed on every login; a login response without a usable avatar keeps the stored value — see ADR-013.
 - One project has at most one showcase record.
 - One project has at most one Demo.
 - One project has at most one linked GitHub repository in V1.

@@ -143,6 +143,14 @@ PRIVATE <-> PUBLISHED
 
 Unpublishing a profile returns it to PRIVATE. There is no separate UNPUBLISHED state. See ADR-005-project-lifecycle-and-visibility.md.
 
+## Profile fields and publication
+
+Developer-provided fields: `display_name`, `headline`, `bio` (plain text), `location` — all optional while the profile is PRIVATE. `avatar_url` and `github_login` are GitHub data. The slug cannot be changed in V1.
+
+Publish validation (PRIVATE → PUBLISHED): `display_name` and `headline` must be non-empty; otherwise `PROFILE_INCOMPLETE`. A published profile cannot clear either field. Publish and unpublish are idempotent.
+
+A public profile is visible only while PUBLISHED. Private, missing and malformed slugs are indistinguishable (same 404). See ADR-013-profile-editing-and-origin-check.md.
+
 ## Publish validation
 
 Minimum, to move a project from DRAFT to PUBLISHED:

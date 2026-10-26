@@ -67,7 +67,7 @@ A profile slug is generated automatically from `github_login` at account creatio
 - On conflict: a random 6-character hex suffix is appended (e.g. `alice-3f9a1c`), up to 5 attempts.
 - A configurable list of reserved words may not be used as slugs (e.g. `admin`, `api`, `static`).
 
-The developer may change the slug after creation; uniqueness and format rules always apply.
+The slug cannot be changed in V1 (ADR-013-profile-editing-and-origin-check.md); whether to allow it later is an open question there.
 
 ## Consequences
 
@@ -90,7 +90,7 @@ The developer may change the slug after creation; uniqueness and format rules al
 - **Behavior on GitHub login change**: implemented as update-on-next-login (`github_login` and `email` are refreshed from the GitHub API on every login). This resolves the open question from the initial ADR text; the user's slug is never changed automatically.
 - **Account deletion**: how a user deletes their account and what happens to their data is not decided.
 - **Database settings isolation**: `Settings` requires `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_CALLBACK_URL`, and `FRONTEND_URL` at startup, so Alembic migrations (which only need `DATABASE_URL`) also require the GitHub keys to be present in the environment. Whether to split settings into a minimal `DatabaseSettings` (for migrations) and a full `AppSettings` (for the running app) is not decided.
-- **CSRF protection**: there is no CSRF token yet. The only state-changing endpoint is `POST /auth/logout`, covered against cross-site requests by `SameSite=Lax` but not against same-site (sibling subdomain) requests. A CSRF mechanism must be decided before the first state-changing endpoint beyond logout.
+- **CSRF protection**: resolved for V1 by ADR-013-profile-editing-and-origin-check.md — every `POST`, `PUT`, `PATCH` and `DELETE` (including `/auth/logout`) must carry the frontend's `Origin`; no CSRF token.
 - **`__Host-` cookie prefix**: whether to name the session cookie `__Host-session` in production (requires `Secure`, `Path=/`, no `Domain`) is not decided.
 - **Expired session cleanup**: expired rows in `auth_sessions` are filtered out but never deleted, and there is no index on `expires_at`. A cleanup mechanism and the index are not decided.
 - **Session limit per user**: there is no limit on concurrent sessions per user and no "log out everywhere".

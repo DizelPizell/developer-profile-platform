@@ -43,6 +43,8 @@ A public profile contains:
 
 The developer controls which projects are featured and their order.
 
+Implemented so far (ADR-013): photo is the GitHub avatar, name is `display_name`, specialization is `headline`, short description is `bio` (plain text), plus `location`; GitHub is shown as `github_login`. A profile can be published only with a name and a headline. Experience, skills, education, contacts and projects come with later phases.
+
 ## Project
 
 A project can contain:
@@ -152,7 +154,7 @@ Cookies:
 - HTTP-only
 - Secure in production
 - appropriate SameSite policy
-- CSRF protection where applicable
+- CSRF protection where applicable (V1: Origin check on state-changing requests, ADR-013)
 
 Developer controls:
 - profile visibility

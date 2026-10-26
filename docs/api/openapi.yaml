@@ -45,6 +45,7 @@ paths:
       description: Deletes the current session (if any) and clears the session cookie.
       responses:
         "204": {description: Logged out}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
         "500": {$ref: "#/components/responses/InternalError"}
   /auth/me:
     get:
@@ -64,33 +65,77 @@ paths:
   /profile:
     get:
       summary: Get own profile
+      description: Requires a session; always the current user's profile.
       responses:
-        "200": {description: Profile}
+        "200": {$ref: "#/components/responses/OwnProfile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalError"}
     patch:
       summary: Update own profile
+      description: >-
+        Partial update: fields present in the body change, null clears a field,
+        unknown fields (including slug, status, avatar_url) are rejected. Values
+        are trimmed, blank becomes null, control characters are rejected (bio
+        allows newlines).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ProfileUpdate"}
       responses:
-        "200": {description: Updated profile}
+        "200": {$ref: "#/components/responses/OwnProfile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "422":
+          description: >-
+            VALIDATION_ERROR (see ValidationError), or PROFILE_INCOMPLETE when
+            the change would clear display_name or headline of a published profile
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /profile/publish:
     post:
       summary: Publish profile
+      description: Idempotent; requires non-empty display_name and headline.
       responses:
-        "200": {description: Published}
+        "200": {$ref: "#/components/responses/OwnProfile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "422": {$ref: "#/components/responses/ProfileIncomplete"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /profile/unpublish:
     post:
       summary: Unpublish profile
+      description: Idempotent; returns the profile to PRIVATE.
       responses:
-        "200": {description: Unpublished}
+        "200": {$ref: "#/components/responses/OwnProfile"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /public/profiles/{slug}:
     get:
       summary: Get public profile
+      description: >-
+        PUBLISHED profiles only; the slug is case-insensitive. Private, missing
+        and malformed slugs return the same 404 as an unknown URL.
       parameters:
         - name: slug
           in: path
           required: true
           schema: {type: string}
       responses:
-        "200": {description: Public profile}
-        "404": {description: Not found}
+        "200":
+          description: Public profile
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicProfileResponse"}
+        "404":
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /projects:
     get:
       summary: List own projects
@@ -214,6 +259,37 @@ components:
         github_login: {type: string}
         email: {type: string, nullable: true}
         profile_slug: {type: string, nullable: true}
+    ProfileUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        display_name: {type: string, maxLength: 100, nullable: true}
+        headline: {type: string, maxLength: 160, nullable: true}
+        bio: {type: string, maxLength: 2000, nullable: true, description: Plain text; newlines allowed}
+        location: {type: string, maxLength: 100, nullable: true}
+    OwnProfileResponse:
+      type: object
+      required: [slug, status, display_name, headline, bio, location, avatar_url, github_login]
+      properties:
+        slug: {type: string}
+        status: {type: string, enum: [PRIVATE, PUBLISHED]}
+        display_name: {type: string, nullable: true}
+        headline: {type: string, nullable: true}
+        bio: {type: string, nullable: true}
+        location: {type: string, nullable: true}
+        avatar_url: {type: string, nullable: true}
+        github_login: {type: string}
+    PublicProfileResponse:
+      type: object
+      required: [slug, display_name, headline, bio, location, avatar_url, github_login]
+      properties:
+        slug: {type: string}
+        display_name: {type: string, nullable: true}
+        headline: {type: string, nullable: true}
+        bio: {type: string, nullable: true}
+        location: {type: string, nullable: true}
+        avatar_url: {type: string, nullable: true}
+        github_login: {type: string}
   responses:
     ValidationError:
       description: >-
@@ -232,6 +308,38 @@ components:
               details:
                 fields:
                   - {loc: [path, id], type: uuid_parsing}
+              request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
+    OwnProfile:
+      description: Own profile
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/OwnProfileResponse"}
+    Unauthorized:
+      description: UNAUTHORIZED — no, unknown or expired session
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    OriginInvalid:
+      description: >-
+        CSRF_ORIGIN_INVALID — the Origin header is missing or is not the
+        frontend origin. Carries Vary: Origin and X-Request-ID, never
+        Access-Control-Allow-Origin.
+      headers:
+        X-Request-ID: {$ref: "#/components/headers/X-Request-ID"}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    ProfileIncomplete:
+      description: PROFILE_INCOMPLETE — required publication fields are empty
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+          example:
+            error:
+              code: PROFILE_INCOMPLETE
+              message: Profile is missing fields required for publication
+              details:
+                missing_fields: [display_name, headline]
               request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
     InternalError:
       description: INTERNAL_ERROR — unexpected server error; no internal details are returned.

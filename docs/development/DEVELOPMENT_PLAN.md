@@ -13,18 +13,19 @@
 Next.js skeleton moved to Phase 2.
 
 ## Phase 1 - Authentication and Profile
-- User/Profile/AuthSession models (ADR-012)
-- migrations
-- GitHub OAuth login — register+login unified, auth_session table, 14-day lifetime (ADR-012)
-- logout
-- current user
-- profile editing/publication
-- ownership tests
+- User/Profile/AuthSession models (ADR-012) [done]
+- migrations [done]
+- GitHub OAuth login — register+login unified, auth_session table, 14-day lifetime (ADR-012) [done]
+- logout [done]
+- current user [done]
+- profile editing/publication (ADR-013) [done]
+- ownership tests [done]
+- Origin check and CORS for state-changing requests (ADR-013) [done]
 
 ## Phase 2 - Public Profile
 - Next.js skeleton
-- public endpoint
-- public DTOs
+- public endpoint (ADR-013) [done]
+- public DTOs (ADR-013) [done]
 - public page
 - slug
 - privacy

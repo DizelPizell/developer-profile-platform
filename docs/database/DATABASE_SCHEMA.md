@@ -74,6 +74,16 @@ Primary identifier is `github_user_id` (stable GitHub numeric id). See ADR-012-g
 
 Cookie contains a random opaque token; only its hash is stored. Logout deletes the row. See ADR-012-github-oauth-only-authentication.md.
 
+## Profile fields
+
+`id`, `user_id` (unique, FK → users), `slug` (unique), `status` (PRIVATE/PUBLISHED), `display_name` (≤ 100), `headline` (≤ 160), `bio` (≤ 2000, plain text), `location` (≤ 100), `created_at`, `updated_at`.
+
+The four text fields are nullable; stored values are trimmed and never blank. `updated_at` is set by application code when a value changes. See ADR-013-profile-editing-and-origin-check.md.
+
+## GitHub account fields (current)
+
+`id`, `user_id` (unique, FK → users), `avatar_url` (nullable, ≤ 2048, GitHub data refreshed on login), `created_at`. Token columns are added with the repository-access integration (ADR-003).
+
 ## Constraints
 
 - user.github_user_id unique
@@ -81,6 +91,8 @@ Cookie contains a random opaque token; only its hash is stored. Logout deletes t
 - profile.user_id unique
 - profile.slug unique (lowercase letters, digits, hyphens; length 3–39; reserved words excluded)
 - profile.status is one of PRIVATE, PUBLISHED (see ADR-005-project-lifecycle-and-visibility.md)
+- profile.display_name / headline / bio / location: CHECK `char_length(x) <= limit AND btrim(x) <> ''` (`ck_profiles_<field>`)
+- profile published only when complete: CHECK `status <> 'PUBLISHED' OR (display_name IS NOT NULL AND headline IS NOT NULL)` (`ck_profiles_published_complete`) — see ADR-013
 - auth_session.token_hash unique
 - auth_session.expires_at enforced at application level
 - project belongs to an owner
