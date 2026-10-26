@@ -30,6 +30,19 @@ npm run dev        # http://localhost:3000
 npm run build && npm run start
 ```
 
+## Manual sign-in check
+
+Needs a GitHub OAuth app whose callback is `http://localhost:8000/api/v1/auth/github/callback`.
+
+1. Backend `.env`: `APP_ENV=development`, `FRONTEND_URL=http://localhost:3000`, the OAuth app's `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`, `GITHUB_CALLBACK_URL` as above. Start PostgreSQL and the backend on port 8000.
+2. Here: `.env.local` from `.env.example`, then `npm run dev`. Open `http://localhost:3000` in the same browser host (`localhost`, not `127.0.0.1`, or the Origin check rejects requests).
+3. `/` → `/me` → `/login` (no session). The button links to `http://localhost:8000/api/v1/auth/github/login`.
+4. Sign in on GitHub → back on `/me` with `@your-login`.
+5. Open `/login` again → it redirects to `/me`.
+6. «Выйти» → `/login`; opening `/me` again redirects to `/login`.
+7. Start sign-in and press "Cancel" on GitHub → `/login?error=ACCESS_DENIED` with its text.
+8. Open `/login?error=WHATEVER` → the neutral text, the value is not shown.
+
 ## Checks
 
 ```bash

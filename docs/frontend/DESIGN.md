@@ -149,13 +149,23 @@ States and errors:
 | 422 `VALIDATION_ERROR` | Error under each field from `details.fields` (`loc` `["body", "<field>"]`; `type` such as `string_too_long`, `control_characters`) |
 | 422 `PROFILE_INCOMPLETE` | Fields from `details.missing_fields` are highlighted with «Для публикации заполните: …». Comes from publish, and from a save that clears `display_name` or `headline` of a published profile |
 | 403 `CSRF_ORIGIN_INVALID` | Cannot be read by the browser: the response has no `Access-Control-Allow-Origin` (ADR-013), so `fetch` fails like a network error. Shown as the network error below. In practice it means `FRONTEND_URL` does not match the frontend's origin (for example `127.0.0.1` instead of `localhost`) |
-| Network error or API unreachable | «Не удалось связаться с сервером», with a retry; entered data is kept |
-| 500 `INTERNAL_ERROR`, other errors | Generic error with the `request_id` from the error body (also in `X-Request-ID`) for reporting |
+| Network error or API unreachable | «Не удалось связаться с сервером.», with a retry; entered data is kept |
+| 500 `INTERNAL_ERROR`, other errors | «Что-то пошло не так. Попробуйте ещё раз.» and «Код запроса: <request_id>» from the error body (or `X-Request-ID`) when present |
 | Saved | Short success message in `success` |
 
 ### Sign-in — `/login`
 
-Blocks: a short title (Press Start 2P), one line explaining that sign-in uses GitHub only (ADR-012), and the button «Войти через GitHub» (Pixelify Sans, normal case, large).
+Blocks (mockup `login.png`):
+
+- the «DEV.PROFILE» mark above the panel;
+- the default pixel avatar;
+- the title «Новая игра» (Press Start 2P, shown in uppercase);
+- «Профиль разработчика с проектами и данными из GitHub. Войдите, чтобы создать свой.»;
+- the error block, when there is one;
+- the button «Войти через GitHub» (Pixelify Sans, normal case, large);
+- the note «Мы получаем только публичные данные GitHub: логин, аватар и email, если он открыт. Доступа к вашим репозиториям нет.» The mockup omits the email; the backend stores a public email (ADR-012), so the text names it.
+
+The mockup's link «Посмотреть пример профиля» is left out until a public page (F4) and an example profile exist.
 
 Behavior:
 
@@ -170,7 +180,8 @@ States and errors:
 |---|---|
 | Checking the session | Button disabled |
 | No session (401) | Button active |
-| API unreachable while checking | Button active and «Не удалось связаться с сервером» |
+| API unreachable while checking | Button active and «Не удалось связаться с сервером.» |
+| Any other API error while checking | Button active, no message |
 
 Texts for `?error=<CODE>`:
 
@@ -183,9 +194,23 @@ Texts for `?error=<CODE>`:
 | `GITHUB_UNAVAILABLE` | «GitHub сейчас недоступен. Попробуйте позже.» |
 | `INTERNAL_ERROR` | «Что-то пошло не так на нашей стороне. Попробуйте позже.» |
 
-The texts come from this table only; the value of `error` is never shown as is. Handling of an unknown or missing value is decided in F2.
+| Any other value, including an empty one | «Не удалось войти. Попробуйте ещё раз.» |
 
-Logout (from the cabinet): `POST /api/v1/auth/logout` → 204 → redirect to `/login`. A network error keeps the user on the cabinet and shows the network error.
+No `error` parameter: no error block. The texts come from this table only; the value of `error` is never shown.
+
+Logout (from the cabinet): `POST /api/v1/auth/logout` → 204 → redirect to `/login`. A failure keeps the user on the page and shows the network or generic error text from the cabinet table.
+
+### Temporary session page — `/me` in F2
+
+Until the F3 cabinet, `/me` only proves the session:
+
+| Case | Shown as |
+|---|---|
+| Loading | «Загрузка…» |
+| 200 | «Вы вошли как», `@github_login` with «Источник: GitHub», the «Выйти» button |
+| 401 | Redirect to `/login` |
+| Network error | «Не удалось связаться с сервером.» and «Повторить» |
+| Other API error | «Что-то пошло не так. Попробуйте ещё раз.», «Код запроса: <request_id>» when present, and «Повторить» |
 
 ### 404
 

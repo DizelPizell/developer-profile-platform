@@ -40,7 +40,7 @@ Stages of the V1 frontend. Stack and rendering: ADR-014-frontend-stack.md. Scree
 
 Done in F1: Node 24 LTS, the shadcn/ui components Button, Input, Textarea and Label restyled with the tokens, and a stub start page.
 
-## F2 — Sign-in via GitHub, current user, logout
+## F2 — Sign-in via GitHub, current user, logout [done; manual check with GitHub pending]
 
 **Goal**: a developer can sign in, the app knows who they are, and they can sign out.
 
@@ -57,6 +57,8 @@ Done in F1: Node 24 LTS, the shadcn/ui components Button, Input, Textarea and La
 - `/login?error=<CODE>` renders the text for each of the six codes and never the raw value.
 - `/me` with 401 redirects to `/login`.
 - Logout sends `POST` with credentials and redirects on 204; a network error keeps the user on the page.
+
+Done in F2: `/login` per `login.png` (without the example-profile link), the neutral text for an unknown `error` value, a temporary `/me` page (replaced by the F3 cabinet), `getMe` / `logout` / `githubLoginUrl` in the API client, and the restyled shadcn Alert. The full flow against GitHub is checked manually (`frontend/README.md`).
 
 ## F3 — Cabinet
 
