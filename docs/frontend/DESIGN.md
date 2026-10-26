@@ -75,9 +75,9 @@ Rules that follow:
 
 ## Content rules
 
-- Placeholder text is written in square brackets: `[Пока без описания]`.
+- Placeholder text is written in square brackets: `[Пока без описания]`. Mockups use brackets for sample data; the implementation shows real values or hides the block.
 - No invented scores, ratings, levels, experience points or progress bars, even though the style is game-like (CLAUDE.md, ADR-007). «Класс» shows the developer's own `headline` and nothing else.
-- Blocks with GitHub data always carry a source mark «Источник: GitHub». Data entered by the developer has no such mark. This applies to `avatar_url` and `github_login`, which come from GitHub.
+- Blocks with GitHub data always carry a source mark «Источник: GitHub». This applies to `avatar_url` and `github_login`, which come from GitHub. On the public page, a block of developer-written text carries «От автора» (mockup `public-profile.png`), so the two sources stay distinguishable (CLAUDE.md); form fields in the cabinet have no mark.
 - `bio` is plain text: line breaks are preserved, markdown is not interpreted, and it is never rendered as HTML (ADR-013).
 
 ## Routes
@@ -100,26 +100,36 @@ Blocks:
 
 | Block | Data | Notes |
 |---|---|---|
-| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar; `null` avatar shows a default pixel avatar. `headline` is shown under the label «Класс». `github_login` links to `https://github.com/{github_login}`. Avatar and login carry «Источник: GitHub». Empty `location` is hidden. |
-| «О себе» | `bio` | Plain text with line breaks. Empty `bio` hides the block. |
+| Header | — | «DEV.PROFILE» and «Войти через GitHub», a link to `/login` (the mockup's top bar). |
+| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Pixelify Sans (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. The mockup's «Проекты» button waits for Phase 3. |
+| «О себе» | `bio` | Marked «От автора». Plain text with line breaks (`white-space: pre-line`). Empty `bio` hides the block. |
 | «Скилы» | — | Pending: no backend source yet, phase not assigned. A plain list in future; never levels or bars. |
 | «Главные проекты» | — | Pending backend Phase 3 (Projects). Up to 3 featured projects. |
 | «Данные GitHub» | — | Pending backend Phases 5–6 (GitHub import and sync). Always marked «Источник: GitHub». |
 | «Другие проекты» | — | Pending backend Phase 3. |
 
-`display_name` and `headline` are never empty here: a profile can be published only with both (ADR-013).
+`display_name` and `headline` are never empty here: a profile can be published only with both (ADR-013). If one is missing anyway, the name falls back to `@github_login` and the «Класс» line is hidden.
 
-`slug` is used for the page address and the canonical link.
+Pending blocks are drawn in mockups with a bracketed placeholder. The F4 implementation does not render them on the public page until their data exists. The mockup's footer is an annotation and is not built.
 
-Pending blocks are drawn in mockups with a bracketed placeholder. The F4 implementation does not render them on the public page until their data exists.
+Every value is rendered as text; fields outside the public whitelist are dropped when the response is read.
+
+Address:
+
+- The slug must match `^[a-z0-9][a-z0-9-]{0,37}[a-z0-9]$` after lowercasing; otherwise the 404 screen is shown without calling the API.
+- A slug with uppercase letters redirects (308) to its lowercase address, because the API ignores case. Each profile has one address; there is no canonical tag in V1.
+
+Metadata: title «{display_name} — {headline}», description `headline`. No Open Graph image. The 404 and error screens keep the neutral title «Developer Profile Platform» (Next.js takes 404 metadata only from the root `not-found`). Next.js adds `noindex` to both.
 
 States:
 
 | API response | Result |
 |---|---|
 | 200 | Profile page |
-| 404 | 404 screen, HTTP status 404 |
-| Any other error or API unreachable | Error screen `[Профиль временно недоступен]`, no internal details |
+| 404, or malformed slug | Profile 404 screen, HTTP status 404 |
+| Any other error: API unreachable, timeout (5 s), 5xx, unexpected body | Error screen «Не удалось загрузить профиль» with «Повторить», no internal details, HTTP status 500. It is drawn by the browser (`error.tsx` is a client component), so without JavaScript the page is empty |
+
+The page makes one API call per request. After an error Next.js renders the error page in a second pass, so the call is shared through the request's `headers()` object rather than React `cache()`.
 
 ### Cabinet — `/me`
 
@@ -137,7 +147,7 @@ Blocks:
 | Block | Data | Notes |
 |---|---|---|
 | Header | `avatar_url`, `github_login` | «DEV.PROFILE» on the left. On the right: round avatar (`null` → default pixel avatar), `@github_login` with «Источник: GitHub», «Выйти» (secondary). While loading or after a load error only «Выйти» is shown. |
-| «Мой профиль» | `slug`, `status` | «Публичный адрес: /u/{slug} (не меняется)» and «Опубликованный профиль видят все по этой ссылке.» The address is a link only while `PUBLISHED`; the page itself comes in F4, until then the link leads to the 404 screen. On the right «Статус» and a badge: `PRIVATE` → «Черновик · PRIVATE» (`label`), `PUBLISHED` → «В сети · PUBLISHED» (`success`). |
+| «Мой профиль» | `slug`, `status` | «Публичный адрес: /u/{slug} (не меняется)» and «Опубликованный профиль видят все по этой ссылке.» The address is a link to the public page only while `PUBLISHED`. On the right «Статус» and a badge: `PRIVATE` → «Черновик · PRIVATE» (`label`), `PUBLISHED` → «В сети · PUBLISHED» (`success`). |
 | Form | `display_name`, `headline`, `bio`, `location` | Fields in mockup order, labels in Press Start 2P uppercase, required ones marked «*» (required for publication, not for saving). Each has a hint and a counter «N / limit». Buttons «Сохранить», «Опубликовать», «Скрыть» and the saved message. |
 
 Fields:
@@ -225,11 +235,14 @@ Logout (from the cabinet): `POST /api/v1/auth/logout` → 204 → redirect to `/
 
 ### 404
 
-Shown for unknown routes and when the public profile API returns 404. HTTP status 404.
+Two screens with the layout of `not-found.png`: «DEV.PROFILE» above a panel with a large «404», a title (Press Start 2P), one line of text and buttons (Pixelify Sans, normal case, as all buttons). HTTP status 404.
 
-The text says only that the page was not found. It never says that a profile exists or is private: the API deliberately returns the same 404 for private, missing and malformed slugs (ADR-013).
+| Case | Title | Text | Buttons |
+|---|---|---|---|
+| `/u/{slug}`: API 404 or malformed slug | «Профиль не найден» | «Такого профиля нет или он не опубликован. Проверьте ссылку.» | «На главную» (`/`), «Создать свой» (`/login`) |
+| Any other unknown route | «Страница не найдена» | «Проверьте ссылку.» | «На главную» (`/`) |
 
-Blocks: a short title (Press Start 2P), one line of text, a link to the start page.
+The profile text names both cases together, so it never says which one applies: the API deliberately returns the same 404 for private, missing and malformed slugs (ADR-013).
 
 ## Mockups
 

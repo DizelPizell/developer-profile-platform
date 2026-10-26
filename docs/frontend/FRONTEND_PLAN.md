@@ -77,7 +77,7 @@ Done in F2: `/login` per `login.png` (without the example-profile link), the neu
 
 Done in F3: the cabinet per `cabinet.png` with the decisions recorded in `DESIGN.md` (labels, badges, three buttons, no status legend), `getProfile` / `updateProfile` / `publishProfile` / `unpublishProfile` in the API client, the `FormField` component, and a yellow `label` button variant. The temporary F2 session page is gone. Unpublish keeps unsaved edits; a second click during a request sends nothing. The manual check against the backend is in `frontend/README.md`.
 
-## F4 — Public page `/u/[slug]`
+## F4 — Public page `/u/[slug]` [done; manual check with the backend pending]
 
 **Goal**: a published profile is visible to anyone at its address.
 
@@ -92,6 +92,8 @@ Done in F3: the cabinet per `cabinet.png` with the decisions recorded in `DESIGN
 - Hero renders with `avatar_url = null` and `location = null`.
 - `bio` containing HTML-like text is shown as text.
 - End-to-end checks with Playwright are an open question in ADR-014.
+
+Done in F4: `getPublicProfile` (5 s timeout, `cache: "no-store"`, whitelist, 404 → `null`), the page per `public-profile.png` with only the API blocks and «От автора» on «О себе», a malformed slug as 404 without an API call, a 308 redirect for uppercase slugs, the profile 404 and a separate 404 for unknown routes, the error page with «Повторить» (HTTP 500), and `generateMetadata`. Status codes, one API call per request (also on errors), no cookie forwarding and the escaped HTML were checked against a built server and a mock API; the check against the real backend is in `frontend/README.md`.
 
 ## F5+ — Projects, GitHub data, IDE view
 

@@ -53,12 +53,26 @@ Signed in as above, on `http://localhost:3000/me`:
 4. Reload the page → the saved values are there.
 5. With «Заголовок» empty press «Опубликовать» → «Нельзя опубликовать» naming «Заголовок», the field is highlighted, the status stays PRIVATE.
 6. Change a field without saving → «Опубликовать» is disabled with the hint to save.
-7. Fill «Заголовок», save, publish → «В сети · PUBLISHED», the address becomes a link (the page itself is F4), «Скрыть» is active.
+7. Fill «Заголовок», save, publish → «В сети · PUBLISHED», the address becomes a link to the public page, «Скрыть» is active.
 8. Clear «Имя» and save → «Нельзя сохранить», nothing changes on the server (reload to check).
 9. «Скрыть» → «Черновик · PRIVATE», the link is plain text again.
 10. Limits: «Имя» and «Локация» stop at 100 characters, «Заголовок» at 160, «О себе» at 2000; the counters match.
 11. Stop the backend and press «Сохранить» → «Не удалось связаться с сервером.», the entered text stays.
 12. «Выйти» → `/login`.
+
+## Manual public page check
+
+Backend running, a published profile with slug `<slug>`. Use a private window (no session) for steps 1–8.
+
+1. `http://localhost:3000/u/<slug>` → name, `@login`, «Класс» with the headline, location if set, «О себе» with «От автора» if set, avatar and login with «Источник: GitHub», «Войти через GitHub» at the top.
+2. Without JavaScript (DevTools → Settings → Disable JavaScript, or `curl -s http://localhost:3000/u/<slug>`) the name and headline are in the HTML.
+3. The tab title is «<name> — <headline>».
+4. «GitHub» opens `https://github.com/<login>` in a new tab.
+5. `/u/<SLUG>` in uppercase → redirected to the lowercase address.
+6. In the cabinet put `<b>x</b>` and two lines into «О себе», save → the public page shows the tags as text and keeps the line break.
+7. `/u/no-such-profile`, `/u/bad_slug` and `/u/a` → «Профиль не найден», status 404 (`curl -s -o /dev/null -w "%{http_code}" …`). `/whatever` → «Страница не найдена», 404.
+8. «Скрыть» in the cabinet, reload the public page → the same «Профиль не найден» as for a missing slug.
+9. Stop the backend, reload a profile → «Не удалось загрузить профиль», status 500; start it again, «Повторить» → the profile.
 
 ## Checks
 
