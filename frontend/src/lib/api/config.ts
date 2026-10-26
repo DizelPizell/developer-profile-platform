@@ -42,6 +42,17 @@ export function apiUrl(path: string): string {
   return `${apiBaseUrl()}${API_PREFIX}${path}`;
 }
 
+/**
+ * URL the browser navigates to (for example the sign-in link): always the
+ * browser address, even if the call runs during server rendering.
+ */
+export function browserApiUrl(path: string): string {
+  if (!path.startsWith("/")) {
+    throw new ApiConfigError(`API path must start with "/": ${path}`);
+  }
+  return `${parseBaseUrl("NEXT_PUBLIC_API_URL", process.env.NEXT_PUBLIC_API_URL)}${API_PREFIX}${path}`;
+}
+
 /** Fails at server start when an address is missing or invalid (src/instrumentation.ts). */
 export function assertApiEnv(env: Record<string, string | undefined>): void {
   const problems: string[] = [];
