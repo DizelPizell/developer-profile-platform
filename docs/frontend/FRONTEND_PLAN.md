@@ -5,7 +5,8 @@ Stages of the V1 frontend. Stack and rendering: ADR-014-frontend-stack.md. Scree
 ## Order relative to the backend
 
 - F1–F4 use only what the backend already has: GitHub login, `/auth/me`, logout, profile editing and publication, and the public profile (DEVELOPMENT_PLAN Phase 1 and the Phase 2 API).
-- F5 and later start only when the matching backend phase has an API contract (Phases 3–6).
+- F5 and F6 are steps 3.4 and 3.5 of backend Phase 3 (DEVELOPMENT_PLAN). The Phase 3 contract is fixed (ADR-015, `docs/api/API_CONTRACT.md`). F5 starts when the cabinet API (step 3.2) is implemented, F6 when the public API (step 3.3) is.
+- F7 and later start only when the matching backend phase has an API contract (Phases 4–6).
 
 ## F0 — Mockups [done]
 
@@ -95,12 +96,63 @@ Done in F3: the cabinet per `cabinet.png` with the decisions recorded in `DESIGN
 
 Done in F4: `getPublicProfile` (5 s timeout, `cache: "no-store"`, whitelist, 404 → `null`), the page per `public-profile.png` with only the API blocks and «От автора» on «О себе», a malformed slug as 404 without an API call, a 308 redirect for uppercase slugs, the profile 404 and a separate 404 for unknown routes, the error page with «Повторить» (HTTP 500), and `generateMetadata`. Status codes, one API call per request (also on errors), no cookie forwarding and the escaped HTML were checked against a built server and a mock API; the check against the real backend is in `frontend/README.md`.
 
-## F5+ — Projects, GitHub data, IDE view
+## F5 — Projects in the cabinet
+
+**Goal**: the developer creates, edits, publishes, hides, archives and deletes projects and chooses up to three featured projects in their order.
+
+**Before starting**: a cabinet mockup for the project screens (`DESIGN.md` marks them «макет ожидается»); backend step 3.2 implemented.
+
+**Done when**:
+- The «Мои проекты» list, the create/edit screen and the featured controls match `DESIGN.md` and the mockup.
+- The list shows every own project from `GET /projects` (newest first) with its state badge and featured position.
+- Creating sends `POST /projects`; saving sends `PATCH /projects/{id}` with only the changed fields (an emptied field as `null`, `technologies` as the whole list in the entered order). The form then shows the normalized values from the response.
+- Field limits mirror the API (`maxLength`, at most 20 technologies of up to 50 characters); the API stays the source of truth.
+- Publish, archive, hide and show call their actions. Each control is available only in the states where the action is allowed (ADR-015). The state and featured position update from the response.
+- Add to and remove from featured projects, and reorder them. After any change, positions come from `FeaturedProjectsResponse`. A reorder sends the complete featured set in the new order.
+- Delete asks for confirmation first and removes the project from the list on 204.
+- Errors are shown as in `DESIGN.md`:
+  - `VALIDATION_ERROR` per field (including technologies);
+  - `PROJECT_INCOMPLETE` with the missing fields highlighted;
+  - `PROJECT_LIMIT_REACHED`, `PROJECT_TRANSITION_INVALID`, `PROJECT_NOT_FEATURABLE`, `FEATURED_LIMIT_REACHED`;
+  - `FEATURED_ORDER_MISMATCH`, which reloads the list;
+  - 404 as «Проект не найден»;
+  - network and 5xx errors as in the profile form;
+  - 401 → `/login`.
+- The project text fields are plain text: shown as text, never as HTML.
+
+**Tests**:
+- `PATCH` body contains only the changed fields; `technologies` keeps the entered order.
+- Each action button is enabled exactly in its allowed states (all four state pairs).
+- Each error code renders as described; `FEATURED_ORDER_MISMATCH` reloads.
+- Featured positions after add, remove and reorder come from the response; a reorder sends the full list.
+- Delete sends nothing without confirmation.
+- A second click during a request sends nothing.
+
+## F6 — Projects on the public page
+
+**Goal**: visitors see the developer's featured and other public projects on `/u/[slug]`.
+
+**Before starting**: backend step 3.3 implemented; the open points under "Projects on the public page" in `DESIGN.md` decided.
+
+**Done when**:
+- «Главные проекты» renders `featured` in `position` order as cards per `public-profile.png`; «Другие проекты» renders `other` as rows.
+- An empty array hides its block. With no public projects neither block nor the hero «Проекты» button is rendered.
+- Only the whitelisted project fields are read (`id`, `title`, `summary`, `role`, `technologies`, `position`); anything else in the response is dropped.
+- Elements that depend on Phase 4 are not rendered: the image area and «Открыть проект».
+- The page still makes one API call per request (the profile response carries the projects).
+
+**Tests**:
+- Featured cards follow `position`, not the array order; the other rows keep the API order.
+- Empty `featured` or `other` hides the block; an unexpected field is not rendered.
+- Markup in `title`, `summary`, `role` and technology names is shown as text.
+- A row shows the first technology; a project without one never reaches the page (the API publishes only projects with technologies), but the row still renders without a badge.
+- The response without `featured`/`other` arrays is treated as an unexpected body (error screen), like any other invalid response.
+
+## F7+ — Demos, GitHub data, IDE view
 
 **Goal**: add project pages and technical evidence as the backend provides them.
 
-- Projects, featured projects and the «Главные проекты» / «Другие проекты» blocks — after backend Phase 3.
-- Demos and screenshots — after backend Phase 4.
+- The public project page `/u/{slug}/projects/{id}`, demos and screenshots — after backend Phase 4.
 - «Данные GitHub», import and sync status — after backend Phases 5–6.
 - Read-only IDE view — after backend Phase 6; depends on the open questions about sync status and file content (ADR-014, ADR-009–011).
 

@@ -87,6 +87,9 @@ Rules that follow:
 | `/` | Redirects to `/me` | Client |
 | `/login` | Sign-in | Client |
 | `/me` | Cabinet | Client |
+| `/me/projects` | «Мои проекты» (F5) | Client |
+| `/me/projects/new` | New project (F5) | Client |
+| `/me/projects/[id]` | Edit project (F5) | Client |
 | `/u/[slug]` | Public profile | Server (SSR) |
 | anything else | 404 | — |
 
@@ -94,19 +97,19 @@ Rules that follow:
 
 ### Public profile — `/u/[slug]`
 
-Data: `GET /api/v1/public/profiles/{slug}` → `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`.
+Data: `GET /api/v1/public/profiles/{slug}` → `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`, and since Phase 3 `featured` and `other` (projects with `id`, `title`, `summary`, `role`, `technologies`, plus `position` in `featured`; ADR-015).
 
 Blocks:
 
 | Block | Data | Notes |
 |---|---|---|
 | Header | — | «DEV.PROFILE» and «Войти через GitHub», a link to `/login` (the mockup's top bar). |
-| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Pixelify Sans (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. The mockup's «Проекты» button waits for Phase 3. |
+| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Pixelify Sans (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. The mockup's «Проекты» button comes with F6 (see "Projects on the public page"). |
 | «О себе» | `bio` | Marked «От автора». Plain text with line breaks (`white-space: pre-line`). Empty `bio` hides the block. |
 | «Скилы» | — | Pending: no backend source yet, phase not assigned. A plain list in future; never levels or bars. |
-| «Главные проекты» | — | Pending backend Phase 3 (Projects). Up to 3 featured projects. |
+| «Главные проекты» | `featured` | F6. Up to 3 cards in `position` order. See "Projects on the public page". |
 | «Данные GitHub» | — | Pending backend Phases 5–6 (GitHub import and sync). Always marked «Источник: GitHub». |
-| «Другие проекты» | — | Pending backend Phase 3. |
+| «Другие проекты» | `other` | F6. One row per project, in API order. See "Projects on the public page". |
 
 `display_name` and `headline` are never empty here: a profile can be published only with both (ADR-013). If one is missing anyway, the name falls back to `@github_login` and the «Класс» line is hidden.
 
@@ -130,6 +133,30 @@ States:
 | Any other error: API unreachable, timeout (5 s), 5xx, unexpected body | Error screen «Не удалось загрузить профиль» with «Повторить», no internal details, HTTP status 500. It is drawn by the browser (`error.tsx` is a client component), so without JavaScript the page is empty |
 
 The page makes one API call per request. After an error Next.js renders the error page in a second pass, so the call is shared through the request's `headers()` object rather than React `cache()`.
+
+#### Projects on the public page (F6)
+
+The layout comes from `public-profile.png`; only what the Phase 3 API provides is built.
+
+- **«Главные проекты»** — a card per featured project, in `position` order:
+  - the label «Избранное N» (N = `position`);
+  - `title`;
+  - `summary`;
+  - «Моя роль: {role}».
+  - The mockup's striped image area and «Открыть проект ›» wait for Phase 4 (screenshots and the public project page) and are not rendered.
+- **«Другие проекты»** — a row per project:
+  - `title`;
+  - `summary` on one line;
+  - a badge with the first technology (the developer's order, ADR-015).
+- An empty `featured` or `other` hides its block, heading included.
+- The hero «Проекты» button is an in-page link to the first project block. It is rendered only when there is at least one public project.
+- Every value is rendered as text.
+
+Not decided yet (decide before F6, with an updated mockup if needed; «макет ожидается»):
+
+- **Source mark.** The content rule above asks for «От автора» on developer-written blocks, but the mockup draws the project blocks without a mark. All project fields are developer-provided.
+- **Technologies on featured cards.** The mockup shows none; the API provides them.
+- **Long values.** How a 300-character `summary` or a 100-character `title` is cut or wrapped in a card and in a one-line row.
 
 ### Cabinet — `/me`
 
@@ -185,6 +212,90 @@ States and errors:
 | Network error or API unreachable | «Не удалось связаться с сервером.»; entered data is kept and the action can be repeated |
 | 500 `INTERNAL_ERROR`, other errors | «Что-то пошло не так. Попробуйте ещё раз.» and «Код запроса: <request_id>» from the error body (or `X-Request-ID`) when present |
 | Saved | «Сохранено» in `success` |
+
+### Projects in the cabinet — `/me/projects` (F5)
+
+**Макет ожидается.** No mockup exists for these screens yet. This section fixes data, behavior and texts. Layout, colors, controls and where the cabinet links to «Мои проекты» come from the mockup. Texts are provisional until then. The general rules above (tokens, typography, focus, content rules) apply.
+
+Data: `GET /api/v1/projects` for the list, `GET /api/v1/projects/{id}` for editing, and the actions in `docs/api/API_CONTRACT.md` (ADR-015).
+
+#### «Мои проекты» — list
+
+- One entry per project, newest first (API order):
+  - `title`, or «[Без названия]» when empty;
+  - `summary`, when present;
+  - the state badge;
+  - «Избранное N» when `featured_position` is set.
+- «Новый проект» opens `/me/projects/new`. At 50 projects it is disabled with «Можно создать не больше 50 проектов.»; the API stays the source of truth (`PROJECT_LIMIT_REACHED`).
+- An empty list shows «[Пока нет проектов]» and «Новый проект».
+
+State badges:
+
+| `status` + `visibility` | Badge |
+|---|---|
+| `DRAFT` + `PRIVATE` | «Черновик» |
+| `PUBLISHED` + `PUBLIC` | «Опубликован» |
+| `PUBLISHED` + `PRIVATE` | «Скрыт» |
+| `ARCHIVED` + `PRIVATE` | «В архиве» |
+
+Badge colors come with the mockup.
+
+#### Featured projects
+
+- Featured projects are shown in `position` order, with «Избранное N».
+- «В избранное» is available only for a `PUBLISHED` + `PUBLIC` project that is not featured, while fewer than three are featured. Otherwise a hint explains why: «В избранное можно добавить только опубликованный и открытый проект.» or «В избранном уже 3 проекта. Уберите один, чтобы добавить другой.».
+- «Убрать из избранного» is available for a featured project.
+- Order is changed with explicit controls that work from the keyboard (no drag-only control). The exact control comes with the mockup. A change sends the complete featured set in the new order.
+- After any change, positions are taken from `FeaturedProjectsResponse`, not computed locally.
+
+#### New and edit project — `/me/projects/new`, `/me/projects/[id]`
+
+Fields, in this order until the mockup says otherwise. «*» means required for publication, not for saving.
+
+| Field | Label | Hint | Limit | Lines |
+|---|---|---|---|---|
+| `title` | «Название *» | «Обязательно для публикации» | 100 | one |
+| `summary` | «Коротко о проекте *» | «Что это за проект, в одной-двух фразах. Обязательно для публикации» | 300 | one |
+| `role` | «Моя роль *» | «Обязательно для публикации» | 100 | one |
+| `contribution` | «Мой вклад *» | «Что вы сделали сами. Обязательно для публикации» | 2000 | many |
+| `technologies` | «Технологии *» | «До 20. Первая показывается в списке проектов на публичной странице. Нужна хотя бы одна для публикации» | 20 × 50 | — |
+| `description` | «Описание» | «Необязательно» | 5000 | many |
+| `problem` | «Задача» | «Необязательно» | 2000 | many |
+| `results` | «Результаты» | «Необязательно» | 2000 | many |
+
+- Every field has a counter «N / limit», like the profile form. Text is plain: no markup, line breaks kept where allowed.
+- Technologies keep the entered order. Two names equal ignoring case are rejected by the API. A name that already exists is shown afterwards in its stored spelling.
+- The new-project screen sends `POST /projects` and then continues as the edit screen of the created project.
+
+Actions:
+
+| Action | Available when | Label |
+|---|---|---|
+| Save | A field differs from the stored value | «Сохранить» |
+| Publish | `DRAFT` or `ARCHIVED`, no unsaved changes | «Опубликовать» |
+| Hide | `PUBLISHED` + `PUBLIC` | «Скрыть» |
+| Show | `PUBLISHED` + `PRIVATE` | «Показать» |
+| Archive | `PUBLISHED` | «В архив» |
+| Delete | Any state, after confirmation | «Удалить» |
+
+- Unavailable actions are disabled with a hint, as in the profile form. Publish with unsaved changes shows «Сохраните изменения, чтобы опубликовать проект.»
+- Hiding or archiving a featured project shows «Проект будет убран из избранного.» next to the action. Delete asks «Удалить проект «{title}»? Это действие нельзя отменить.»
+- While a request runs, all actions are disabled; a second click sends nothing. State and featured position update from the response.
+
+States and errors:
+
+| Case | Shown as |
+|---|---|
+| Loading, load failure, 401, network error, 500 | As in the profile cabinet table above |
+| 404 `NOT_FOUND` | «Проект не найден» and a link to «Мои проекты» |
+| 422 `VALIDATION_ERROR` | Per field, as in the profile form. Technology entries (`loc` `["body", "technologies", ...]`) are shown under «Технологии». |
+| 422 `PROJECT_INCOMPLETE` from publish | «Нельзя опубликовать» and «Заполните обязательные поля: …» from `details.missing_fields`; those fields are highlighted |
+| 422 `PROJECT_INCOMPLETE` from save | «Нельзя сохранить», the same list and «Опубликованный проект должен оставаться заполненным.» |
+| 409 `PROJECT_LIMIT_REACHED` | «Можно создать не больше 50 проектов.» |
+| 409 `PROJECT_TRANSITION_INVALID` | «Это действие недоступно в текущем состоянии проекта.»; the project is reloaded |
+| 409 `PROJECT_NOT_FEATURABLE` | «В избранное можно добавить только опубликованный и открытый проект.»; the project is reloaded |
+| 409 `FEATURED_LIMIT_REACHED` | «В избранном уже 3 проекта. Уберите один, чтобы добавить другой.» |
+| 409 `FEATURED_ORDER_MISMATCH` | «Список избранного изменился, порядок загружен заново.»; the list is reloaded |
 
 ### Sign-in — `/login`
 
@@ -252,5 +363,7 @@ Mockups are added manually to `docs/frontend/mockups/`:
 - `cabinet.png`
 - `login.png`
 - `not-found.png`
+
+Expected (макет ожидается): the cabinet project screens (F5). The project blocks of the public page follow `public-profile.png`; the open points are listed under "Projects on the public page".
 
 If a mockup and this guide disagree, raise the conflict instead of silently picking one.
