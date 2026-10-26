@@ -12,6 +12,8 @@ const buttonVariants = cva(
       variant: {
         default: "bg-accent text-text",
         secondary: "bg-panel text-text",
+        // Publication in the cabinet mockup: yellow fill, dark text.
+        label: "bg-label text-outline",
       },
       size: {
         default: "h-10 px-4 text-base",
