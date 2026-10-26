@@ -16,3 +16,4 @@ export {
   type ProfileStatus,
   type ProfileUpdate,
 } from "./profile";
+export { getPublicProfile, PUBLIC_PROFILE_TIMEOUT_MS, type PublicProfile } from "./public-profile";
