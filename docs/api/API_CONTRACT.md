@@ -285,7 +285,7 @@ GET  /analytics/projects/{id}
 - Public endpoints expose only public information.
 - Sensitive values are never returned.
 - Every `POST`, `PUT`, `PATCH` and `DELETE` must carry an `Origin` header equal to the frontend origin (from `FRONTEND_URL`); otherwise 403 `CSRF_ORIGIN_INVALID`. `GET`, `HEAD` and `OPTIONS` are not checked. See ADR-013.
-- CORS allows only the frontend origin, with credentials; methods `GET`, `POST`, `PATCH`, `DELETE`, `OPTIONS` (`DELETE` added by ADR-015; the code change in `backend/app/main.py` comes with the Phase 3 implementation); request header `Content-Type`; `X-Request-ID` is exposed to the frontend.
+- CORS allows only the frontend origin, with credentials; methods `GET`, `POST`, `PATCH`, `DELETE`, `OPTIONS` (`DELETE` added by ADR-015); request header `Content-Type`; `X-Request-ID` is exposed to the frontend.
 
 ## Error shape
 

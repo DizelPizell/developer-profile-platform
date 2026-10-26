@@ -57,18 +57,25 @@ Steps, in order. Each step is its own change with tests; a step starts when the 
     - cascades.
   - Schema only: no endpoints.
   - Tests: the migration upgrades and downgrades on an empty database. Each constraint rejects what it must, including a fourth featured row, a 21st technology, an invalid state pair, a published project with an empty title, and a duplicate technology name in another case. A reorder by one `UPDATE` passes.
-- **3.2 Cabinet API**
-  - Endpoints: project CRUD, publish/archive/visibility, featured add/remove/reorder.
-  - Rules and error codes per ADR-015; ownership checks; locks (profile row, then project row).
-  - `DELETE` added to CORS in `backend/app/main.py`.
-  - Tests:
-    - every transition and every error code;
-    - another user's project is 404;
-    - the 50-project and 20-technology limits;
-    - featured: no gaps after archive, hide or delete;
-    - reorder mismatch;
-    - the CORS preflight for `DELETE`;
-    - concurrent feature requests never produce a fourth featured project.
+- **3.2 Cabinet API**, in two parts. Rules and error codes per ADR-015; ownership checks; locks (profile row, then project row).
+  - **3.2a Projects** [done]
+    - Project CRUD, publish/archive/visibility, technologies in the project body.
+    - Archive, hide and delete remove the project from featured projects and close the gap.
+    - `DELETE` added to CORS in `backend/app/main.py`.
+    - Tests:
+      - every transition and every project error code;
+      - another user's project is 404;
+      - the 50-project and 20-technology limits;
+      - featured: no gaps after archive, hide or delete;
+      - the CORS preflight for `DELETE`;
+      - the technology get-or-create race with two transactions.
+  - **3.2b Featured projects**
+    - Feature, unfeature and reorder (`/projects/{id}/showcase`, `/profile/featured-projects/reorder`).
+    - Tests:
+      - `PROJECT_NOT_FEATURABLE`, `FEATURED_LIMIT_REACHED`, `FEATURED_ORDER_MISMATCH`;
+      - idempotent feature and unfeature;
+      - reorder mismatch;
+      - concurrent feature requests never produce a fourth featured project.
 - **3.3 Public API**
   - `featured` and `other` in `GET /public/profiles/{slug}`.
   - Tests:

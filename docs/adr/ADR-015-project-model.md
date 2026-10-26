@@ -191,7 +191,7 @@ A separate public project page, at the frontend address `/u/{slug}/projects/{id}
 
 ### CORS
 
-`DELETE` joins the allowed methods: `GET`, `POST`, `PATCH`, `DELETE`, `OPTIONS` (ADR-013). The code change in `backend/app/main.py` is part of the Phase 3 implementation. Until then the code allows only the four old methods, and a browser `DELETE` fails at preflight.
+`DELETE` joins the allowed methods: `GET`, `POST`, `PATCH`, `DELETE`, `OPTIONS` (ADR-013). The code change in `backend/app/main.py` was made in Phase 3 step 3.2a.
 
 ## Consequences
 

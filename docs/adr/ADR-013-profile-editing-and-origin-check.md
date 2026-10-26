@@ -75,7 +75,7 @@ What would change this decision: a frontend served from a different domain or se
 
 `CORSMiddleware` allows only the frontend origin, with credentials, methods `GET`, `POST`, `PATCH`, `DELETE`, `OPTIONS`, request header `Content-Type`, and exposes `X-Request-ID`.
 
-`DELETE` was added by ADR-015 for `DELETE /projects/{id}` and `DELETE /projects/{id}/showcase`. The code (`backend/app/main.py`) gets it with the Phase 3 implementation; until then it allows only `GET`, `POST`, `PATCH`, `OPTIONS`.
+`DELETE` was added by ADR-015 for `DELETE /projects/{id}` and `DELETE /projects/{id}/showcase`. The code (`backend/app/main.py`) allows it since Phase 3 step 3.2a.
 
 Middleware order, outermost first: request id, CORS, Origin check, unhandled-error handler, routes.
 
