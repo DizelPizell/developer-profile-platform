@@ -1,3 +1,4 @@
+import logging
 import secrets
 from urllib.parse import urlencode
 
@@ -6,12 +7,14 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
-from app.errors import AppError, app_error_response, internal_error_response
+from app.errors import AppError, log_app_error, log_unhandled_exception
 from app.identity import service
 from app.identity.github_client import GitHubOAuthClient, get_github_client
 from app.identity.schemas import MeResponse
 from app.models.identity import User
 from app.settings import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -19,6 +22,19 @@ _STATE_COOKIE = "oauth_state"
 _STATE_COOKIE_PATH = "/api/v1/auth/github"
 _STATE_MAX_AGE = 600
 _GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize"
+
+# Codes the callback may put into ?error= on the frontend. Any other failure
+# (SLUG_CONFLICT, unexpected exceptions) is reported as INTERNAL_ERROR.
+_CALLBACK_ERROR_CODES = frozenset(
+    {
+        "ACCESS_DENIED",
+        "INVALID_STATE",
+        "MISSING_CODE",
+        "OAUTH_CODE_INVALID",
+        "GITHUB_UNAVAILABLE",
+        "INTERNAL_ERROR",
+    }
+)
 
 
 def _state_cookie_attrs() -> dict:
@@ -65,15 +81,36 @@ def github_callback(
     db: Session = Depends(get_db),
     github_client: GitHubOAuthClient = Depends(get_github_client),
 ) -> Response:
-    # Errors are turned into responses here so the state cookie is removed on every exit.
+    # The user reaches this endpoint by browser navigation, so every error goes back to
+    # the frontend's sign-in screen instead of a JSON body. Errors are handled here so
+    # the state cookie is removed on every exit.
     try:
         resp = _complete_github_login(request, code, state, error, db, github_client)
     except AppError as exc:
-        resp = app_error_response(request, exc)
+        db.rollback()
+        log_app_error(request, exc)
+        if exc.code not in _CALLBACK_ERROR_CODES:
+            logger.warning(
+                "%s reported as INTERNAL_ERROR (request_id=%s)",
+                exc.code,
+                request.state.request_id,
+            )
+        resp = _login_error_redirect(exc.code)
     except Exception as exc:
-        resp = internal_error_response(request, exc)
+        db.rollback()
+        log_unhandled_exception(request, exc)
+        resp = _login_error_redirect("INTERNAL_ERROR")
     resp.delete_cookie(**_state_cookie_attrs())
     return resp
+
+
+def _login_error_redirect(code: str) -> RedirectResponse:
+    # Only a code from the closed list goes into the URL; nothing from the request or
+    # from GitHub. The address is built from FRONTEND_URL alone.
+    if code not in _CALLBACK_ERROR_CODES:
+        code = "INTERNAL_ERROR"
+    login_url = f"{str(settings.frontend_url).rstrip('/')}/login"
+    return RedirectResponse(url=f"{login_url}?{urlencode({'error': code})}", status_code=302)
 
 
 def _complete_github_login(

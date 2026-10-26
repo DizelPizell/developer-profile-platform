@@ -53,6 +53,14 @@ def _assert_error(resp: httpx.Response, status: int, code: str) -> None:
     assert resp.json()["error"]["code"] == code
 
 
+FRONTEND_LOGIN = f"{str(settings.frontend_url).rstrip('/')}/login"
+
+
+def _assert_login_error(resp: httpx.Response, code: str) -> None:
+    assert resp.status_code == 302
+    assert resp.headers["location"] == f"{FRONTEND_LOGIN}?error={code}"
+
+
 def _timeout(request: httpx.Request) -> httpx.Response:
     raise httpx.ReadTimeout("timed out", request=request)
 
@@ -148,14 +156,14 @@ class TestCookieAttributes:
 class TestCallbackErrors:
     def test_missing_code(self, auth_client):
         state = _start_login(auth_client)
-        _assert_error(auth_client.get(f"{CALLBACK}?state={state}"), 400, "MISSING_CODE")
+        _assert_login_error(auth_client.get(f"{CALLBACK}?state={state}"), "MISSING_CODE")
 
     def test_state_in_query_without_cookie(self, auth_client):
-        _assert_error(auth_client.get(f"{CALLBACK}?code=c&state=anything"), 400, "INVALID_STATE")
+        _assert_login_error(auth_client.get(f"{CALLBACK}?code=c&state=anything"), "INVALID_STATE")
 
     def test_cookie_without_state_in_query(self, auth_client):
         _start_login(auth_client)
-        _assert_error(auth_client.get(f"{CALLBACK}?code=c"), 400, "INVALID_STATE")
+        _assert_login_error(auth_client.get(f"{CALLBACK}?code=c"), "INVALID_STATE")
 
     @pytest.mark.parametrize(
         "transport_kwargs",
@@ -182,12 +190,12 @@ class TestCallbackErrors:
             pytest.param({"user_response": _status(200, json=[1])}, id="user-not-dict"),
         ],
     )
-    def test_github_failures_return_502(self, make_auth_client, transport_kwargs):
+    def test_github_failures_redirect_to_login(self, make_auth_client, transport_kwargs):
         client = make_auth_client(make_github_transport(**transport_kwargs))
         state = _start_login(client)
         resp = client.get(f"{CALLBACK}?code=c&state={state}")
 
-        _assert_error(resp, 502, "GITHUB_UNAVAILABLE")
+        _assert_login_error(resp, "GITHUB_UNAVAILABLE")
         cookies = _set_cookies(resp)
         assert settings.session_cookie_name not in cookies
         assert cookies["oauth_state"]["max-age"] == "0"
@@ -195,10 +203,10 @@ class TestCallbackErrors:
     def test_state_cookie_deleted_on_error(self, auth_client):
         _start_login(auth_client)
         resp = auth_client.get(f"{CALLBACK}?code=c&state=wrong")
-        _assert_error(resp, 400, "INVALID_STATE")
+        _assert_login_error(resp, "INVALID_STATE")
         assert _set_cookies(resp)["oauth_state"]["max-age"] == "0"
 
-    def test_unexpected_error_returns_500_and_deletes_state_cookie(
+    def test_unexpected_error_redirects_and_deletes_state_cookie(
         self, auth_client, monkeypatch
     ):
         def boom(*args, **kwargs):
@@ -208,7 +216,7 @@ class TestCallbackErrors:
         state = _start_login(auth_client)
         resp = auth_client.get(f"{CALLBACK}?code=c&state={state}")
 
-        _assert_error(resp, 500, "INTERNAL_ERROR")
+        _assert_login_error(resp, "INTERNAL_ERROR")
         assert "internal detail" not in resp.text
         cookies = _set_cookies(resp)
         assert cookies["oauth_state"]["max-age"] == "0"

@@ -25,7 +25,10 @@ from app.identity.service import (
     update_user_fields,
 )
 from app.models.identity import AuthSession
+from app.settings import settings
 from tests.conftest import HTTPS_BASE_URL
+
+FRONTEND_LOGIN = f"{str(settings.frontend_url).rstrip('/')}/login"
 
 # ---------------------------------------------------------------------------
 # Slug generation — no DB, no network
@@ -257,26 +260,24 @@ class TestLoginEndpoint:
 
 
 class TestCallbackEndpoint:
-    def test_access_denied_returns_400(self, bare_client):
+    def test_access_denied_redirects_to_login(self, bare_client):
         resp = bare_client.get("/api/v1/auth/github/callback?error=access_denied")
-        assert resp.status_code == 400
-        body = resp.json()
-        assert body["error"]["code"] == "ACCESS_DENIED"
+        assert resp.status_code == 302
+        assert resp.headers["location"] == f"{FRONTEND_LOGIN}?error=ACCESS_DENIED"
 
-    def test_missing_state_returns_400(self, bare_client):
+    def test_missing_state_redirects_to_login(self, bare_client):
         resp = bare_client.get("/api/v1/auth/github/callback?code=abc")
-        assert resp.status_code == 400
-        body = resp.json()
-        assert body["error"]["code"] == "INVALID_STATE"
+        assert resp.status_code == 302
+        assert resp.headers["location"] == f"{FRONTEND_LOGIN}?error=INVALID_STATE"
 
-    def test_state_mismatch_returns_400(self, bare_client):
+    def test_state_mismatch_redirects_to_login(self, bare_client):
         bare_client.cookies.set("oauth_state", "correct_state")
         resp = bare_client.get("/api/v1/auth/github/callback?code=abc&state=wrong")
-        assert resp.status_code == 400
-        assert resp.json()["error"]["code"] == "INVALID_STATE"
+        assert resp.status_code == 302
+        assert resp.headers["location"] == f"{FRONTEND_LOGIN}?error=INVALID_STATE"
 
-    def test_github_code_error_returns_400(self, db_session):
-        """bad_verification_code from GitHub → OAUTH_CODE_INVALID (400)."""
+    def test_github_code_error_redirects_to_login(self, db_session):
+        """bad_verification_code from GitHub → ?error=OAUTH_CODE_INVALID."""
         from fastapi.testclient import TestClient
 
         from app.dependencies import get_db
@@ -298,8 +299,8 @@ class TestCallbackEndpoint:
         finally:
             app.dependency_overrides.clear()
 
-        assert resp.status_code == 400
-        assert resp.json()["error"]["code"] == "OAUTH_CODE_INVALID"
+        assert resp.status_code == 302
+        assert resp.headers["location"] == f"{FRONTEND_LOGIN}?error=OAUTH_CODE_INVALID"
 
     def test_success_redirects_to_frontend(self, auth_client):
         # Login sets oauth_state cookie in the client jar; callback reads from jar.

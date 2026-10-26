@@ -85,7 +85,7 @@ def test_uvicorn_access_log_has_no_query_string():
         access_logger.setLevel(old_level)
         access_logger.disabled = old_disabled
 
-    assert resp.status_code == 400
+    assert resp.status_code == 302
     output = stream.getvalue()
     assert "/api/v1/auth/github/callback" in output
     assert "SECRET" not in output

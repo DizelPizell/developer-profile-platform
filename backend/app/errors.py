@@ -55,17 +55,25 @@ def error_response(
     )
 
 
-def app_error_response(request: Request, exc: AppError) -> JSONResponse:
+def log_app_error(request: Request, exc: AppError) -> None:
     if exc.log_context:
         context = " ".join(f"{key}={value}" for key, value in exc.log_context.items())
         logger.warning("%s (request_id=%s) %s", exc.code, request.state.request_id, context)
+
+
+def log_unhandled_exception(request: Request, exc: Exception) -> None:
+    logger.error(
+        "Unhandled exception (request_id=%s)", request.state.request_id, exc_info=exc
+    )
+
+
+def app_error_response(request: Request, exc: AppError) -> JSONResponse:
+    log_app_error(request, exc)
     return error_response(request, exc.status_code, exc.code, exc.message, exc.details)
 
 
 def internal_error_response(request: Request, exc: Exception) -> JSONResponse:
-    logger.error(
-        "Unhandled exception (request_id=%s)", request.state.request_id, exc_info=exc
-    )
+    log_unhandled_exception(request, exc)
     return error_response(request, 500, "INTERNAL_ERROR", "Internal server error")
 
 

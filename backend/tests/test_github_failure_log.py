@@ -62,8 +62,8 @@ def test_reason_logged_without_secrets(
     state = client.get("/api/v1/auth/github/login").cookies["oauth_state"]
     resp = client.get(f"{CALLBACK}?code={CODE}&state={state}")
 
-    assert resp.status_code == 502
-    request_id = resp.json()["error"]["request_id"]
+    assert resp.status_code == 302
+    request_id = resp.headers["x-request-id"]
 
     records = [r for r in error_log.records if r.name == "app.errors"]
     assert len(records) == 1
