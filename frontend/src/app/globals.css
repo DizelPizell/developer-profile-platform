@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens from docs/frontend/DESIGN.md. Change a value there first.
+ * The default Tailwind palette and radii are reset, so components can use
+ * only these tokens and stay square (the avatar uses rounded-full).
+ */
+@theme {
+  --color-*: initial;
+  --color-bg: #150d2e;
+  --color-grid: #1b1140;
+  --color-panel: #231650;
+  --color-frame: #3b2a80;
+  --color-outline: #0b0620;
+  --color-accent: #7c3aed;
+  --color-label: #ffd23f;
+  --color-text: #f3edff;
+  --color-text-muted: #b8a9e8;
+  --color-error: #ff5d8f;
+  --color-success: #22c55e;
+
+  --radius-*: initial;
+
+  /* Hard shadows, no blur. */
+  --shadow-pixel-sm: 2px 2px 0 var(--color-outline);
+  --shadow-pixel: 4px 4px 0 var(--color-outline);
+  --shadow-pixel-lg: 6px 6px 0 var(--color-outline);
+  /* Panel: 4px inner frame plus the hard shadow. */
+  --shadow-panel: inset 0 0 0 4px var(--color-frame), 4px 4px 0 var(--color-outline);
+}
+
+/* Font variables are set by next/font on <html> (src/app/fonts.ts). */
+@theme inline {
+  --font-heading: var(--font-press-start-2p);
+  --font-sans: var(--font-pixelify-sans);
+}
+
+/* Stepped hover: transitions jump in steps instead of easing. */
+@utility transition-steps {
+  transition-property: transform, box-shadow, filter;
+  transition-duration: 120ms;
+  transition-timing-function: steps(2, end);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: var(--color-bg);
+    background-image:
+      linear-gradient(var(--color-grid) 2px, transparent 2px),
+      linear-gradient(90deg, var(--color-grid) 2px, transparent 2px);
+    background-size: 32px 32px;
+    color: var(--color-text);
+    font-family: var(--font-sans);
+  }
+
+  /* Focus is always visible; components may refine it but never remove it. */
+  :focus-visible {
+    outline: 4px solid var(--color-label);
+    outline-offset: 2px;
+  }
+}
