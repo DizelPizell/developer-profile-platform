@@ -33,7 +33,7 @@ The backend now has GitHub login, the current user, profile editing and publicat
 
 - **Public profile `/u/[slug]`** renders on the server (SSR). The server calls `GET /api/v1/public/profiles/{slug}` without a session cookie. A 404 from the API renders the 404 page with HTTP status 404. Any other failure renders an error page, not a 404. The response is not cached by Next.js in V1, so unpublishing hides the page immediately.
 - **Cabinet** (the developer's own profile) runs on the client. It calls `GET /api/v1/auth/me`; on 401 it redirects to the sign-in screen. Any later 401 (an expired session) does the same.
-- Sign-in is a full-page navigation to `GET /api/v1/auth/github/login`, not a `fetch`.
+- Sign-in is a full-page navigation to `GET /api/v1/auth/github/login`, not a `fetch`. A failed login comes back as a redirect to `/login?error=<CODE>` from a closed list (ADR-012).
 
 Routes and screens are described in `docs/frontend/DESIGN.md`.
 
@@ -68,7 +68,6 @@ For now the frontend runs with `npm run dev` on the host, not in Docker Compose.
 - **Production topology**: one origin behind Nginx as in `ARCHITECTURE.md`, or a separate API host; this decides whether CORS stays and how `FRONTEND_URL` is set.
 - **Frontend CI job shape**: F1 requires lint, typecheck and tests to run in CI (`FRONTEND_PLAN.md`). Not decided: a separate workflow file or a job in a shared one, and path filters.
 - **Playwright**: when end-to-end tests are introduced (sign-in in F2 or the SSR 404 in F4).
-- **OAuth callback errors**: the callback returns JSON errors (`ACCESS_DENIED`, `INVALID_STATE`, `GITHUB_UNAVAILABLE`, …) on the API host, so the user leaves the frontend. Redirecting errors to the sign-in screen needs a backend change.
 - **Caching of public pages**: whether to cache or statically regenerate `/u/[slug]`, and how unpublishing invalidates it.
 - **Sync status and file content for the IDE view**: how the frontend learns the GitHub sync status and loads file contents for the read-only code viewer. Depends on ADR-009, ADR-010 and ADR-011, where these are still open.
 - **Exact versions** of Node.js, Next.js and the libraries; fixed when the skeleton is created (F1).

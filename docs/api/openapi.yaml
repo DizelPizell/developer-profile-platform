@@ -17,28 +17,25 @@ paths:
     get:
       summary: GitHub OAuth login callback
       description: >-
-        On success sets the session cookie and redirects to the frontend. The
-        `oauth_state` cookie is deleted on every response, including errors.
+        On success sets the session cookie and redirects to FRONTEND_URL. On any
+        error redirects to `{FRONTEND_URL}/login?error=<CODE>` without a JSON
+        body and without a session cookie; CODE is one of ACCESS_DENIED,
+        INVALID_STATE, MISSING_CODE, OAUTH_CODE_INVALID, GITHUB_UNAVAILABLE,
+        INTERNAL_ERROR. Nothing from the request or from GitHub is copied into
+        the URL. The `oauth_state` cookie is deleted on every response.
       parameters:
         - {name: code, in: query, required: false, schema: {type: string}}
         - {name: state, in: query, required: false, schema: {type: string}}
         - {name: error, in: query, required: false, schema: {type: string}}
       responses:
-        "302": {description: Redirect to the frontend after login}
-        "400":
+        "302":
           description: >-
-            ACCESS_DENIED, INVALID_STATE, MISSING_CODE or OAUTH_CODE_INVALID
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Error"}
-        "500": {$ref: "#/components/responses/InternalError"}
-        "502":
-          description: >-
-            GITHUB_UNAVAILABLE — GitHub timed out, returned an error status, or
-            returned an unexpected response
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Error"}
+            Redirect to FRONTEND_URL after login, or to
+            `{FRONTEND_URL}/login?error=<CODE>` on error
+          headers:
+            Location:
+              schema: {type: string}
+            X-Request-ID: {$ref: "#/components/headers/X-Request-ID"}
   /auth/logout:
     post:
       summary: Logout

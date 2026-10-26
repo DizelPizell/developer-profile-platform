@@ -162,6 +162,7 @@ Behavior:
 - On open the screen calls `GET /api/v1/auth/me`; 200 redirects to `/me`.
 - The button is a full-page navigation to `{NEXT_PUBLIC_API_URL}/api/v1/auth/github/login`.
 - After a successful login the API redirects to `FRONTEND_URL` (`/`), which leads to `/me`.
+- After a failed login the API redirects to `/login?error=<CODE>` (ADR-012). The screen shows the text for the code above the button; the button stays active.
 
 States and errors:
 
@@ -170,7 +171,19 @@ States and errors:
 | Checking the session | Button disabled |
 | No session (401) | Button active |
 | API unreachable while checking | Button active and «Не удалось связаться с сервером» |
-| Error in the OAuth callback (`ACCESS_DENIED`, `INVALID_STATE`, `MISSING_CODE`, `OAUTH_CODE_INVALID`, `GITHUB_UNAVAILABLE`) | Known gap: the callback returns JSON on the API host and the user does not come back to this screen. Open question in ADR-014 |
+
+Texts for `?error=<CODE>`:
+
+| Code | Text |
+|---|---|
+| `ACCESS_DENIED` | «Вход отменён на стороне GitHub. Попробуйте ещё раз.» |
+| `INVALID_STATE` | «Сеанс входа устарел или был прерван. Начните вход заново.» |
+| `MISSING_CODE` | «GitHub не вернул код входа. Начните вход заново.» |
+| `OAUTH_CODE_INVALID` | «Код входа истёк или уже использован. Начните вход заново.» |
+| `GITHUB_UNAVAILABLE` | «GitHub сейчас недоступен. Попробуйте позже.» |
+| `INTERNAL_ERROR` | «Что-то пошло не так на нашей стороне. Попробуйте позже.» |
+
+The texts come from this table only; the value of `error` is never shown as is. Handling of an unknown or missing value is decided in F2.
 
 Logout (from the cabinet): `POST /api/v1/auth/logout` → 204 → redirect to `/login`. A network error keeps the user on the cabinet and shows the network error.
 

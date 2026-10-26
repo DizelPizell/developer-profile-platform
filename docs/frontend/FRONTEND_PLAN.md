@@ -43,6 +43,7 @@ Stages of the V1 frontend. Stack and rendering: ADR-014-frontend-stack.md. Scree
 
 **Done when**:
 - `/login` matches `DESIGN.md`: it checks the session, and the button navigates to `/api/v1/auth/github/login`.
+- `/login?error=<CODE>` shows the text for that code from `DESIGN.md`; the button stays active.
 - `/` redirects to `/me`; `/me` calls `/auth/me` and shows `github_login` (the full cabinet is F3).
 - A 401 redirects to `/login`.
 - «Выйти» calls `POST /auth/logout` and redirects to `/login`; after that `/auth/me` returns 401.
@@ -50,6 +51,7 @@ Stages of the V1 frontend. Stack and rendering: ADR-014-frontend-stack.md. Scree
 
 **Tests**:
 - `/login` with `/auth/me` returning 200 redirects to `/me`; with 401 it shows the button with the right address.
+- `/login?error=<CODE>` renders the text for each of the six codes and never the raw value.
 - `/me` with 401 redirects to `/login`.
 - Logout sends `POST` with credentials and redirects on 204; a network error keeps the user on the page.
 

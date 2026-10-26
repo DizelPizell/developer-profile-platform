@@ -32,6 +32,16 @@ The `state` parameter must be generated and validated on callback to prevent CSR
 
 Implementation: `state` is `secrets.token_urlsafe(32)` and is kept in the browser in an **HttpOnly cookie** `oauth_state` (`Path=/api/v1/auth/github`, `SameSite=Lax`, `Max-Age=600`, `Secure` outside development). The server keeps no record of it. On callback the query `state` is compared with the cookie using `secrets.compare_digest`. The cookie is deleted on every callback exit, including errors. A replayed callback fails because the cookie is gone and GitHub accepts an authorization code only once.
 
+### Callback errors redirect to the frontend
+
+The user reaches `GET /auth/github/callback` by browser navigation, so a JSON error body would be shown to them raw. Every error of the callback therefore ends with a redirect to `{FRONTEND_URL}/login?error=<CODE>`, with the same status as the successful redirect (302).
+
+- `<CODE>` comes from a closed list: `ACCESS_DENIED`, `INVALID_STATE`, `MISSING_CODE`, `OAUTH_CODE_INVALID`, `GITHUB_UNAVAILABLE`, `INTERNAL_ERROR`. Any other failure (for example `SLUG_CONFLICT` or an unexpected exception) is sent as `INTERNAL_ERROR`.
+- Nothing from the request or from GitHub goes into the URL: no `state`, `code`, `error`, `error_description`, response bodies or exception texts. The address is built from `FRONTEND_URL` alone.
+- The `oauth_state` cookie is deleted, no session cookie is set, and database changes of the failed attempt are rolled back.
+- Logging is unchanged: the 502 reason at WARNING with request id, exception type and GitHub status; unexpected exceptions at ERROR with the traceback. The redirect carries `X-Request-ID`.
+- Only the callback behaves this way; every other endpoint, including `GET /auth/github/login`, keeps JSON errors.
+
 ### User identifier
 
 The primary identifier of a User is `github_user_id` (GitHub's stable numeric user id). Users who rename their GitHub login are still identified correctly.

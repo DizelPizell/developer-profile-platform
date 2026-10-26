@@ -14,11 +14,24 @@ GET  /auth/me
 | Endpoint | Success | Errors |
 |---|---|---|
 | `GET /auth/github/login` | 302 to GitHub, sets `oauth_state` cookie | 500 `INTERNAL_ERROR` |
-| `GET /auth/github/callback` | 302 to the frontend, sets the session cookie | 400 `ACCESS_DENIED`, `INVALID_STATE`, `MISSING_CODE`, `OAUTH_CODE_INVALID`; 502 `GITHUB_UNAVAILABLE`; 500 `INTERNAL_ERROR` |
+| `GET /auth/github/callback` | 302 to the frontend, sets the session cookie | 302 to `{FRONTEND_URL}/login?error=<CODE>`, no JSON body (see below) |
 | `POST /auth/logout` | 204, deletes the session and clears the cookie | 403 `CSRF_ORIGIN_INVALID`; 500 `INTERNAL_ERROR` |
 | `GET /auth/me` | 200 `MeResponse` | 401 `UNAUTHORIZED`; 500 `INTERNAL_ERROR` |
 
-The callback deletes the `oauth_state` cookie on every response, including errors. `GITHUB_UNAVAILABLE` covers a GitHub timeout, an error status, and an unexpected response body; no GitHub response details are returned.
+The callback deletes the `oauth_state` cookie on every response, including errors.
+
+Callback errors are redirects, not JSON (ADR-012), because the user arrives by browser navigation. `<CODE>` is one of:
+
+| Code | Cause |
+|---|---|
+| `ACCESS_DENIED` | GitHub returned `error` (the user declined) |
+| `INVALID_STATE` | `state` missing, or not equal to the `oauth_state` cookie |
+| `MISSING_CODE` | No `code` in the callback |
+| `OAUTH_CODE_INVALID` | GitHub rejected the code (expired or already used) |
+| `GITHUB_UNAVAILABLE` | GitHub timed out, returned an error status, or an unexpected response |
+| `INTERNAL_ERROR` | Any other failure |
+
+Nothing from the request or from GitHub is copied into the redirect URL. No session cookie is set. The response carries `X-Request-ID`. This is the only endpoint whose errors are not JSON.
 
 `MeResponse`:
 
