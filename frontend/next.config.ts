@@ -11,6 +11,8 @@ export default function nextConfig(phase: string): NextConfig {
   }
 
   return {
+    // Otherwise `next dev` writes an AGENTS.md into the project on every start.
+    agentRules: false,
     turbopack: {
       rules: {
         "*.css": {
