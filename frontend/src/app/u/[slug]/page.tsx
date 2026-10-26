@@ -6,9 +6,10 @@ import { getPublicProfile, type PublicProfile } from "@/lib/api";
 
 import { ProfileView } from "./profile-view";
 
-// The format the backend generates slugs in. Anything else is a 404 without
-// asking the API, which would answer 404 anyway (ADR-013).
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,37}[a-z0-9]$/;
+// The slug format of the database CHECK ck_profiles_slug_format (3–39
+// characters, ADR-012). Anything else is a 404 without asking the API, which
+// would answer 404 anyway (ADR-013).
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,37}[a-z0-9]$/;
 
 const SITE = "Developer Profile Platform";
 

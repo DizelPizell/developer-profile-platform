@@ -137,13 +137,20 @@ describe("profile", () => {
 });
 
 describe("slug and errors", () => {
-  test.each(["a", "-ann", "ann-", "ann_lee", "a".repeat(40), "ann%2F..", ""])(
+  test.each(["a", "ab", "-ann", "ann-", "ann_lee", "a".repeat(40), "ann%2F..", ""])(
     "malformed slug %j is a 404 without an API call",
     async (slug) => {
       await expect(PublicProfilePage(props(slug))).rejects.toThrow("NEXT_NOT_FOUND");
       expect(fetchMock).not.toHaveBeenCalled();
     },
   );
+
+  test.each(["abc", "a-1", "a".repeat(39)])("valid slug %j reaches the API", async (slug) => {
+    await renderPage({ slug }, slug);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `http://backend.internal:8000/api/v1/public/profiles/${slug}`,
+    );
+  });
 
   test("an uppercase slug redirects to the lowercase address without an API call", async () => {
     await expect(PublicProfilePage(props("Ann-Lee"))).rejects.toThrow("NEXT_REDIRECT /u/ann-lee");
