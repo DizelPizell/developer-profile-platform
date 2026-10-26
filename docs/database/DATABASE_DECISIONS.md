@@ -13,7 +13,7 @@ PostgreSQL is the application state source of truth.
 - **`id` columns**: UUID, generated server-side with `gen_random_uuid()`. Applies to all tables (users, github_accounts, profiles, auth_sessions, and all future tables).
 - **`github_user_id`**: BIGINT. GitHub numeric user IDs are currently within int32 range, but BIGINT provides a safe margin.
 - **Cascade on user deletion**: `github_accounts`, `profiles`, `auth_sessions` and `projects` (ADR-015) carry `ON DELETE CASCADE` foreign keys referencing `users.id`. Dependent rows are deleted automatically when a user row is deleted. Account deletion as a product feature (user-initiated flow, data handling) remains an open question per ADR-012.
-- **Cascade on project deletion**: projects are hard-deleted; `project_showcases` and `project_technologies` carry `ON DELETE CASCADE` foreign keys referencing `projects.id`, and `project_showcases` also cascades from `profiles.id`. Tables added later with a `project_id` cascade too unless their own decision says otherwise — see ADR-015-project-model.md.
+- **Cascade on project deletion**: projects are hard-deleted; `project_showcases` and `project_technologies` carry `ON DELETE CASCADE` foreign keys referencing `projects.id`, and `project_showcases` also cascades from `profiles.id`. `project_technologies.technology_id` is `ON DELETE RESTRICT`: shared technologies are not deleted in V1, and a technology in use cannot be. Tables added later with a `project_id` cascade too unless their own decision says otherwise — see ADR-015-project-model.md.
 
 ## Core entities
 

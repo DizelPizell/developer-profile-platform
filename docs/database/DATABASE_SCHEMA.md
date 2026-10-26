@@ -87,21 +87,21 @@ The four text fields are nullable; stored values are trimmed and never blank. `u
 
 ## Project fields (Phase 3)
 
-`id`, `owner_id` (FK → users, `ON DELETE CASCADE`), `status` (DRAFT/PUBLISHED/ARCHIVED, default DRAFT), `visibility` (PUBLIC/PRIVATE, default PRIVATE), `title` (≤ 100), `summary` (≤ 300), `description` (≤ 5000), `problem` (≤ 2000), `results` (≤ 2000), `role` (≤ 100), `contribution` (≤ 2000), `created_at`, `updated_at`.
+`id`, `owner_id` (FK → users, `ON DELETE CASCADE`), `status` (VARCHAR(20): DRAFT/PUBLISHED/ARCHIVED, default DRAFT), `visibility` (VARCHAR(20): PUBLIC/PRIVATE, default PRIVATE), `title` (≤ 100), `summary` (≤ 300), `description` (≤ 5000), `problem` (≤ 2000), `results` (≤ 2000), `role` (≤ 100), `contribution` (≤ 2000), `created_at`, `updated_at`.
 
-The seven text fields are nullable plain text; stored values are trimmed and never blank. `updated_at` is set by application code when a value changes. Demo, screenshots, repository link and further fields come in later phases. See ADR-015-project-model.md.
+The seven text fields are nullable `TEXT` with CHECK constraints; stored values are trimmed and never blank. `updated_at` is set by application code when a value changes. Demo, screenshots, repository link and further fields come in later phases. See ADR-015-project-model.md.
 
 ## Technology fields
 
-`id`, `name` (≤ 50; trimmed, inner whitespace collapsed), `created_at`. Shared by all users; unique ignoring case. The stored spelling is the one used when the row was created.
+`id`, `name` (`TEXT`, ≤ 50 by CHECK; trimmed, inner whitespace collapsed), `created_at`. Shared by all users; unique ignoring case. The stored spelling is the one used when the row was created.
 
 ## Project technology fields
 
-`id`, `project_id` (FK → projects, `ON DELETE CASCADE`), `technology_id` (FK → technologies), `position` (1..20, the developer's order).
+`id`, `project_id` (FK → projects, `ON DELETE CASCADE`), `technology_id` (FK → technologies, `ON DELETE RESTRICT`: technologies are not deleted in V1, and a used one cannot be), `position` (`SMALLINT`, 1..20, the developer's order).
 
 ## Project showcase fields
 
-`id`, `project_id` (unique, FK → projects, `ON DELETE CASCADE`), `profile_id` (FK → profiles, `ON DELETE CASCADE`), `position` (1..3, no gaps), `created_at`. A row means the project is featured. Showcase description and highlights come later. See ADR-015-project-model.md.
+`id`, `project_id` (unique, FK → projects, `ON DELETE CASCADE`), `profile_id` (FK → profiles, `ON DELETE CASCADE`), `position` (`SMALLINT`, 1..3, no gaps), `created_at`. A row means the project is featured. Showcase description and highlights come later. See ADR-015-project-model.md.
 
 ## Constraints
 
