@@ -163,6 +163,8 @@ paths:
       responses:
         "204": {description: Deleted}
   /projects/{id}/showcase:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
     post:
       summary: Create showcase
       responses:
@@ -196,11 +198,15 @@ paths:
       responses:
         "200": {description: Repositories}
   /integrations/github/repositories/{id}/import:
+    parameters:
+      - {name: id, in: path, required: true, description: Repository id; its type is defined with GitHub import (Phase 5), schema: {type: string}}
     post:
       summary: Import repository
       responses:
         "201": {description: Imported project}
   /integrations/github/repositories/{id}/sync:
+    parameters:
+      - {name: id, in: path, required: true, description: Repository id; its type is defined with GitHub import (Phase 5), schema: {type: string}}
     post:
       summary: Sync repository
       responses:
@@ -221,6 +227,8 @@ paths:
       responses:
         "200": {description: Analytics}
   /analytics/projects/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
     get:
       summary: Project analytics
       responses:

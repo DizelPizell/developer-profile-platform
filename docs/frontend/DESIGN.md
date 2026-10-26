@@ -116,7 +116,7 @@ Every value is rendered as text; fields outside the public whitelist are dropped
 
 Address:
 
-- The slug must match `^[a-z0-9][a-z0-9-]{0,37}[a-z0-9]$` after lowercasing; otherwise the 404 screen is shown without calling the API.
+- The slug must match `^[a-z0-9][a-z0-9-]{1,37}[a-z0-9]$` (3–39 characters, the database CHECK) after lowercasing; otherwise the 404 screen is shown without calling the API.
 - A slug with uppercase letters redirects (308) to its lowercase address, because the API ignores case. Each profile has one address; there is no canonical tag in V1.
 
 Metadata: title «{display_name} — {headline}», description `headline`. No Open Graph image. The 404 and error screens keep the neutral title «Developer Profile Platform» (Next.js takes 404 metadata only from the root `not-found`). Next.js adds `noindex` to both.
