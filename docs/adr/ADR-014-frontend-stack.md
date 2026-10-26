@@ -82,3 +82,6 @@ A separate workflow, `.github/workflows/frontend.yml`, runs on changes to `front
 - **Playwright**: when end-to-end tests are introduced (sign-in in F2 or the SSR 404 in F4).
 - **Caching of public pages**: whether to cache or statically regenerate `/u/[slug]`, and how unpublishing invalidates it.
 - **Sync status and file content for the IDE view**: how the frontend learns the GitHub sync status and loads file contents for the read-only code viewer. Depends on ADR-009, ADR-010 and ADR-011, where these are still open.
+- **Risk: one API call per request on `/u/[slug]` relies on undocumented Next.js behavior.** After an error, Next.js renders the error page in a second pass with an empty React `cache()`, so `generateMetadata` would call the API again. The page keys the call by the request's `headers()` object, which stays the same across both passes in Next.js 16.4. This is not documented. If it changes, the page still works but makes two API calls on errors (and waits up to two timeouts). Check it when upgrading Next.js: the 500 case should still show one API call.
+- **ESLint 9**: npm marks ESLint 9 as no longer supported. Upgrade when `eslint-config-next` supports the next major version.
+- **TypeScript 5**: the project is pinned to TypeScript 5.x (`^5`). Moving to TypeScript 7 is a separate decision.
