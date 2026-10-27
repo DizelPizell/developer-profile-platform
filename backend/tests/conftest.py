@@ -88,13 +88,18 @@ def db_engine():
 
 
 def wait_until_blocked(db_engine, pid: int) -> None:
-    """Waits until the backend with this pid is waiting on a lock (two-transaction tests)."""
+    """Waits until the backend with this pid is waiting on a lock (two-transaction tests).
+
+    pg_stat_activity is a snapshot taken once per transaction, so each poll ends
+    its transaction; otherwise the loop would keep seeing the first state.
+    """
     with db_engine.connect() as conn:
         for _ in range(100):
             wait = conn.execute(
                 text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
                 {"pid": pid},
             ).scalar()
+            conn.rollback()
             if wait == "Lock":
                 return
             time.sleep(0.05)
