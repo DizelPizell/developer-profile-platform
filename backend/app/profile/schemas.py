@@ -1,33 +1,14 @@
-import unicodedata
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict
-from pydantic_core import PydanticCustomError
 
 from app.models.identity import PROFILE_TEXT_LIMITS
+from app.plain_text import plain_text
 from app.projects.schemas import PublicFeaturedProject, PublicProject
 
 
 def _profile_text(field: str, *, allow_newline: bool = False) -> AfterValidator:
-    """Trim, turn blank into null, reject control characters, enforce the length limit."""
-    max_length = PROFILE_TEXT_LIMITS[field]
-    allowed_controls = {"\n"} if allow_newline else set()
-
-    def normalize(value: str | None) -> str | None:
-        if value is None:
-            return None
-        if allow_newline:
-            value = value.replace("\r\n", "\n")
-        value = value.strip()
-        if not value:
-            return None
-        if any(unicodedata.category(ch) == "Cc" and ch not in allowed_controls for ch in value):
-            raise PydanticCustomError("control_characters", "Control characters are not allowed")
-        if len(value) > max_length:
-            raise PydanticCustomError("string_too_long", "String is too long")
-        return value
-
-    return AfterValidator(normalize)
+    return plain_text(PROFILE_TEXT_LIMITS[field], allow_newline=allow_newline)
 
 
 class ProfileUpdate(BaseModel):

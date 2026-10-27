@@ -1,5 +1,4 @@
 import re
-import unicodedata
 import uuid
 from typing import Annotated, Literal
 
@@ -13,35 +12,13 @@ from app.models.projects import (
     TECHNOLOGIES_PER_PROJECT,
     TECHNOLOGY_NAME_MAX_LENGTH,
 )
+from app.plain_text import has_control_characters, plain_text
 
 _WHITESPACE_RUN = re.compile(r"\s+")
 
 
-def _has_control_characters(value: str, allowed: set[str]) -> bool:
-    return any(unicodedata.category(ch) == "Cc" and ch not in allowed for ch in value)
-
-
 def _project_text(field: str, *, allow_newline: bool = False) -> AfterValidator:
-    """Trim all edge whitespace, turn blank into null, reject control characters
-    (newlines only where allowed), enforce the length limit (ADR-015)."""
-    max_length = PROJECT_TEXT_LIMITS[field]
-    allowed_controls = {"\n"} if allow_newline else set()
-
-    def normalize(value: str | None) -> str | None:
-        if value is None:
-            return None
-        if allow_newline:
-            value = value.replace("\r\n", "\n")
-        value = value.strip()
-        if not value:
-            return None
-        if _has_control_characters(value, allowed_controls):
-            raise PydanticCustomError("control_characters", "Control characters are not allowed")
-        if len(value) > max_length:
-            raise PydanticCustomError("string_too_long", "String is too long")
-        return value
-
-    return AfterValidator(normalize)
+    return plain_text(PROJECT_TEXT_LIMITS[field], allow_newline=allow_newline)
 
 
 def _technology_name(value: str) -> str:
@@ -49,7 +26,7 @@ def _technology_name(value: str) -> str:
     value = _WHITESPACE_RUN.sub(" ", value).strip()
     if not value:
         raise PydanticCustomError("string_too_short", "String is too short")
-    if _has_control_characters(value, set()):
+    if has_control_characters(value, set()):
         raise PydanticCustomError("control_characters", "Control characters are not allowed")
     if len(value) > TECHNOLOGY_NAME_MAX_LENGTH:
         raise PydanticCustomError("string_too_long", "String is too long")
