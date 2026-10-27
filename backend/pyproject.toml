@@ -16,7 +16,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=9.1.1",
-    "ruff>=0.17.2",
+    # Exact: a ruff release can add lint findings or change formatting, which
+    # would fail CI without a code change. Upgrade it on purpose.
+    "ruff==0.17.3",
 ]
 
 [build-system]
