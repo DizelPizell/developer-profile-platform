@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
@@ -6,6 +8,9 @@ from app.models.identity import User
 from app.models.projects import Project
 from app.projects import service
 from app.projects.schemas import (
+    FeaturedProject,
+    FeaturedProjectsResponse,
+    FeaturedReorderRequest,
     ProjectListResponse,
     ProjectResponse,
     ProjectSummary,
@@ -14,6 +19,7 @@ from app.projects.schemas import (
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+featured_router = APIRouter(prefix="/profile/featured-projects", tags=["projects"])
 
 
 def _project_response(db: Session, project: Project) -> ProjectResponse:
@@ -32,6 +38,15 @@ def _project_response(db: Session, project: Project) -> ProjectResponse:
         contribution=project.contribution,
         technologies=names,
         featured_position=position,
+    )
+
+
+def _featured_response(db: Session, profile_id: uuid.UUID) -> FeaturedProjectsResponse:
+    return FeaturedProjectsResponse(
+        items=[
+            FeaturedProject(project_id=project_id, position=position)
+            for project_id, position in service.featured_projects(db, profile_id)
+        ]
     )
 
 
@@ -145,3 +160,40 @@ def change_project_visibility(
     service.change_visibility(db, project, payload.visibility)
     db.commit()
     return _project_response(db, project)
+
+
+@router.post("/{project_id}/showcase")
+def feature_project(
+    project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> FeaturedProjectsResponse:
+    profile = service.lock_owner_profile(db, user)
+    profile_id = profile.id
+    project = service.get_own_project(db, user, project_id, for_update=True)
+    service.feature(db, profile, project)
+    db.commit()
+    return _featured_response(db, profile_id)
+
+
+@router.delete("/{project_id}/showcase")
+def unfeature_project(
+    project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> FeaturedProjectsResponse:
+    profile = service.lock_owner_profile(db, user)
+    profile_id = profile.id
+    project = service.get_own_project(db, user, project_id, for_update=True)
+    service.unfeature(db, project)
+    db.commit()
+    return _featured_response(db, profile_id)
+
+
+@featured_router.post("/reorder")
+def reorder_featured_projects(
+    payload: FeaturedReorderRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> FeaturedProjectsResponse:
+    profile = service.lock_owner_profile(db, user)
+    profile_id = profile.id
+    service.reorder_featured(db, profile, payload.project_ids)
+    db.commit()
+    return _featured_response(db, profile_id)

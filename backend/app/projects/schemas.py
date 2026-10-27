@@ -3,10 +3,12 @@ import unicodedata
 import uuid
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
 from pydantic_core import PydanticCustomError
 
+from app.canonical_uuid import parse_canonical_uuid
 from app.models.projects import (
+    FEATURED_PROJECTS_PER_PROFILE,
     PROJECT_TEXT_LIMITS,
     TECHNOLOGIES_PER_PROJECT,
     TECHNOLOGY_NAME_MAX_LENGTH,
@@ -122,3 +124,37 @@ class ProjectSummary(BaseModel):
 
 class ProjectListResponse(BaseModel):
     items: list[ProjectSummary]
+
+
+def _canonical_uuid(value: object) -> object:
+    # The same form as a project id in the path; other types fail as uuid_type.
+    if isinstance(value, str) and parse_canonical_uuid(value) is None:
+        raise PydanticCustomError("uuid_parsing", "Input should be a canonical UUID")
+    return value
+
+
+def _no_duplicate_projects(project_ids: list[uuid.UUID]) -> list[uuid.UUID]:
+    if len(set(project_ids)) != len(project_ids):
+        raise PydanticCustomError("duplicate_project", "Project ids must be unique")
+    return project_ids
+
+
+class FeaturedReorderRequest(BaseModel):
+    """The complete current featured set in the new order (ADR-015)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_ids: Annotated[
+        list[Annotated[uuid.UUID, BeforeValidator(_canonical_uuid)]],
+        Field(max_length=FEATURED_PROJECTS_PER_PROFILE),
+        AfterValidator(_no_duplicate_projects),
+    ]
+
+
+class FeaturedProject(BaseModel):
+    project_id: uuid.UUID
+    position: int
+
+
+class FeaturedProjectsResponse(BaseModel):
+    items: list[FeaturedProject]

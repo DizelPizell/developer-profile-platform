@@ -1,14 +1,16 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import bindparam, delete, func, insert, select, text, update
+from sqlalchemy import bindparam, case, delete, func, insert, select, text, update
 from sqlalchemy.dialects.postgresql import ARRAY, TEXT
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.models.identity import Profile, User
 from app.models.projects import (
+    FEATURED_PROJECTS_PER_PROFILE,
     PROJECT_PUBLISH_REQUIRED,
     Project,
     ProjectShowcase,
@@ -66,6 +68,24 @@ def _duplicate_technologies() -> AppError:
         "Invalid request",
         422,
         {"fields": [{"loc": ["body", "technologies"], "type": "duplicate_technology"}]},
+    )
+
+
+def _not_featurable(project: Project) -> AppError:
+    return AppError(
+        "PROJECT_NOT_FEATURABLE",
+        "Only a published public project can be featured",
+        409,
+        {"status": project.status, "visibility": project.visibility},
+    )
+
+
+def _featured_limit_reached() -> AppError:
+    return AppError(
+        "FEATURED_LIMIT_REACHED",
+        "Featured project limit reached",
+        409,
+        {"limit": FEATURED_PROJECTS_PER_PROFILE},
     )
 
 
@@ -135,6 +155,16 @@ def featured_positions(db: Session, project_ids: list[uuid.UUID]) -> dict[uuid.U
         )
     )
     return {project_id: position for project_id, position in rows}
+
+
+def featured_projects(db: Session, profile_id: uuid.UUID) -> list[tuple[uuid.UUID, int]]:
+    """(project_id, position) of the profile's featured projects, in position order."""
+    rows = db.execute(
+        select(ProjectShowcase.project_id, ProjectShowcase.position)
+        .where(ProjectShowcase.profile_id == profile_id)
+        .order_by(ProjectShowcase.position)
+    )
+    return [(project_id, position) for project_id, position in rows]
 
 
 def _technology_ids(db: Session, project: Project) -> list[uuid.UUID]:
@@ -211,6 +241,67 @@ def _remove_from_featured(db: Session, project: Project) -> None:
         update(ProjectShowcase)
         .where(ProjectShowcase.profile_id == profile_id, ProjectShowcase.position > position)
         .values(position=ProjectShowcase.position - 1)
+    )
+
+
+def feature(db: Session, profile: Profile, project: Project) -> None:
+    """Adds a PUBLISHED + PUBLIC project after the last featured one; already featured
+    is a no-op.
+
+    The caller holds the owner's profile lock, then the project row lock, so the
+    count and max(position) below are stable. The limit itself is the database's:
+    position is 1..3 and unique per profile, so a fourth row cannot be written even
+    if this check were skipped. That violation is reported with the same code.
+    """
+    if project.status != PUBLISHED or project.visibility != PUBLIC:
+        raise _not_featurable(project)
+    current = featured_projects(db, profile.id)
+    if any(project_id == project.id for project_id, _ in current):
+        return
+    if len(current) >= FEATURED_PROJECTS_PER_PROFILE:
+        raise _featured_limit_reached()
+    position = max((p for _, p in current), default=0) + 1
+    try:
+        # A savepoint keeps the transaction usable if the insert is rejected.
+        with db.begin_nested():
+            db.execute(
+                insert(ProjectShowcase).values(
+                    profile_id=profile.id, project_id=project.id, position=position
+                )
+            )
+    except IntegrityError as exc:
+        if getattr(exc.orig.diag, "constraint_name", None) == "ck_project_showcases_position":
+            raise _featured_limit_reached() from None
+        raise
+
+
+def unfeature(db: Session, project: Project) -> None:
+    """Not featured is a no-op. The caller holds the owner's profile lock."""
+    _remove_from_featured(db, project)
+
+
+def reorder_featured(db: Session, profile: Profile, project_ids: list[uuid.UUID]) -> None:
+    """project_ids is the complete current featured set in the new order (unique,
+    at most three: checked by the request schema).
+
+    The caller holds the owner's profile lock, so the set compared here is the set
+    updated. One UPDATE ... CASE: the deferrable UNIQUE (profile_id, position) is
+    checked at the end of the statement, so swaps pass.
+    """
+    current = [project_id for project_id, _ in featured_projects(db, profile.id)]
+    if set(project_ids) != set(current):
+        raise AppError(
+            "FEATURED_ORDER_MISMATCH",
+            "The list does not match the current featured projects",
+            409,
+        )
+    if project_ids == current:
+        return
+    new_positions = {project_id: i for i, project_id in enumerate(project_ids, start=1)}
+    db.execute(
+        update(ProjectShowcase)
+        .where(ProjectShowcase.profile_id == profile.id)
+        .values(position=case(new_positions, value=ProjectShowcase.project_id))
     )
 
 
