@@ -864,7 +864,7 @@ demo, screenshots, file storage (MinIO/S3) and the public project page — Phase
 
 GitHub repository integration, import and sync — Phases 5–6
 
-Docker Compose not verified end-to-end (build + run untested locally)
+Docker Compose starts without applying migrations: build and run were verified from scratch, but alembic upgrade head is a manual step (fix not decided yet)
 
 
 
