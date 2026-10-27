@@ -96,11 +96,11 @@ Done in F3: the cabinet per `cabinet.png` with the decisions recorded in `DESIGN
 
 Done in F4: `getPublicProfile` (5 s timeout, `cache: "no-store"`, whitelist, 404 → `null`), the page per `public-profile.png` with only the API blocks and «От автора» on «О себе», a malformed slug as 404 without an API call, a 308 redirect for uppercase slugs, the profile 404 and a separate 404 for unknown routes, the error page with «Повторить» (HTTP 500), and `generateMetadata`. Status codes, one API call per request (also on errors), no cookie forwarding and the escaped HTML were checked against a built server and a mock API; the check against the real backend is in `frontend/README.md`.
 
-## F5 — Projects in the cabinet
+## F5 — Projects in the cabinet [done; manual check with the backend pending]
 
 **Goal**: the developer creates, edits, publishes, hides, archives and deletes projects and chooses up to three featured projects in their order.
 
-**Before starting**: a cabinet mockup for the project screens (`DESIGN.md` marks them «макет ожидается»); backend step 3.2 implemented.
+**Before starting**: mockups `my-projects.png` and `project-form.png`; backend step 3.2 implemented.
 
 **Done when**:
 - The «Мои проекты» list, the create/edit screen and the featured controls match `DESIGN.md` and the mockup.
@@ -127,6 +127,8 @@ Done in F4: `getPublicProfile` (5 s timeout, `cache: "no-store"`, whitelist, 404
 - Featured positions after add, remove and reorder come from the response; a reorder sends the full list.
 - Delete sends nothing without confirmation.
 - A second click during a request sends nothing.
+
+Done in F5: the cabinet tabs «Профиль» and «Проекты»; the project API calls with error parsing (`missing_fields`, per-field errors including technology items); the list per `my-projects.png` with featured rows, ▲▼ reorder, the free slot, state badges, per-state actions and the delete dialog; the form per `project-form.png` with technology chips, counters, create-then-redirect, `PATCH` of changed fields only, publish and archive. Decisions taken with the developer: «Удалить» only for drafts and archived projects; the draft hint comes from a failed publish; «Сделать главным» only on published and visible projects. Checked with Vitest and RTL (API mocked) and visually against the mockups at 1280 and 375 px with a mock API; the check against the real backend is in `frontend/README.md`.
 
 ## F6 — Projects on the public page
 

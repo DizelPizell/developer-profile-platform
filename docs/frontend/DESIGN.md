@@ -215,87 +215,99 @@ States and errors:
 
 ### Projects in the cabinet — `/me/projects` (F5)
 
-**Макет ожидается.** No mockup exists for these screens yet. This section fixes data, behavior and texts. Layout, colors, controls and where the cabinet links to «Мои проекты» come from the mockup. Texts are provisional until then. The general rules above (tokens, typography, focus, content rules) apply.
+Mockups `my-projects.png` (list) and `project-form.png` (form) set the layout and texts. The general rules above (tokens, typography, focus, content rules) apply. Where the mockups differ from them, the cabinet decisions hold: buttons in Pixelify Sans, normal case; the header keeps «Источник: GitHub».
 
-Data: `GET /api/v1/projects` for the list, `GET /api/v1/projects/{id}` for editing, and the actions in `docs/api/API_CONTRACT.md` (ADR-015).
+Data: `GET /api/v1/projects` for the list, `GET /api/v1/projects/{id}` for editing, and the actions in `docs/api/API_CONTRACT.md` (ADR-015). The header (avatar, login, «Выйти») comes from `GET /profile`, as on `/me`.
+
+The cabinet has two tabs under the header, «Профиль» (`/me`) and «Проекты» (`/me/projects`); the current one is in `accent` with `aria-current="page"`. The form screens have no tabs, only the link «‹ Назад к проектам».
+
+The mockups call featured projects «главные»: «Главные проекты», «Сделать главным», «Убрать из главных», the badge «Главный: N». Only the counter in the top panel keeps «В избранном: N из 3», as in the mockup.
 
 #### «Мои проекты» — list
 
-- One entry per project, newest first (API order):
-  - `title`, or «[Без названия]» when empty;
-  - `summary`, when present;
-  - the state badge;
-  - «Избранное N» when `featured_position` is set.
-- «Новый проект» opens `/me/projects/new`. At 50 projects it is disabled with «Можно создать не больше 50 проектов.»; the API stays the source of truth (`PROJECT_LIMIT_REACHED`).
-- An empty list shows «[Пока нет проектов]» and «Новый проект».
+Top panel: «Мои проекты», «Проектов: N из 50 · В избранном: N из 3» and «Новый проект» (`label`), a link to `/me/projects/new`. At 50 projects the button is disabled with «Можно создать не больше 50 проектов.»; the API stays the source of truth (`PROJECT_LIMIT_REACHED`).
 
-State badges:
+«Главные проекты» (yellow square marker):
 
-| `status` + `visibility` | Badge |
-|---|---|
-| `DRAFT` + `PRIVATE` | «Черновик» |
-| `PUBLISHED` + `PUBLIC` | «Опубликован» |
-| `PUBLISHED` + `PRIVATE` | «Скрыт» |
-| `ARCHIVED` + `PRIVATE` | «В архиве» |
+- The text «Покажутся на публичной странице первыми, в этом порядке. Не больше 3. Опубликованный и видимый проект можно сделать главным. Если проект скрыть, отправить в архив или удалить, он пропадёт отсюда.»
+- One row per featured project in `position` order: the position in a `label` square, `title` (or «[Без названия]»), `summary` on one line, ▲ and ▼, «Убрать из главных». ▲ on the first row and ▼ on the last are disabled. The arrows are buttons with the names «Выше: {title}» and «Ниже: {title}», so the order can be changed from the keyboard. There is no drag-and-drop.
+- While fewer than 3 are featured, a dashed row «Свободное место для главного проекта: K из 3».
 
-Badge colors come with the mockup.
+«Все проекты» (muted square marker), newest first (API order). Each card shows `title` (or «[Без названия]»), the state badge, «Главный: N» when featured, `summary` and the technologies when present, and the actions for its state:
 
-#### Featured projects
+| `status` + `visibility` | Badge (fill) | Actions |
+|---|---|---|
+| `DRAFT` + `PRIVATE` | «Черновик» (`frame`) | «Редактировать», «Опубликовать», «Удалить» |
+| `PUBLISHED` + `PUBLIC` | «Опубликован» (`success`) | «Редактировать», «Сделать главным» (when not featured), «Скрыть», «В архив» |
+| `PUBLISHED` + `PRIVATE` | «Скрыт» (`text-muted`) | «Редактировать», «Показать», «В архив»; the note «Опубликован, но не виден посетителям.» |
+| `ARCHIVED` + `PRIVATE` | «В архиве» (`bg`, muted text) | «Редактировать», «Опубликовать снова», «Удалить» |
 
-- Featured projects are shown in `position` order, with «Избранное N».
-- «В избранное» is available only for a `PUBLISHED` + `PUBLIC` project that is not featured, while fewer than three are featured. Otherwise a hint explains why: «В избранное можно добавить только опубликованный и открытый проект.» or «В избранном уже 3 проекта. Уберите один, чтобы добавить другой.».
-- «Убрать из избранного» is available for a featured project.
-- Order is changed with explicit controls that work from the keyboard (no drag-only control). The exact control comes with the mockup. A change sends the complete featured set in the new order.
-- After any change, positions are taken from `FeaturedProjectsResponse`, not computed locally.
+- «Редактировать» opens `/me/projects/{id}`. «Опубликовать» and «Сделать главным» are `label`, «Удалить» is red text on a panel, the rest are secondary.
+- «Сделать главным» is shown only on a `PUBLISHED` + `PUBLIC` project that is not featured. With 3 featured it is disabled with «В главных уже 3 проекта. Уберите один, чтобы добавить другой.» Hidden, draft and archived cards do not show it.
+- A featured card has the note `«Скрыть» и «В архив» уберут проект из главных.`.
+- «Удалить» is offered only for `DRAFT` and `ARCHIVED` (mockup decision): a published project is archived or hidden first. The API itself allows deleting in any state.
+- A draft has no hint about missing fields until its publish fails: then the card shows «Чтобы опубликовать, не хватает: роль, технологии, вклад.» from `details.missing_fields` of `PROJECT_INCOMPLETE`. The list response does not carry the fields needed to compute it in advance.
+- An empty list shows «[Пока нет проектов]».
+
+Delete asks in an accessible modal dialog (`AlertDialog`, focus starts on «Отмена», Escape closes it): title «Удалить проект?», text «Проект «{title}» удалится насовсем, вместе с технологиями и местом в главных. Отменить нельзя. Если хотите просто убрать с публичной страницы, отправьте его в архив.», buttons «Удалить навсегда» (`error` fill) and «Отмена». Nothing is sent before confirmation; on 204 the project leaves the list (and the featured rows).
+
+Behavior:
+
+- After a feature, unfeature or reorder, featured positions come from `FeaturedProjectsResponse`, not computed locally.
+- A reorder swaps two neighbours and sends the complete featured set in the new order.
+- Hide, archive or delete of a featured project reloads the list, since the API removes it from the featured set.
+- While a request runs, all actions on the screen are disabled; a second click sends nothing.
 
 #### New and edit project — `/me/projects/new`, `/me/projects/[id]`
 
-Fields, in this order until the mockup says otherwise. «*» means required for publication, not for saving.
+Top panel: «Новый проект» or «Проект», the state badge (once saved) and «Публичная страница проекта появится позже». Fields in mockup order; «*» means required for publication, not for saving. `role` and `technologies` sit side by side, as do `problem` and `results`; on narrow screens they stack.
 
-| Field | Label | Hint | Limit | Lines |
-|---|---|---|---|---|
-| `title` | «Название *» | «Обязательно для публикации» | 100 | one |
-| `summary` | «Коротко о проекте *» | «Что это за проект, в одной-двух фразах. Обязательно для публикации» | 300 | one |
-| `role` | «Моя роль *» | «Обязательно для публикации» | 100 | one |
-| `contribution` | «Мой вклад *» | «Что вы сделали сами. Обязательно для публикации» | 2000 | many |
-| `technologies` | «Технологии *» | «До 20. Первая показывается в списке проектов на публичной странице. Нужна хотя бы одна для публикации» | 20 × 50 | — |
-| `description` | «Описание» | «Необязательно» | 5000 | many |
-| `problem` | «Задача» | «Необязательно» | 2000 | many |
-| `results` | «Результаты» | «Необязательно» | 2000 | many |
+| Field | Label | Placeholder | Hint | Limit | Lines |
+|---|---|---|---|---|---|
+| `title` | «Название *» | «Как называется проект» | «Обязательно для публикации» | 100 | one |
+| `summary` | «Коротко о проекте *» | «Одна-две строки: что это и зачем» | «Показывается в карточке проекта. Обязательно для публикации» | 300 | one |
+| `role` | «Роль *» | «Например: бэкенд-разработчик» | «Обязательно для публикации» | 100 | one |
+| `technologies` | «Технологии *» | «Например: Python» | «До 20. Первая показывается в списке проектов на публичной странице» | 20 × 50 | chips |
+| `contribution` | «Ваш вклад *» | «Что именно сделали вы лично» | «Обязательно для публикации» | 2000 | many |
+| `description` | «Подробное описание» | «Расскажите о проекте подробнее» | «Необязательно» | 5000 | many |
+| `problem` | «Какую задачу решали» | «Какая была проблема» | «Необязательно» | 2000 | many |
+| `results` | «Результат» | «К чему пришли» | «Необязательно» | 2000 | many |
 
-- Every field has a counter «N / limit», like the profile form. Text is plain: no markup, line breaks kept where allowed.
-- Technologies keep the entered order. Two names equal ignoring case are rejected by the API. A name that already exists is shown afterwards in its stored spelling.
-- The new-project screen sends `POST /projects` and then continues as the edit screen of the created project.
+- Every field has a counter «N / limit». Text is plain: no markup, line breaks kept in multi-line fields.
+- Technologies are chips. A name is added with Enter or «Добавить» and removed with × («Удалить «{name}»»). The name is trimmed and inner whitespace collapsed, as the API does. A blank name is ignored. A name equal to an existing one ignoring case is not added: `«{name}» уже есть в списке.`. At 20 the input is read-only with «Не больше 20 технологий.». Technologies keep the entered order.
+- Under the form: «Демо, скриншоты и репозиторий GitHub добавим в следующих версиях.»
 
-Actions:
+Actions (buttons under the form):
 
 | Action | Available when | Label |
 |---|---|---|
-| Save | A field differs from the stored value | «Сохранить» |
-| Publish | `DRAFT` or `ARCHIVED`, no unsaved changes | «Опубликовать» |
-| Hide | `PUBLISHED` + `PUBLIC` | «Скрыть» |
-| Show | `PUBLISHED` + `PRIVATE` | «Показать» |
-| Archive | `PUBLISHED` | «В архив» |
-| Delete | Any state, after confirmation | «Удалить» |
+| Save | A field differs from the stored value | «Сохранить» (accent) |
+| Publish | Saved, `DRAFT` or `ARCHIVED`, no unsaved changes | «Опубликовать» (`label`) |
+| Archive | `PUBLISHED` | «В архив» (secondary) |
 
-- Unavailable actions are disabled with a hint, as in the profile form. Publish with unsaved changes shows «Сохраните изменения, чтобы опубликовать проект.»
-- Hiding or archiving a featured project shows «Проект будет убран из избранного.» next to the action. Delete asks «Удалить проект «{title}»? Это действие нельзя отменить.»
-- While a request runs, all actions are disabled; a second click sends nothing. State and featured position update from the response.
+- On `/me/projects/new` «Сохранить» sends `POST /projects` and moves to `/me/projects/{id}` of the created project; the button stays disabled until the page changes.
+- On an existing project «Сохранить» sends `PATCH /projects/{id}` with only the changed fields: an emptied text field as `null`, `technologies` as the whole list in the entered order. The form then shows the normalized values from the response, and «Сохранено» appears in `success` until the next edit.
+- With unsaved changes publish shows «Сохраните изменения, чтобы опубликовать проект.» Outside `PUBLISHED`, «В архив» is disabled with `«В архив» доступно у опубликованного проекта`; for a featured project it shows `«В архив» уберёт проект из главных.`. Archive does not use the form, so unsaved edits stay.
+- Hide, show, feature and delete live on the list, as in the mockup.
+- While a request runs, all buttons are disabled and the fields are read-only. A second click or Enter during a request sends nothing.
+- The error block sits above the form and is scrolled into view when it appears, because the buttons are at the bottom of a long form.
 
-States and errors:
+States and errors (list and form):
 
 | Case | Shown as |
 |---|---|
-| Loading, load failure, 401, network error, 500 | As in the profile cabinet table above |
-| 404 `NOT_FOUND` | «Проект не найден» and a link to «Мои проекты» |
-| 422 `VALIDATION_ERROR` | Per field, as in the profile form. Technology entries (`loc` `["body", "technologies", ...]`) are shown under «Технологии». |
-| 422 `PROJECT_INCOMPLETE` from publish | «Нельзя опубликовать» and «Заполните обязательные поля: …» from `details.missing_fields`; those fields are highlighted |
-| 422 `PROJECT_INCOMPLETE` from save | «Нельзя сохранить», the same list and «Опубликованный проект должен оставаться заполненным.» |
+| Loading, load failure, 401, network error, 500 | As in the profile cabinet table above: «Загрузка…»; the error text and «Повторить»; redirect to `/login`; «Не удалось связаться с сервером.»; «Что-то пошло не так. Попробуйте ещё раз.» with «Код запроса: …» |
+| 404 `NOT_FOUND` on the form | A panel «Проект не найден», «Такого проекта нет среди ваших.» and a link «Мои проекты» |
+| 404 `NOT_FOUND` from a list action | «Проект не найден. Данные загружены заново.»; the list is reloaded |
+| 422 `VALIDATION_ERROR` | Under each field from `details.fields`: «Не больше N символов.», «Недопустимые символы.», «Некорректное значение.». Technology entries: «Не больше 50 символов в названии технологии.», «Некорректное название технологии.», «Технологии не должны повторяться, даже с другим регистром букв.», «Не больше 20 технологий.» |
+| 422 `PROJECT_INCOMPLETE` from publish (form) | Alert «Нельзя опубликовать» with «Заполните обязательные поля: «Роль», «Технологии», «Ваш вклад».» (or «Заполните обязательное поле: …»). The fields are highlighted with «Заполните это поле», technologies with «Нужна хотя бы одна» |
+| 422 `PROJECT_INCOMPLETE` from save | A save that clears a required field of a published project. «Нельзя сохранить», the same list and «Опубликованный проект должен оставаться заполненным.» |
+| 422 `PROJECT_INCOMPLETE` from publish (list) | «Чтобы опубликовать, не хватает: …» on that card |
 | 409 `PROJECT_LIMIT_REACHED` | «Можно создать не больше 50 проектов.» |
-| 409 `PROJECT_TRANSITION_INVALID` | «Это действие недоступно в текущем состоянии проекта.»; the project is reloaded |
-| 409 `PROJECT_NOT_FEATURABLE` | «В избранное можно добавить только опубликованный и открытый проект.»; the project is reloaded |
-| 409 `FEATURED_LIMIT_REACHED` | «В избранном уже 3 проекта. Уберите один, чтобы добавить другой.» |
-| 409 `FEATURED_ORDER_MISMATCH` | «Список избранного изменился, порядок загружен заново.»; the list is reloaded |
+| 409 `PROJECT_TRANSITION_INVALID` | «Это действие недоступно в текущем состоянии проекта. Данные загружены заново.»; the data is reloaded (the form keeps its edits) |
+| 409 `PROJECT_NOT_FEATURABLE` | «Главным можно сделать только опубликованный и видимый проект. Данные загружены заново.»; the list is reloaded |
+| 409 `FEATURED_LIMIT_REACHED` | «В главных уже 3 проекта. Уберите один, чтобы добавить другой.»; the list is reloaded |
+| 409 `FEATURED_ORDER_MISMATCH` | «Список главных изменился, порядок загружен заново.»; the list is reloaded |
 
 ### Sign-in — `/login`
 
@@ -363,7 +375,9 @@ Mockups are added manually to `docs/frontend/mockups/`:
 - `cabinet.png`
 - `login.png`
 - `not-found.png`
+- `my-projects.png` (F5)
+- `project-form.png` (F5)
 
-Expected (макет ожидается): the cabinet project screens (F5). The project blocks of the public page follow `public-profile.png`; the open points are listed under "Projects on the public page".
+The project blocks of the public page follow `public-profile.png`; the open points are listed under "Projects on the public page".
 
 If a mockup and this guide disagree, raise the conflict instead of silently picking one.

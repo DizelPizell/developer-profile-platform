@@ -60,6 +60,30 @@ Signed in as above, on `http://localhost:3000/me`:
 11. Stop the backend and press «Сохранить» → «Не удалось связаться с сервером.», the entered text stays.
 12. «Выйти» → `/login`.
 
+## Manual projects cabinet check
+
+Signed in as above, with a published profile, on `http://localhost:3000/me/projects`. Keep DevTools → Network open.
+
+1. The tabs show «Проекты» as current; «Профиль» goes to `/me` and back. With no projects: «Проектов: 0 из 50 · В избранном: 0 из 3», «[Пока нет проектов]», the free slot «3 из 3».
+2. «Новый проект» → `/me/projects/new`, «Сохранить» is disabled, «Опубликовать» and «В архив» are disabled with their hints.
+3. Fill «Название» only and save → the address becomes `/me/projects/<id>`, the badge «Черновик». The `POST` body has only `title`.
+4. Add technologies: `Python` with Enter, `  Fast   API ` with «Добавить» (stored as `Fast API`), then `python` → `«python» уже есть в списке.` Remove one with ×. Save → the `PATCH` body has only `technologies`, in the entered order.
+5. «Опубликовать» → «Нельзя опубликовать» naming the missing fields, they are highlighted, the error block scrolls into view, the badge stays «Черновик».
+6. Change a field without saving → «Опубликовать» is disabled with «Сохраните изменения, чтобы опубликовать проект.»
+7. Fill all required fields, save, publish → «Опубликован», «В архив» becomes active.
+8. Clear «Роль» and save → «Нельзя сохранить», reload → the role is still stored.
+9. Back to the list. Create a second draft with a title only and press «Опубликовать» on its card → «Чтобы опубликовать, не хватает: …» on that card.
+10. Publish two more complete projects. «Сделать главным» on three of them → rows 1–3 in «Главные проекты», no free slot; on the fourth published card «Сделать главным» is disabled with «В главных уже 3 проекта…».
+11. ▲ on the first row and ▼ on the last are disabled. ▼ on row 1 → the order changes; the `POST /profile/featured-projects/reorder` body has all three ids. Reload → the order is kept. Tab to the arrows and press Enter → they work from the keyboard.
+12. In a second tab remove one project from the featured list, then reorder in the first tab → «Список главных изменился, порядок загружен заново.» and the list is reloaded.
+13. «Скрыть» on a featured project → «Скрыт», it leaves «Главные проекты», «Показать» brings it back as «Опубликован» but not featured. «В архив» on a featured project → «В архиве», it leaves the featured list.
+14. «Удалить» is shown only on drafts and archived projects. Press it → the dialog with the title in the text, focus on «Отмена»; Escape and «Отмена» send nothing. «Удалить навсегда» → `DELETE`, the card disappears, the counter drops.
+15. Limits: «Название» stops at 100 characters, «Коротко о проекте» at 300, «Роль» at 100, «Ваш вклад», «Какую задачу решали» and «Результат» at 2000, «Подробное описание» at 5000; a technology at 50 characters; after 20 technologies the input is read-only with «Не больше 20 технологий.».
+16. `/me/projects/00000000-0000-0000-0000-000000000000` → «Проект не найден» with a link to «Мои проекты».
+17. Double-click «Сохранить», «Опубликовать» or an arrow quickly → one request in Network.
+18. Stop the backend and press «Сохранить» → «Не удалось связаться с сервером.», the entered text stays; reload the list → the error with «Повторить».
+19. «Выйти» → `/login`; `/me/projects` then redirects to `/login`.
+
 ## Manual public page check
 
 Backend running, a published profile with slug `<slug>`. Use a private window (no session) for steps 1–8.
