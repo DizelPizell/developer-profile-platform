@@ -78,14 +78,16 @@ Steps, in order. Each step is its own change with tests; a step starts when the 
       - idempotent feature and unfeature;
       - reorder: permutations, mismatch, malformed lists;
       - races on two transactions: two features for the last slot give one success and one `FEATURED_LIMIT_REACHED`; two reorders leave no gaps or duplicates; a reorder after a concurrent unfeature is a mismatch.
-- **3.3 Public API**
-  - `featured` and `other` in `GET /public/profiles/{slug}`.
+- **3.3 Public API** [done]
+  - `featured` and `other` in `GET /public/profiles/{slug}`; three SQL queries for any number of projects and technologies.
   - Tests:
     - only `PUBLISHED` + `PUBLIC` projects of a `PUBLISHED` profile;
     - the whitelist (no extra fields);
     - order;
     - empty arrays;
-    - unpublishing the profile hides projects and keeps their states.
+    - unpublishing the profile hides projects and keeps their states;
+    - the same query count for 1 and 30 projects.
+  - Also: the project routes that change featured projects or count projects (feature, unfeature, reorder, archive, hide, delete, create) are tested over HTTP to wait on the owner's profile lock.
 - **3.4 Cabinet frontend** (FRONTEND_PLAN F5): «Мои проекты», create/edit, publish/archive/visibility, featured projects and their order. Needs the 3.2 contract implemented and a cabinet mockup.
 - **3.5 Public blocks** (FRONTEND_PLAN F6): «Главные проекты» and «Другие проекты» on `/u/[slug]`. Needs 3.3; can run in parallel with 3.4.
 
