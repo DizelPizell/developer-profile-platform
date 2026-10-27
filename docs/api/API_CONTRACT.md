@@ -18,6 +18,8 @@ GET  /auth/me
 | `POST /auth/logout` | 204, deletes the session and clears the cookie | 403 `CSRF_ORIGIN_INVALID`; 500 `INTERNAL_ERROR` |
 | `GET /auth/me` | 200 `MeResponse` | 401 `UNAUTHORIZED`; 500 `INTERNAL_ERROR` |
 
+The session is an HttpOnly cookie set by the callback (ADR-012). Its name comes from `SESSION_COOKIE_NAME`: `developer_session` in `.env.example`, `session` when the variable is unset. OpenAPI declares it as the `cookieAuth` security scheme. Login, callback, logout and `GET /public/profiles/{slug}` need no session (logout clears one if present); every other implemented endpoint requires it and answers 401 `UNAUTHORIZED` without it.
+
 The callback deletes the `oauth_state` cookie on every response, including errors.
 
 Callback errors are redirects, not JSON (ADR-012), because the user arrives by browser navigation. `<CODE>` is one of:

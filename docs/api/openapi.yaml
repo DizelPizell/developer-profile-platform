@@ -8,6 +8,7 @@ servers:
 paths:
   /auth/github/login:
     get:
+      security: []
       summary: Start GitHub OAuth login
       description: Sets the HttpOnly `oauth_state` cookie and redirects to GitHub.
       responses:
@@ -15,6 +16,7 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /auth/github/callback:
     get:
+      security: []
       summary: GitHub OAuth login callback
       description: >-
         On success sets the session cookie and redirects to FRONTEND_URL. On any
@@ -38,6 +40,7 @@ paths:
             X-Request-ID: {$ref: "#/components/headers/X-Request-ID"}
   /auth/logout:
     post:
+      security: []
       summary: Logout
       description: Deletes the current session (if any) and clears the session cookie.
       responses:
@@ -46,6 +49,7 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /auth/me:
     get:
+      security: [{cookieAuth: []}]
       summary: Current user
       responses:
         "200":
@@ -61,6 +65,7 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /profile:
     get:
+      security: [{cookieAuth: []}]
       summary: Get own profile
       description: Requires a session; always the current user's profile.
       responses:
@@ -68,6 +73,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "500": {$ref: "#/components/responses/InternalError"}
     patch:
+      security: [{cookieAuth: []}]
       summary: Update own profile
       description: >-
         Partial update: fields present in the body change, null clears a field,
@@ -93,6 +99,7 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /profile/publish:
     post:
+      security: [{cookieAuth: []}]
       summary: Publish profile
       description: Idempotent; requires non-empty display_name and headline.
       responses:
@@ -103,6 +110,7 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /profile/unpublish:
     post:
+      security: [{cookieAuth: []}]
       summary: Unpublish profile
       description: Idempotent; returns the profile to PRIVATE.
       responses:
@@ -112,6 +120,7 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /public/profiles/{slug}:
     get:
+      security: []
       summary: Get public profile
       description: >-
         PUBLISHED profiles only; the slug is case-insensitive. Private, missing
@@ -137,6 +146,7 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /projects:
     get:
+      security: [{cookieAuth: []}]
       summary: List own projects
       description: >-
         Requires a session; only the current user's projects, newest first, at
@@ -150,6 +160,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "500": {$ref: "#/components/responses/InternalError"}
     post:
+      security: [{cookieAuth: []}]
       summary: Create project
       description: >-
         Creates a DRAFT + PRIVATE project. Any subset of the fields, including
@@ -180,6 +191,7 @@ paths:
     parameters:
       - {$ref: "#/components/parameters/ProjectId"}
     get:
+      security: [{cookieAuth: []}]
       summary: Get own project
       responses:
         "200": {$ref: "#/components/responses/Project"}
@@ -187,6 +199,7 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalError"}
     patch:
+      security: [{cookieAuth: []}]
       summary: Update own project
       description: >-
         Partial update: fields present in the body change, null clears a field,
@@ -215,6 +228,7 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500": {$ref: "#/components/responses/InternalError"}
     delete:
+      security: [{cookieAuth: []}]
       summary: Delete own project
       description: >-
         Hard delete in any state. Removes the project from featured projects
@@ -229,6 +243,7 @@ paths:
     parameters:
       - {$ref: "#/components/parameters/ProjectId"}
     post:
+      security: [{cookieAuth: []}]
       summary: Publish project
       description: >-
         DRAFT or ARCHIVED → PUBLISHED + PUBLIC. Requires title, summary, role,
@@ -245,6 +260,7 @@ paths:
     parameters:
       - {$ref: "#/components/parameters/ProjectId"}
     post:
+      security: [{cookieAuth: []}]
       summary: Archive project
       description: >-
         PUBLISHED → ARCHIVED + PRIVATE; removes the project from featured
@@ -260,6 +276,7 @@ paths:
     parameters:
       - {$ref: "#/components/parameters/ProjectId"}
     post:
+      security: [{cookieAuth: []}]
       summary: Change project visibility
       description: >-
         Only while PUBLISHED. The same value: 200 without changes. PRIVATE
@@ -281,6 +298,7 @@ paths:
     parameters:
       - {$ref: "#/components/parameters/ProjectId"}
     post:
+      security: [{cookieAuth: []}]
       summary: Feature project
       description: >-
         Adds the project as the last featured project. Only PUBLISHED + PUBLIC
@@ -315,6 +333,7 @@ paths:
                       request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
         "500": {$ref: "#/components/responses/InternalError"}
     delete:
+      security: [{cookieAuth: []}]
       summary: Unfeature project
       description: >-
         Removes the project from featured projects; the remaining ones move up.
@@ -327,6 +346,7 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /profile/featured-projects/reorder:
     post:
+      security: [{cookieAuth: []}]
       summary: Reorder featured projects
       description: >-
         The body is the complete current featured set in the new order.
@@ -400,6 +420,15 @@ paths:
       responses:
         "200": {description: Analytics}
 components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: developer_session
+      description: >-
+        HttpOnly session cookie set by the GitHub login callback (ADR-012). The
+        name comes from SESSION_COOKIE_NAME: developer_session in .env.example;
+        without the variable the backend uses session.
   headers:
     X-Request-ID:
       description: >-
