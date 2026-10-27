@@ -44,6 +44,9 @@ SUMMARY_KEYS = {
 }
 SINGLE_LINE = ("title", "summary", "role")
 MULTI_LINE = ("description", "problem", "results", "contribution")
+# Line separator, paragraph separator, next line: line breaks other than \n.
+UNICODE_LINE_BREAKS = [" ", " ", "\x85"]
+UNICODE_LINE_BREAK_IDS = ["U+2028", "U+2029", "U+0085"]
 COMPLETE = {
     "title": "Payments API",
     "summary": "Card payments for a marketplace",
@@ -300,6 +303,34 @@ class TestUpdate:
         errors = _field_errors(client.patch(_url(project), json={field: value}))
         assert errors == [{"loc": ["body", field], "type": "control_characters"}]
 
+    @pytest.mark.parametrize("field", SINGLE_LINE)
+    @pytest.mark.parametrize("char", UNICODE_LINE_BREAKS, ids=UNICODE_LINE_BREAK_IDS)
+    def test_single_line_fields_reject_unicode_line_breaks(self, client, field, char):
+        project = _create(client)
+        errors = _field_errors(client.patch(_url(project), json={field: f"Line{char}break"}))
+        assert errors == [{"loc": ["body", field], "type": "control_characters"}]
+
+    @pytest.mark.parametrize("field", SINGLE_LINE)
+    @pytest.mark.parametrize("char", UNICODE_LINE_BREAKS, ids=UNICODE_LINE_BREAK_IDS)
+    def test_single_line_fields_trim_unicode_line_breaks_at_edges(self, client, field, char):
+        project = _create(client)
+        body = client.patch(_url(project), json={field: f"{char}Text{char}"}).json()
+        assert body[field] == "Text"
+
+    # Multi-line fields keep their current handling.
+    @pytest.mark.parametrize("field", MULTI_LINE)
+    @pytest.mark.parametrize("char", [" ", " "], ids=["U+2028", "U+2029"])
+    def test_multi_line_fields_keep_unicode_line_separators(self, client, field, char):
+        project = _create(client)
+        body = client.patch(_url(project), json={field: f"One{char}Two"}).json()
+        assert body[field] == f"One{char}Two"
+
+    @pytest.mark.parametrize("field", MULTI_LINE)
+    def test_multi_line_fields_reject_next_line_as_a_control_character(self, client, field):
+        project = _create(client)
+        errors = _field_errors(client.patch(_url(project), json={field: "One\x85Two"}))
+        assert errors == [{"loc": ["body", field], "type": "control_characters"}]
+
     @pytest.mark.parametrize("field", MULTI_LINE)
     def test_multi_line_fields_keep_inner_newlines(self, client, field):
         project = _create(client)
@@ -433,6 +464,15 @@ class TestTechnologies:
     def test_bad_names_rejected(self, client, name, error_type):
         errors = _field_errors(client.post(PROJECTS, json={"technologies": ["Go", name]}))
         assert errors == [{"loc": ["body", "technologies", 1], "type": error_type}]
+
+    # Technology names collapse whitespace runs to one space (ADR-015), \n included;
+    # the other line breaks are collapsed the same way, not rejected.
+    @pytest.mark.parametrize(
+        "char", ["\n", *UNICODE_LINE_BREAKS], ids=["LF", *UNICODE_LINE_BREAK_IDS]
+    )
+    def test_line_breaks_in_names_collapse_like_newline(self, client, char):
+        body = _create(client, technologies=[f"{char}Node{char}{char}js{char}"])
+        assert body["technologies"] == ["Node js"]
 
     def test_null_list_rejected(self, client):
         project = _create(client, technologies=["Go"])

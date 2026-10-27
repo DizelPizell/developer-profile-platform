@@ -29,7 +29,7 @@ Applied to every text field on input:
 
 - leading and trailing whitespace is trimmed;
 - an empty result becomes `null`;
-- control characters (Unicode category `Cc`) are rejected with 422; `bio` allows `\n`, and `\r\n` is normalized to `\n`;
+- control characters (Unicode category `Cc`) are rejected with 422; `bio` allows `\n`, and `\r\n` is normalized to `\n`; single-line fields also reject the line and paragraph separators U+2028 and U+2029, which break a line like `\n` but are not `Cc` (U+0085 is `Cc` and is rejected everywhere);
 - length is checked after trimming, in characters.
 
 The database repeats the length limits and rejects blank values with CHECK constraints (`ck_profiles_<field>`).

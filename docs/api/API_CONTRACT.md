@@ -64,7 +64,7 @@ All four require a session and act on the current user's profile; there is no id
 
 Every endpoint may also return 500 `INTERNAL_ERROR`.
 
-`ProfileUpdate` (request body of `PATCH /profile`): any subset of the fields below. A field that is present changes; `null` clears it; unknown fields (including `slug`, `status`, `avatar_url`) give 422 `extra_forbidden`. Values are trimmed, blank becomes `null`, control characters are rejected (`bio` allows newlines).
+`ProfileUpdate` (request body of `PATCH /profile`): any subset of the fields below. A field that is present changes; `null` clears it; unknown fields (including `slug`, `status`, `avatar_url`) give 422 `extra_forbidden`. Values are trimmed, blank becomes `null`, control characters are rejected (`bio` allows newlines); the single-line fields also reject the line and paragraph separators U+2028 and U+2029 (`control_characters`).
 
 ```json
 {
@@ -174,7 +174,7 @@ States (ADR-015): a new project is `DRAFT` + `PRIVATE`. Allowed pairs: `DRAFT`+`
 - visibility: only while `PUBLISHED`; the same value → no change.
 - Archiving, hiding and deleting remove the project from featured projects.
 
-`ProjectWrite` (request body of `POST /projects` and `PATCH /projects/{id}`): any subset of the fields below; `POST` may send `{}`. On `PATCH` a field that is present changes, `null` clears it. Unknown fields (including `status`, `visibility`, `id`) give 422 `extra_forbidden`. Text values are trimmed, blank becomes `null`, control characters are rejected; `description`, `problem`, `results` and `contribution` allow newlines (`\r\n` → `\n`).
+`ProjectWrite` (request body of `POST /projects` and `PATCH /projects/{id}`): any subset of the fields below; `POST` may send `{}`. On `PATCH` a field that is present changes, `null` clears it. Unknown fields (including `status`, `visibility`, `id`) give 422 `extra_forbidden`. Text values are trimmed, blank becomes `null`, control characters are rejected; `description`, `problem`, `results` and `contribution` allow newlines (`\r\n` → `\n`); `title`, `summary` and `role` also reject U+2028 and U+2029 (`control_characters`). Technology names collapse any whitespace run, line breaks included, to one space.
 
 ```json
 {

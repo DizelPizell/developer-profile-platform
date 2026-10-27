@@ -13,6 +13,9 @@ UNPUBLISH = "/api/v1/profile/unpublish"
 PUBLIC = "/api/v1/public/profiles"
 
 LIMITS = {"display_name": 100, "headline": 160, "bio": 2000, "location": 100}
+# Line separator, paragraph separator, next line: line breaks other than \n.
+UNICODE_LINE_BREAKS = [" ", " ", "\x85"]
+UNICODE_LINE_BREAK_IDS = ["U+2028", "U+2029", "U+0085"]
 PUBLIC_KEYS = {"slug", "display_name", "headline", "bio", "location", "avatar_url", "github_login"}
 
 
@@ -89,6 +92,27 @@ class TestOwnProfile:
     def test_control_characters_rejected(self, client, field, bad):
         errors = _field_errors(client.patch(PROFILE, json={field: bad}))
         assert errors == [{"loc": ["body", field], "type": "control_characters"}]
+
+    @pytest.mark.parametrize("field", ["display_name", "headline", "location"])
+    @pytest.mark.parametrize("char", UNICODE_LINE_BREAKS, ids=UNICODE_LINE_BREAK_IDS)
+    def test_unicode_line_breaks_rejected_like_newline(self, client, field, char):
+        errors = _field_errors(client.patch(PROFILE, json={field: f"a{char}b"}))
+        assert errors == [{"loc": ["body", field], "type": "control_characters"}]
+
+    @pytest.mark.parametrize("field", ["display_name", "headline", "location"])
+    @pytest.mark.parametrize("char", UNICODE_LINE_BREAKS, ids=UNICODE_LINE_BREAK_IDS)
+    def test_unicode_line_breaks_at_edges_trimmed_like_newline(self, client, field, char):
+        body = client.patch(PROFILE, json={field: f"{char}Ann{char}"}).json()
+        assert body[field] == "Ann"
+
+    # bio is multi-line: its current handling is kept as it is.
+    @pytest.mark.parametrize("char", [" ", " "], ids=["U+2028", "U+2029"])
+    def test_bio_keeps_unicode_line_separators(self, client, char):
+        assert client.patch(PROFILE, json={"bio": f"a{char}b"}).json()["bio"] == f"a{char}b"
+
+    def test_bio_rejects_next_line_as_a_control_character(self, client):
+        errors = _field_errors(client.patch(PROFILE, json={"bio": "a\x85b"}))
+        assert errors == [{"loc": ["body", "bio"], "type": "control_characters"}]
 
     def test_bio_allows_newlines_and_normalizes_crlf(self, client):
         body = client.patch(PROFILE, json={"bio": "line one\r\nline two\n\nend"}).json()

@@ -73,7 +73,7 @@ paths:
         Partial update: fields present in the body change, null clears a field,
         unknown fields (including slug, status, avatar_url) are rejected. Values
         are trimmed, blank becomes null, control characters are rejected (bio
-        allows newlines).
+        allows newlines); single-line fields also reject U+2028 and U+2029.
       requestBody:
         required: true
         content:
@@ -192,7 +192,8 @@ paths:
         Partial update: fields present in the body change, null clears a field,
         unknown fields (including status and visibility) are rejected. Text
         values are trimmed, blank becomes null, control characters are rejected
-        (description, problem, results and contribution allow newlines).
+        (description, problem, results and contribution allow newlines); title,
+        summary and role also reject U+2028 and U+2029.
         `technologies` replaces the whole list in the given order.
       requestBody:
         required: true
