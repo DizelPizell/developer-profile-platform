@@ -14,9 +14,15 @@ const buttonVariants = cva(
         secondary: "bg-panel text-text",
         // Publication in the cabinet mockup: yellow fill, dark text.
         label: "bg-label text-outline",
+        // «Удалить» on a project card (my-projects.png): panel with error text.
+        danger: "bg-panel text-error",
+        // The confirmed deletion in the dialog: error fill, dark text.
+        destructive: "bg-error text-outline",
       },
       size: {
         default: "h-10 px-4 text-base",
+        // Square buttons such as the ▲ ▼ order controls.
+        icon: "size-10 text-base",
         // Important actions such as sign-in: large, normal case (DESIGN.md).
         lg: "h-14 px-6 text-xl",
       },

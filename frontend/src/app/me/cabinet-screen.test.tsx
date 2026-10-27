@@ -277,7 +277,7 @@ describe("publication", () => {
     await renderCabinet();
 
     expect(screen.getByText("/u/ann").tagName).toBe("SPAN");
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link", { name: "/u/ann" })).toBeNull();
   });
 
   test("«Опубликовать» is disabled while the form has unsaved changes", async () => {
@@ -365,7 +365,7 @@ describe("publication", () => {
     expect(field("О себе").value).toBe("draft");
     expect(button("Сохранить").disabled).toBe(false);
     expect(button("Скрыть").disabled).toBe(true);
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link", { name: "/u/ann" })).toBeNull();
   });
 });
 
