@@ -69,13 +69,15 @@ Steps, in order. Each step is its own change with tests; a step starts when the 
       - featured: no gaps after archive, hide or delete;
       - the CORS preflight for `DELETE`;
       - the technology get-or-create race with two transactions.
-  - **3.2b Featured projects**
-    - Feature, unfeature and reorder (`/projects/{id}/showcase`, `/profile/featured-projects/reorder`).
+  - **3.2b Featured projects** [done]
+    - Feature, unfeature and reorder (`/projects/{id}/showcase`, `/profile/featured-projects/reorder`), under the profile lock, then the project lock.
+    - A rejected insert from the database's position CHECK is reported as `FEATURED_LIMIT_REACHED`, not 500.
+    - Project ids in the path and in the reorder body are accepted only in the canonical UUID form; a malformed path id is 404.
     - Tests:
       - `PROJECT_NOT_FEATURABLE`, `FEATURED_LIMIT_REACHED`, `FEATURED_ORDER_MISMATCH`;
       - idempotent feature and unfeature;
-      - reorder mismatch;
-      - concurrent feature requests never produce a fourth featured project.
+      - reorder: permutations, mismatch, malformed lists;
+      - races on two transactions: two features for the last slot give one success and one `FEATURED_LIMIT_REACHED`; two reorders leave no gaps or duplicates; a reorder after a concurrent unfeature is a mismatch.
 - **3.3 Public API**
   - `featured` and `other` in `GET /public/profiles/{slug}`.
   - Tests:
