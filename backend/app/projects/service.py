@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import bindparam, case, delete, func, insert, select, text, update
+from sqlalchemy import Row, bindparam, case, delete, func, insert, select, text, update
 from sqlalchemy.dialects.postgresql import ARRAY, TEXT
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
@@ -165,6 +165,37 @@ def featured_projects(db: Session, profile_id: uuid.UUID) -> list[tuple[uuid.UUI
         .order_by(ProjectShowcase.position)
     )
     return [(project_id, position) for project_id, position in rows]
+
+
+def public_projects(db: Session, owner_id: uuid.UUID) -> list[Row]:
+    """The owner's PUBLISHED + PUBLIC projects as (id, title, summary, role, position):
+    featured ones first by position, then the others newest first (ADR-015).
+
+    Only the public card's columns are read. position is None for a project that
+    is not featured. The caller checks that the profile is published.
+    """
+    return list(
+        db.execute(
+            select(
+                Project.id,
+                Project.title,
+                Project.summary,
+                Project.role,
+                ProjectShowcase.position,
+            )
+            .outerjoin(ProjectShowcase, ProjectShowcase.project_id == Project.id)
+            .where(
+                Project.owner_id == owner_id,
+                Project.status == PUBLISHED,
+                Project.visibility == PUBLIC,
+            )
+            .order_by(
+                ProjectShowcase.position.asc().nulls_last(),
+                Project.created_at.desc(),
+                Project.id.desc(),
+            )
+        )
+    )
 
 
 def _technology_ids(db: Session, project: Project) -> list[uuid.UUID]:

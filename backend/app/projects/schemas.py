@@ -151,6 +151,20 @@ class FeaturedReorderRequest(BaseModel):
     ]
 
 
+class PublicProject(BaseModel):
+    """Public project card: a whitelist (ADR-015); nothing else is returned."""
+
+    id: uuid.UUID
+    title: str
+    summary: str
+    role: str
+    technologies: list[str]
+
+
+class PublicFeaturedProject(PublicProject):
+    position: int
+
+
 class FeaturedProject(BaseModel):
     project_id: uuid.UUID
     position: int

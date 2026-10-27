@@ -5,6 +5,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict
 from pydantic_core import PydanticCustomError
 
 from app.models.identity import PROFILE_TEXT_LIMITS
+from app.projects.schemas import PublicFeaturedProject, PublicProject
 
 
 def _profile_text(field: str, *, allow_newline: bool = False) -> AfterValidator:
@@ -59,3 +60,5 @@ class PublicProfileResponse(BaseModel):
     location: str | None
     avatar_url: str | None
     github_login: str
+    featured: list[PublicFeaturedProject]
+    other: list[PublicProject]

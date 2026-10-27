@@ -6,6 +6,8 @@ from app.errors import AppError
 from app.models.identity import Profile, User
 from app.profile import service
 from app.profile.schemas import OwnProfileResponse, ProfileUpdate, PublicProfileResponse
+from app.projects import service as projects_service
+from app.projects.schemas import PublicFeaturedProject, PublicProject
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 public_router = APIRouter(prefix="/public/profiles", tags=["public"])
@@ -71,6 +73,25 @@ def get_public_profile(slug: str, db: Session = Depends(get_db)) -> PublicProfil
         # Private, missing and malformed slugs are indistinguishable from any unknown URL.
         raise AppError("NOT_FOUND", "Not Found", 404)
     profile, user, github_account = found
+
+    # Two queries for any number of projects and technologies.
+    rows = projects_service.public_projects(db, user.id)
+    names = projects_service.technology_names(db, [row.id for row in rows])
+    featured: list[PublicFeaturedProject] = []
+    other: list[PublicProject] = []
+    for row in rows:
+        card = {
+            "id": row.id,
+            "title": row.title,
+            "summary": row.summary,
+            "role": row.role,
+            "technologies": names[row.id],
+        }
+        if row.position is None:
+            other.append(PublicProject(**card))
+        else:
+            featured.append(PublicFeaturedProject(**card, position=row.position))
+
     return PublicProfileResponse(
         slug=profile.slug,
         display_name=profile.display_name,
@@ -79,4 +100,6 @@ def get_public_profile(slug: str, db: Session = Depends(get_db)) -> PublicProfil
         location=profile.location,
         avatar_url=github_account.avatar_url if github_account else None,
         github_login=user.github_login,
+        featured=featured,
+        other=other,
     )

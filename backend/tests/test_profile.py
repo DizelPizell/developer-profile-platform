@@ -298,7 +298,8 @@ class TestPublicProfile:
         resp = visitor.get(f"{PUBLIC}/{slug}")
         assert resp.status_code == 200
         body = resp.json()
-        assert set(body) == PUBLIC_KEYS
+        # Projects are covered in test_public_projects.py.
+        assert set(body) == PUBLIC_KEYS | {"featured", "other"}
         assert body == {
             "slug": slug,
             "display_name": "Ann Dev",
@@ -307,6 +308,8 @@ class TestPublicProfile:
             "location": "Berlin",
             "avatar_url": "https://avatars.githubusercontent.com/u/10001?v=4",
             "github_login": "testuser",
+            "featured": [],
+            "other": [],
         }
         assert "test@example.com" not in resp.text
         assert "PUBLISHED" not in resp.text
