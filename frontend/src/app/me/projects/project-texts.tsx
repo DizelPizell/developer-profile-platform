@@ -142,27 +142,3 @@ export function ProjectStateBadge({
 export function FeaturedBadge({ position }: { position: number }) {
   return <span className={cn(BADGE, "bg-label text-outline")}>Главный: {position}</span>;
 }
-
-/** A section heading with the square marker of the mockups. */
-export function SectionHeading({
-  id,
-  marker,
-  children,
-}: {
-  id: string;
-  marker: "label" | "muted";
-  children: string;
-}) {
-  return (
-    <div className="flex items-center gap-4">
-      <span
-        aria-hidden="true"
-        className={cn("size-4 shrink-0", marker === "label" ? "bg-label" : "bg-text-muted")}
-      />
-      <h2 id={id} className="font-heading text-sm leading-normal uppercase">
-        {children}
-      </h2>
-      <span aria-hidden="true" className="h-1 grow bg-frame" />
-    </div>
-  );
-}

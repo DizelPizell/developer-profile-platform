@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { RequestErrorAlert } from "@/components/request-error";
+import { SectionHeading } from "@/components/section-heading";
 import { Alert } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -42,7 +43,6 @@ import {
   PROJECT_LIMIT_TEXT,
   projectActionError,
   ProjectStateBadge,
-  SectionHeading,
   UNTITLED,
 } from "./project-texts";
 

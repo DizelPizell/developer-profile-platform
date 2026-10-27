@@ -16,7 +16,13 @@ export {
   type ProfileStatus,
   type ProfileUpdate,
 } from "./profile";
-export { getPublicProfile, PUBLIC_PROFILE_TIMEOUT_MS, type PublicProfile } from "./public-profile";
+export {
+  getPublicProfile,
+  PUBLIC_PROFILE_TIMEOUT_MS,
+  type PublicFeaturedProject,
+  type PublicProfile,
+  type PublicProject,
+} from "./public-profile";
 export {
   archiveProject,
   createProject,

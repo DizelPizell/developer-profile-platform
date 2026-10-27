@@ -32,6 +32,16 @@ const PROFILE = {
   location: "Berlin",
   avatar_url: "https://avatars.githubusercontent.com/u/1",
   github_login: "ann-gh",
+  featured: [],
+  other: [],
+};
+
+const PROJECT = {
+  id: "11111111-1111-4111-8111-111111111111",
+  title: "Shop",
+  summary: "Payments",
+  role: "Backend",
+  technologies: ["Python"],
 };
 
 beforeEach(() => {
@@ -136,6 +146,87 @@ describe("profile", () => {
   });
 });
 
+describe("projects", () => {
+  test("are in the server HTML, featured by position, with one API call", async () => {
+    const html = await renderPage({
+      featured: [
+        { ...PROJECT, id: "b", title: "Second featured", position: 2 },
+        { ...PROJECT, id: "a", title: "First featured", position: 1 },
+      ],
+      other: [
+        { ...PROJECT, id: "c", title: "Newer other" },
+        { ...PROJECT, id: "d", title: "Older other" },
+      ],
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const order = [
+      "Главные проекты",
+      "First featured",
+      "Second featured",
+      "Другие проекты",
+      "Newer other",
+      "Older other",
+    ].map((text) => html.indexOf(text));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(html).toContain("Главный 1");
+    expect(html).toContain("Моя роль: Backend");
+    expect(html).toContain('href="#projects"');
+  });
+
+  test("no projects: no project area", async () => {
+    const html = await renderPage();
+
+    expect(html).not.toContain("Главные проекты");
+    expect(html).not.toContain("Другие проекты");
+    expect(html).not.toContain('id="projects"');
+    expect(html).not.toContain('href="#projects"');
+  });
+
+  test("markup in project fields is shown as text", async () => {
+    const markup = {
+      title: "<script>alert(1)</script>",
+      summary: "<b>bold</b> **md**",
+      role: '<img src=x onerror="alert(1)">',
+      technologies: ["<i>Py</i>"],
+    };
+    const html = await renderPage({
+      featured: [{ ...PROJECT, ...markup, id: "a", position: 1 }],
+      other: [{ ...PROJECT, ...markup, id: "b" }],
+    });
+
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<b>bold");
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("<i>Py");
+    expect(html.match(/&lt;script&gt;alert\(1\)&lt;\/script&gt;/g)).toHaveLength(2);
+    expect(html.match(/&lt;b&gt;bold&lt;\/b&gt; \*\*md\*\*/g)).toHaveLength(2);
+    expect(html).toContain("Моя роль: &lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(html.match(/&lt;i&gt;Py&lt;\/i&gt;/g)).toHaveLength(2);
+  });
+
+  test("project fields outside the whitelist are not rendered", async () => {
+    const html = await renderPage({
+      other: [{ ...PROJECT, contribution: "SECRET-CONTRIBUTION", status: "PUBLISHED" }],
+    });
+
+    expect(html).toContain("Shop");
+    expect(html).not.toContain("SECRET-CONTRIBUTION");
+    expect(html).not.toContain("PUBLISHED");
+  });
+
+  test.each([
+    ["no featured", { featured: undefined }],
+    ["no other", { other: undefined }],
+  ])("a response with %s goes to the error page", async (_name, profile) => {
+    fetchMock.mockResolvedValueOnce(Response.json({ ...PROFILE, ...profile }));
+
+    await expect(PublicProfilePage(props("ann"))).rejects.toBeInstanceOf(ApiError);
+    expect(navigation.notFound).not.toHaveBeenCalled();
+  });
+});
+
 describe("slug and errors", () => {
   test.each(["a", "ab", "-ann", "ann-", "ann_lee", "a".repeat(40), "ann%2F..", ""])(
     "malformed slug %j is a 404 without an API call",
@@ -194,6 +285,17 @@ describe("slug and errors", () => {
 describe("generateMetadata", () => {
   test("title is «display_name — headline», description the headline", async () => {
     fetchMock.mockResolvedValueOnce(Response.json(PROFILE));
+
+    await expect(generateMetadata(props("ann"))).resolves.toEqual({
+      title: "Ann Lee — Backend-разработчик",
+      description: "Backend-разработчик",
+    });
+  });
+
+  test("projects do not change the metadata", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ ...PROFILE, featured: [{ ...PROJECT, position: 1 }], other: [PROJECT] }),
+    );
 
     await expect(generateMetadata(props("ann"))).resolves.toEqual({
       title: "Ann Lee — Backend-разработчик",

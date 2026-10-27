@@ -16,6 +16,16 @@ const PROFILE = {
   location: null,
   avatar_url: "https://avatars.githubusercontent.com/u/1",
   github_login: "ann",
+  featured: [],
+  other: [],
+};
+
+const PROJECT = {
+  id: "11111111-1111-4111-8111-111111111111",
+  title: "Shop",
+  summary: "Payments",
+  role: "Backend",
+  technologies: ["Python", "FastAPI"],
 };
 
 beforeEach(() => {
@@ -74,6 +84,35 @@ describe("getPublicProfile", () => {
     expect(Object.keys(profile!).sort()).toEqual(Object.keys(PROFILE).sort());
   });
 
+  test("reads featured and other, sorts featured by position", async () => {
+    const first = { ...PROJECT, id: "a", title: "First", position: 1 };
+    const second = { ...PROJECT, id: "b", title: "Second", position: 2 };
+    fetchMock.mockResolvedValue(
+      Response.json({ ...PROFILE, featured: [second, first], other: [{ ...PROJECT, id: "c" }] }),
+    );
+
+    const profile = await getPublicProfile("ann");
+
+    expect(profile?.featured).toEqual([first, second]);
+    expect(profile?.other).toEqual([{ ...PROJECT, id: "c" }]);
+  });
+
+  test("drops project fields outside the whitelist", async () => {
+    const extra = { status: "PUBLISHED", visibility: "PUBLIC", contribution: "secret" };
+    fetchMock.mockResolvedValue(
+      Response.json({
+        ...PROFILE,
+        featured: [{ ...PROJECT, ...extra, position: 1 }],
+        other: [{ ...PROJECT, ...extra }],
+      }),
+    );
+
+    const profile = await getPublicProfile("ann");
+
+    expect(profile?.featured).toEqual([{ ...PROJECT, position: 1 }]);
+    expect(profile?.other).toEqual([PROJECT]);
+  });
+
   test("404 returns null", async () => {
     fetchMock.mockResolvedValue(errorResponse(404, "NOT_FOUND"));
     await expect(getPublicProfile("ann")).resolves.toBeNull();
@@ -110,6 +149,17 @@ describe("getPublicProfile", () => {
     ["no github_login", Response.json({ ...PROFILE, github_login: undefined })],
     ["a number for bio", Response.json({ ...PROFILE, bio: 5 })],
     ["an empty body", new Response(null, { status: 200 })],
+    ["no featured", Response.json({ ...PROFILE, featured: undefined })],
+    ["no other", Response.json({ ...PROFILE, other: undefined })],
+    ["featured as an object", Response.json({ ...PROFILE, featured: {} })],
+    ["other as null", Response.json({ ...PROFILE, other: null })],
+    ["a project without role", Response.json({ ...PROFILE, other: [{ ...PROJECT, role: undefined }] })],
+    ["a null summary", Response.json({ ...PROFILE, other: [{ ...PROJECT, summary: null }] })],
+    ["a number technology", Response.json({ ...PROFILE, other: [{ ...PROJECT, technologies: [1] }] })],
+    ["a featured project without position", Response.json({ ...PROFILE, featured: [PROJECT] })],
+    ["position 4", Response.json({ ...PROFILE, featured: [{ ...PROJECT, position: 4 }] })],
+    ["position 1.5", Response.json({ ...PROFILE, featured: [{ ...PROJECT, position: 1.5 }] })],
+    ["a string project", Response.json({ ...PROFILE, other: ["Shop"] })],
   ])("an unexpected body (%s) throws ApiError", async (_name, response) => {
     fetchMock.mockResolvedValue(response);
     await expect(getPublicProfile("ann")).rejects.toBeInstanceOf(ApiError);
