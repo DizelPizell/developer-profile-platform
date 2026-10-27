@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.canonical_uuid import parse_canonical_uuid
 from app.errors import AppError
 from app.models.identity import Profile, User
 from app.models.projects import (
@@ -112,10 +113,9 @@ def lock_owner_profile(db: Session, user: User) -> Profile:
 def get_own_project(
     db: Session, user: User, project_id: str, *, for_update: bool = False
 ) -> Project:
-    try:
-        parsed_id = uuid.UUID(project_id)
-    except ValueError:
-        raise _not_found() from None
+    parsed_id = parse_canonical_uuid(project_id)
+    if parsed_id is None:
+        raise _not_found()
     stmt = select(Project).where(Project.id == parsed_id, Project.owner_id == user.id)
     if for_update:
         stmt = stmt.with_for_update()

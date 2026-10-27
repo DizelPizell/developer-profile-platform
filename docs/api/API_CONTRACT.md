@@ -152,7 +152,7 @@ POST   /projects/{id}/archive
 POST   /projects/{id}/visibility
 ```
 
-All require a session and act only on the current user's projects. A missing project, another user's project and a malformed id all return the same 404 `NOT_FOUND` as an unknown URL (only `request_id` differs). See ADR-015-project-model.md.
+All require a session and act only on the current user's projects. A missing project, another user's project and a malformed id all return the same 404 `NOT_FOUND` as an unknown URL (only `request_id` differs). A project id is accepted only in the canonical form `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (hex, either case); anything else, including forms without hyphens, in braces or with a `urn:uuid:` prefix, is malformed. See ADR-015-project-model.md.
 
 | Endpoint | Success | Errors |
 |---|---|---|
@@ -254,7 +254,7 @@ A featured project is a showcase record with a position 1..3 without gaps; at mo
 }
 ```
 
-`FeaturedReorderRequest`: `{"project_ids": ["uuid"]}`, the complete current featured set in the new order (0–3 unique UUIDs). A list that is not the current set gives 409 `FEATURED_ORDER_MISMATCH`; the client should reload.
+`FeaturedReorderRequest`: `{"project_ids": ["uuid"]}`, the complete current featured set in the new order (0–3 unique UUIDs in the canonical form; anything else gives 422 `VALIDATION_ERROR`). A list that is not the current set gives 409 `FEATURED_ORDER_MISMATCH`; the client should reload.
 
 ## GitHub
 

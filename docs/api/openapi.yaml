@@ -411,8 +411,10 @@ components:
       in: path
       required: true
       description: >-
-        Project id. A malformed id, a missing project and another user's
-        project all return the same 404 NOT_FOUND.
+        Project id in the canonical 8-4-4-4-12 hex form (either case). A
+        malformed id (any other form, including no hyphens, braces or a
+        urn:uuid: prefix), a missing project and another user's project all
+        return the same 404 NOT_FOUND.
       schema: {type: string, format: uuid}
   schemas:
     Error:
@@ -598,7 +600,9 @@ components:
           type: array
           maxItems: 3
           uniqueItems: true
-          description: The complete current featured set in the new order.
+          description: >-
+            The complete current featured set in the new order, as canonical
+            UUIDs; any other form gives 422 VALIDATION_ERROR.
           items: {type: string, format: uuid}
   responses:
     ValidationError:

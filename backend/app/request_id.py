@@ -3,19 +3,15 @@ import uuid
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.canonical_uuid import parse_canonical_uuid
+
 REQUEST_ID_HEADER = "X-Request-ID"
 
 
 def _parse_request_id(value: str | None) -> str | None:
     """Accept only a canonical UUID string; anything else is ignored."""
-    if not value or len(value) != 36:
-        return None
-    try:
-        parsed = uuid.UUID(value)
-    except ValueError:
-        return None
-    normalized = str(parsed)
-    return normalized if normalized == value.lower() else None
+    parsed = parse_canonical_uuid(value)
+    return str(parsed) if parsed else None
 
 
 class RequestIdMiddleware:

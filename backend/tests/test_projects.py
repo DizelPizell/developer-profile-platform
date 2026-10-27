@@ -218,6 +218,27 @@ class TestReadAndOwnership:
         assert all(body == bodies[-1] for body in bodies)
 
     @pytest.mark.parametrize(
+        "form",
+        [
+            lambda s: s.replace("-", ""),
+            lambda s: "{" + s + "}",
+            lambda s: "urn:uuid:" + s,
+            lambda s: s[:8] + s[9:13] + "-" + s[13:],
+            lambda s: s + "0",
+            lambda s: s[:-1],
+        ],
+        ids=["no-hyphens", "braces", "urn", "moved-hyphen", "too-long", "too-short"],
+    )
+    def test_own_project_by_non_canonical_id_is_404(self, client, form):
+        project = _create(client, **COMPLETE)
+        _error(client.get(f"{PROJECTS}/{form(project['id'])}"), 404, "NOT_FOUND")
+        _error(client.patch(f"{PROJECTS}/{form(project['id'])}", json={}), 404, "NOT_FOUND")
+
+    def test_uppercase_id_is_canonical(self, client):
+        project = _create(client, **COMPLETE)
+        assert client.get(f"{PROJECTS}/{project['id'].upper()}").json() == project
+
+    @pytest.mark.parametrize(
         ("method", "action", "kwargs"),
         [
             ("patch", "", {"json": {"title": "Hijack"}}),
