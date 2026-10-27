@@ -104,12 +104,12 @@ Blocks:
 | Block | Data | Notes |
 |---|---|---|
 | Header | — | «DEV.PROFILE» and «Войти через GitHub», a link to `/login` (the mockup's top bar). |
-| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Pixelify Sans (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. The mockup's «Проекты» button comes with F6 (see "Projects on the public page"). |
+| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Pixelify Sans (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. «Проекты» (secondary) links to the project area and is shown only when there is a public project (see "Projects on the public page"). |
 | «О себе» | `bio` | Marked «От автора». Plain text with line breaks (`white-space: pre-line`). Empty `bio` hides the block. |
 | «Скилы» | — | Pending: no backend source yet, phase not assigned. A plain list in future; never levels or bars. |
-| «Главные проекты» | `featured` | F6. Up to 3 cards in `position` order. See "Projects on the public page". |
+| «Главные проекты» | `featured` | Up to 3 cards in `position` order, marked «От автора». See "Projects on the public page". |
 | «Данные GitHub» | — | Pending backend Phases 5–6 (GitHub import and sync). Always marked «Источник: GitHub». |
-| «Другие проекты» | `other` | F6. One row per project, in API order. See "Projects on the public page". |
+| «Другие проекты» | `other` | One row per project, in API order, marked «От автора». See "Projects on the public page". |
 
 `display_name` and `headline` are never empty here: a profile can be published only with both (ADR-013). If one is missing anyway, the name falls back to `@github_login` and the «Класс» line is hidden.
 
@@ -136,27 +136,24 @@ The page makes one API call per request. After an error Next.js renders the erro
 
 #### Projects on the public page (F6)
 
-The layout comes from `public-profile.png`; only what the Phase 3 API provides is built.
+The layout comes from `public-profile.png`; only what the Phase 3 API provides is built. The mockup image still labels the cards «Избранное N»; the label is «Главный N», like «главные» in the cabinet.
 
-- **«Главные проекты»** — a card per featured project, in `position` order:
-  - the label «Избранное N» (N = `position`);
-  - `title`;
-  - `summary`;
-  - «Моя роль: {role}».
-  - The mockup's striped image area and «Открыть проект ›» wait for Phase 4 (screenshots and the public project page) and are not rendered.
-- **«Другие проекты»** — a row per project:
-  - `title`;
-  - `summary` on one line;
-  - a badge with the first technology (the developer's order, ADR-015).
-- An empty `featured` or `other` hides its block, heading included.
-- The hero «Проекты» button is an in-page link to the first project block. It is rendered only when there is at least one public project.
-- Every value is rendered as text.
-
-Not decided yet (decide before F6, with an updated mockup if needed; «макет ожидается»):
-
-- **Source mark.** The content rule above asks for «От автора» on developer-written blocks, but the mockup draws the project blocks without a mark. All project fields are developer-provided.
-- **Technologies on featured cards.** The mockup shows none; the API provides them.
-- **Long values.** How a 300-character `summary` or a 100-character `title` is cut or wrapped in a card and in a one-line row.
+- The project area holds «Главные проекты» and then «Другие проекты», after «О себе». It has `id="projects"`.
+- Each section heading has the square marker (`label` for featured, `text-muted` for other), the title, a rule and «От автора» on the right: every project field is written by the developer (content rules).
+- **«Главные проекты»** — a card per featured project, in `position` order (sorted when the response is read). One column on narrow screens, two from `sm`, three from `lg`:
+  - the label «Главный N» (N = `position`), Press Start 2P on `label`;
+  - `title` in Pixelify Sans, wrapped at any point when a word is too long;
+  - `summary`, at most four lines (`line-clamp`), then cut;
+  - up to three technology chips, in the developer's order; the rest are not shown;
+  - «Моя роль: {role}» at the bottom of the card.
+  - The mockup's striped image area and «Открыть проект ›» wait for Phase 4 (screenshots and the public project page) and are not rendered. No element links to a project.
+- **«Другие проекты»** — a row per project, in API order (newest first):
+  - `title`, wrapped like on cards;
+  - `summary` on one line, cut with an ellipsis;
+  - a badge with the first technology (the developer's order, ADR-015). It sits on the right from `sm` (at most 40% of the row) and under the text on narrow screens, so a long name does not squeeze the title. A project without technologies cannot be public, but the row still renders without a badge.
+- An empty `featured` or `other` hides its section, heading included. With no public projects at all, the project area is not rendered.
+- The hero «Проекты» button (secondary) is an in-page link to `#projects`. It is rendered only when there is at least one public project.
+- Every value is rendered as text. `featured` and `other` are required in the response; a missing array or a project of the wrong shape is an unexpected body (error screen). Project fields outside the whitelist (`id`, `title`, `summary`, `role`, `technologies`, `position`) are dropped.
 
 ### Cabinet — `/me`
 
@@ -378,6 +375,6 @@ Mockups are added manually to `docs/frontend/mockups/`:
 - `my-projects.png` (F5)
 - `project-form.png` (F5)
 
-The project blocks of the public page follow `public-profile.png`; the open points are listed under "Projects on the public page".
+The project blocks of the public page follow `public-profile.png`, except the card label: the image shows «Избранное N», the guide says «Главный N».
 
 If a mockup and this guide disagree, raise the conflict instead of silently picking one.

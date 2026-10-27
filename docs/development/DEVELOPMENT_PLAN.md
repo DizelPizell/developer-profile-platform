@@ -89,7 +89,7 @@ Steps, in order. Each step is its own change with tests; a step starts when the 
     - the same query count for 1 and 30 projects.
   - Also: the project routes that change featured projects or count projects (feature, unfeature, reorder, archive, hide, delete, create) are tested over HTTP to wait on the owner's profile lock.
 - **3.4 Cabinet frontend** (FRONTEND_PLAN F5) [done; manual check with the backend pending]: «Мои проекты», create/edit, publish/archive/visibility, featured projects and their order, per mockups `my-projects.png` and `project-form.png`.
-- **3.5 Public blocks** (FRONTEND_PLAN F6): «Главные проекты» and «Другие проекты» on `/u/[slug]`. Needs 3.3; can run in parallel with 3.4.
+- **3.5 Public blocks** (FRONTEND_PLAN F6) [done; manual check with the backend pending]: «Главные проекты» and «Другие проекты» on `/u/[slug]`.
 
 Phase 3 does not include skills, demos, screenshots, the public project page or GitHub import (ADR-015).
 

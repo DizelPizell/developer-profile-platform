@@ -98,6 +98,20 @@ Backend running, a published profile with slug `<slug>`. Use a private window (n
 8. «Скрыть» in the cabinet, reload the public page → the same «Профиль не найден» as for a missing slug.
 9. Stop the backend, reload a profile → «Не удалось загрузить профиль», status 500; start it again, «Повторить» → the profile.
 
+## Manual public projects check
+
+Backend running, signed in, a published profile with slug `<slug>`. Open the public page in a private window (no session) and reload it after each change in the cabinet.
+
+1. With no published projects → no «Главные проекты», no «Другие проекты», no «Проекты» button in the hero.
+2. In the cabinet create and publish two complete projects (title, summary, role, contribution, technologies) → both appear under «Другие проекты», newest first, each with its first technology; «Главные проекты» is still absent; the hero «Проекты» button jumps to the projects.
+3. Make one featured → it moves to «Главные проекты» with «Главный 1», title, summary, up to three technologies and «Моя роль: …»; «Другие проекты» keeps the other one. Both headings carry «От автора».
+4. Make the second one featured, then ▼ on row 1 in the cabinet → on the public page «Главный 1» and «Главный 2» swap.
+5. A third project left as a draft is not shown. «Скрыть» on a published one → it disappears from the public page (and from «Главные проекты»); «Показать» brings it back under «Другие проекты». «В архив» → it disappears.
+6. A project with `<script>alert(1)</script>` in the title and `<b>x</b>` in the summary → shown as text, no alert. A 100-character title wraps inside its card; a 300-character summary is cut after four lines on a card and after one line in a row.
+7. Without JavaScript (`curl -s http://localhost:3000/u/<slug>`) the project titles are in the HTML. In the backend log the page makes one request to `/api/v1/public/profiles/<slug>` per load.
+8. At 375 px wide (DevTools device mode) there is no horizontal scroll; cards are in one column, the row badge sits under the text.
+9. «Скрыть» on the profile in the cabinet → the public page gives «Профиль не найден» (404), the projects keep their states in the cabinet; publish the profile again → the projects are back.
+
 ## Checks
 
 ```bash

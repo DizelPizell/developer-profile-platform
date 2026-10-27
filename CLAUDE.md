@@ -836,7 +836,7 @@ Current development stage
 
 
 
-The repository is in Phase 3 (projects).
+The repository has completed Phase 3 (projects). Phase 4 is next.
 
 
 
@@ -850,17 +850,9 @@ backend Phase 1: GitHub OAuth login, server-side sessions, logout, current user 
 
 backend Phase 2: public profile endpoint with a whitelisted DTO (ADR-013)
 
-frontend F1–F4: Next.js skeleton, sign-in, cabinet, public page /u/[slug] (ADR-014; manual checks against the backend pending)
+backend Phase 3: projects, technologies and featured projects — models and migration, cabinet API, public projects in the profile response (ADR-015)
 
-ADR-015 accepted: project model, technologies, featured projects
-
-
-
-In progress:
-
-
-
-Phase 3 — Projects (DEVELOPMENT_PLAN steps 3.1–3.5): models and migration, cabinet API, public API, frontend F5 and F6.
+frontend F1–F6: Next.js skeleton, sign-in, cabinet, public page /u/[slug], projects cabinet, project blocks on the public page (ADR-014, ADR-015; manual checks against the backend pending)
 
 
 
@@ -868,7 +860,7 @@ Not yet started:
 
 
 
-demo, screenshots and file storage (MinIO/S3) — Phase 4
+demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
 GitHub repository integration, import and sync — Phases 5–6
 
@@ -880,7 +872,7 @@ Current next goal:
 
 
 
-Phase 3 steps in order, per ADR-015: 3.1 models and Alembic migration (schema only), then 3.2 cabinet API, 3.3 public API, F5, F6.
+Phase 4 — Demo and Media (DEVELOPMENT_PLAN): demo, screenshots and the public project page /u/{slug}/projects/{id}.
 
 Do not start a step before the previous one is merged.
 

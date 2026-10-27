@@ -130,11 +130,11 @@ Done in F4: `getPublicProfile` (5 s timeout, `cache: "no-store"`, whitelist, 404
 
 Done in F5: the cabinet tabs «Профиль» and «Проекты»; the project API calls with error parsing (`missing_fields`, per-field errors including technology items); the list per `my-projects.png` with featured rows, ▲▼ reorder, the free slot, state badges, per-state actions and the delete dialog; the form per `project-form.png` with technology chips, counters, create-then-redirect, `PATCH` of changed fields only, publish and archive. Decisions taken with the developer: «Удалить» only for drafts and archived projects; the draft hint comes from a failed publish; «Сделать главным» only on published and visible projects. Checked with Vitest and RTL (API mocked) and visually against the mockups at 1280 and 375 px with a mock API; the check against the real backend is in `frontend/README.md`.
 
-## F6 — Projects on the public page
+## F6 — Projects on the public page [done; manual check with the backend pending]
 
 **Goal**: visitors see the developer's featured and other public projects on `/u/[slug]`.
 
-**Before starting**: backend step 3.3 implemented; the open points under "Projects on the public page" in `DESIGN.md` decided.
+**Before starting**: backend step 3.3 implemented; the open points under "Projects on the public page" in `DESIGN.md` decided (source mark, technologies on cards, long values).
 
 **Done when**:
 - «Главные проекты» renders `featured` in `position` order as cards per `public-profile.png`; «Другие проекты» renders `other` as rows.
@@ -149,6 +149,8 @@ Done in F5: the cabinet tabs «Профиль» and «Проекты»; the proj
 - Markup in `title`, `summary`, `role` and technology names is shown as text.
 - A row shows the first technology; a project without one never reaches the page (the API publishes only projects with technologies), but the row still renders without a badge.
 - The response without `featured`/`other` arrays is treated as an unexpected body (error screen), like any other invalid response.
+
+Done in F6: `getPublicProfile` reads `featured` and `other` (both required, whitelisted, featured sorted by `position`); «Главные проекты» cards with «Главный N», a four-line summary, up to three technology chips and «Моя роль»; «Другие проекты» rows with a one-line summary and the first technology; «От автора» on both headings; the hero «Проекты» link to `#projects`; empty sections and the whole area hidden when empty. The decisions on the open points are in `DESIGN.md`. Also in this stage: the cabinet texts «Из главных убран», «Главных: N из 3» and the shorter delete confirmation. Checked with Vitest and RTL (fetch mocked), the server HTML without JavaScript, and the layout at 1280 and 375 px against a mock API; the check against the real backend is in `frontend/README.md`.
 
 ## F7+ — Demos, GitHub data, IDE view
 
