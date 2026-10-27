@@ -19,6 +19,15 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
+### Run the whole stack in Docker
+
+```bash
+docker compose up -d --build
+```
+
+The one-shot `migrate` service runs `alembic upgrade head` on every `up` and
+exits; the backend starts only after it succeeds.
+
 ### Run tests
 
 Tests require a PostgreSQL instance. Use the Docker Compose database or create a

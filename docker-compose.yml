@@ -17,6 +17,18 @@ services:
       timeout: 5s
       retries: 5
 
+  # Applies the migrations once per `up` and exits; the backend starts only
+  # after it succeeds. It runs the image built for the backend service.
+  migrate:
+    image: ${COMPOSE_PROJECT_NAME}-backend
+    pull_policy: never
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
     build:
       context: ./backend
@@ -28,6 +40,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:
