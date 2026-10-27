@@ -2,8 +2,8 @@
 ownership, limits, featured side effects, session, Origin and CORS."""
 
 import threading
-import time
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,7 +14,7 @@ from app.main import app, frontend_origin
 from app.models.identity import Profile, User
 from app.models.projects import PROJECT_TEXT_LIMITS, Project, ProjectShowcase, Technology
 from app.projects import service
-from tests.conftest import login, make_github_transport
+from tests.conftest import login, make_github_transport, wait_until_blocked
 
 PROJECTS = "/api/v1/projects"
 FOREIGN = "https://evil.example"
@@ -131,6 +131,16 @@ class TestCreate:
         assert body["technologies"] == ["Python", "PostgreSQL"]
         assert body["results"] == "2x faster"
         assert body["status"] == "DRAFT"
+
+    def test_timestamps_are_naive_utc(self, client, db_session):
+        # Like the other tables: timestamp without time zone holding UTC.
+        before = datetime.now(UTC).replace(tzinfo=None)
+        created = _create(client)
+        after = datetime.now(UTC).replace(tzinfo=None)
+        row = db_session.get(Project, uuid.UUID(created["id"]))
+        assert row.created_at.tzinfo is None
+        assert before <= row.created_at <= after
+        assert row.updated_at == row.created_at
 
     def test_body_is_required(self, client):
         errors = _field_errors(client.post(PROJECTS))
@@ -707,18 +717,6 @@ class TestTechnologyRace:
     uncommitted row, then reuse it (commit) or insert its own (rollback). These tests
     commit to the test database and delete their rows afterwards."""
 
-    def _wait_until_blocked(self, db_engine, pid: int) -> None:
-        with db_engine.connect() as conn:
-            for _ in range(100):
-                wait = conn.execute(
-                    text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
-                    {"pid": pid},
-                ).scalar()
-                if wait == "Lock":
-                    return
-                time.sleep(0.05)
-        pytest.fail("the second transaction never waited on a lock")
-
     def _cleanup(self, db_engine, names: list[str]) -> None:
         with db_engine.begin() as conn:
             conn.execute(
@@ -744,7 +742,7 @@ class TestTechnologyRace:
 
                 thread = threading.Thread(target=run)
                 thread.start()
-                self._wait_until_blocked(db_engine, pid)
+                wait_until_blocked(db_engine, pid)
                 getattr(first, first_outcome)()
                 thread.join(timeout=10)
 
@@ -782,7 +780,7 @@ class TestTechnologyRace:
 
                 thread = threading.Thread(target=run)
                 thread.start()
-                self._wait_until_blocked(db_engine, pid)
+                wait_until_blocked(db_engine, pid)
                 first.commit()
                 thread.join(timeout=10)
 

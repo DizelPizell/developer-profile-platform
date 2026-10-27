@@ -1,4 +1,5 @@
 import os
+import time
 from collections.abc import Callable, Generator
 from pathlib import Path
 from urllib.parse import urlparse
@@ -84,6 +85,20 @@ def db_engine():
     engine = create_engine(url)
     yield engine
     engine.dispose()
+
+
+def wait_until_blocked(db_engine, pid: int) -> None:
+    """Waits until the backend with this pid is waiting on a lock (two-transaction tests)."""
+    with db_engine.connect() as conn:
+        for _ in range(100):
+            wait = conn.execute(
+                text("SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"),
+                {"pid": pid},
+            ).scalar()
+            if wait == "Lock":
+                return
+            time.sleep(0.05)
+    pytest.fail("the second transaction never waited on a lock")
 
 
 @pytest.fixture
