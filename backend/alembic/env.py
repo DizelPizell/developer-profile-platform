@@ -4,7 +4,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 import app.models  # noqa: F401 — registers all models with Base.metadata
-from app.database import Base
+from app.database import CONNECT_ARGS, Base
 from app.settings import settings
 
 config = context.config
@@ -34,6 +34,7 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=CONNECT_ARGS,
     )
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

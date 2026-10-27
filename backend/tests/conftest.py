@@ -82,7 +82,10 @@ def db_engine():
     alembic_cfg.set_main_option("sqlalchemy.url", url)
     alembic_command.upgrade(alembic_cfg, "head")
 
-    engine = create_engine(url)
+    from app.database import CONNECT_ARGS
+
+    # The same session settings as the application (UTC).
+    engine = create_engine(url, connect_args=CONNECT_ARGS)
     yield engine
     engine.dispose()
 
