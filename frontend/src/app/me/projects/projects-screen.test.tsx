@@ -197,7 +197,7 @@ describe("loading", () => {
 describe("list", () => {
   test("counters and the new project link", async () => {
     await renderList();
-    expect(screen.getByText("Проектов: 6 из 50 · В избранном: 2 из 3")).toBeTruthy();
+    expect(screen.getByText("Проектов: 6 из 50 · Главных: 2 из 3")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Новый проект" }).getAttribute("href")).toBe(
       "/me/projects/new",
     );
@@ -256,7 +256,7 @@ describe("list", () => {
         .getAllByRole("listitem")
         .map((li) => li.textContent),
     ).toEqual(["Python", "FastAPI"]);
-    expect(within(card("Delta")).getByText("Опубликован, но не виден посетителям.")).toBeTruthy();
+    expect(within(card("Delta")).getByText("Опубликован, но не виден посетителям. Из главных убран.")).toBeTruthy();
     expect(
       within(card("Alpha")).getByText("«Скрыть» и «В архив» уберут проект из главных."),
     ).toBeTruthy();
@@ -332,7 +332,7 @@ describe("featured order", () => {
     });
     fireEvent.click(within(card("Gamma")).getByRole("button", { name: "Сделать главным" }));
     await waitFor(() => expect(featuredTitles()).toEqual(["Beta", "Alpha", "Gamma"]));
-    expect(screen.getByText("Проектов: 6 из 50 · В избранном: 3 из 3")).toBeTruthy();
+    expect(screen.getByText("Проектов: 6 из 50 · Главных: 3 из 3")).toBeTruthy();
   });
 
   test("FEATURED_LIMIT_REACHED shows its text and reloads", async () => {
@@ -451,8 +451,9 @@ describe("delete", () => {
     fireEvent.click(within(card("Epsilon")).getByRole("button", { name: "Удалить" }));
     const dialog = await screen.findByRole("alertdialog", { name: "Удалить проект?" });
     expect(dialog.textContent).toContain(
-      "Проект «Epsilon» удалится насовсем, вместе с технологиями и местом в главных. Отменить нельзя.",
+      "Проект «Epsilon» удалится навсегда вместе со своими данными. Отменить нельзя.",
     );
+    expect(dialog.textContent).not.toMatch(/главн|архив/);
     fireEvent.click(within(dialog).getByRole("button", { name: "Отмена" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(calls("DELETE /projects/e")).toHaveLength(0);
@@ -468,6 +469,6 @@ describe("delete", () => {
     fireEvent.click(confirm);
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Zeta" })).toBeNull());
     expect(calls("DELETE /projects/z")).toHaveLength(1);
-    expect(screen.getByText("Проектов: 5 из 50 · В избранном: 2 из 3")).toBeTruthy();
+    expect(screen.getByText("Проектов: 5 из 50 · Главных: 2 из 3")).toBeTruthy();
   });
 });

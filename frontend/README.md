@@ -64,7 +64,7 @@ Signed in as above, on `http://localhost:3000/me`:
 
 Signed in as above, with a published profile, on `http://localhost:3000/me/projects`. Keep DevTools → Network open.
 
-1. The tabs show «Проекты» as current; «Профиль» goes to `/me` and back. With no projects: «Проектов: 0 из 50 · В избранном: 0 из 3», «[Пока нет проектов]», the free slot «3 из 3».
+1. The tabs show «Проекты» as current; «Профиль» goes to `/me` and back. With no projects: «Проектов: 0 из 50 · Главных: 0 из 3», «[Пока нет проектов]», the free slot «3 из 3».
 2. «Новый проект» → `/me/projects/new`, «Сохранить» is disabled, «Опубликовать» and «В архив» are disabled with their hints.
 3. Fill «Название» only and save → the address becomes `/me/projects/<id>`, the badge «Черновик». The `POST` body has only `title`.
 4. Add technologies: `Python` with Enter, `  Fast   API ` with «Добавить» (stored as `Fast API`), then `python` → `«python» уже есть в списке.` Remove one with ×. Save → the `PATCH` body has only `technologies`, in the entered order.

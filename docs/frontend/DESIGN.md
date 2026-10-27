@@ -221,11 +221,11 @@ Data: `GET /api/v1/projects` for the list, `GET /api/v1/projects/{id}` for editi
 
 The cabinet has two tabs under the header, «Профиль» (`/me`) and «Проекты» (`/me/projects`); the current one is in `accent` with `aria-current="page"`. The form screens have no tabs, only the link «‹ Назад к проектам».
 
-The mockups call featured projects «главные»: «Главные проекты», «Сделать главным», «Убрать из главных», the badge «Главный: N». Only the counter in the top panel keeps «В избранном: N из 3», as in the mockup.
+The mockups call featured projects «главные»: «Главные проекты», «Сделать главным», «Убрать из главных», the badge «Главный: N» and the counter «Главных: N из 3». The mockup image still shows «В избранном» in the counter; the text here wins.
 
 #### «Мои проекты» — list
 
-Top panel: «Мои проекты», «Проектов: N из 50 · В избранном: N из 3» and «Новый проект» (`label`), a link to `/me/projects/new`. At 50 projects the button is disabled with «Можно создать не больше 50 проектов.»; the API stays the source of truth (`PROJECT_LIMIT_REACHED`).
+Top panel: «Мои проекты», «Проектов: N из 50 · Главных: N из 3» and «Новый проект» (`label`), a link to `/me/projects/new`. At 50 projects the button is disabled with «Можно создать не больше 50 проектов.»; the API stays the source of truth (`PROJECT_LIMIT_REACHED`).
 
 «Главные проекты» (yellow square marker):
 
@@ -239,7 +239,7 @@ Top panel: «Мои проекты», «Проектов: N из 50 · В изб
 |---|---|---|
 | `DRAFT` + `PRIVATE` | «Черновик» (`frame`) | «Редактировать», «Опубликовать», «Удалить» |
 | `PUBLISHED` + `PUBLIC` | «Опубликован» (`success`) | «Редактировать», «Сделать главным» (when not featured), «Скрыть», «В архив» |
-| `PUBLISHED` + `PRIVATE` | «Скрыт» (`text-muted`) | «Редактировать», «Показать», «В архив»; the note «Опубликован, но не виден посетителям.» |
+| `PUBLISHED` + `PRIVATE` | «Скрыт» (`text-muted`) | «Редактировать», «Показать», «В архив»; the note «Опубликован, но не виден посетителям. Из главных убран.» (hiding removes a project from featured, ADR-015) |
 | `ARCHIVED` + `PRIVATE` | «В архиве» (`bg`, muted text) | «Редактировать», «Опубликовать снова», «Удалить» |
 
 - «Редактировать» opens `/me/projects/{id}`. «Опубликовать» and «Сделать главным» are `label`, «Удалить» is red text on a panel, the rest are secondary.
@@ -249,7 +249,7 @@ Top panel: «Мои проекты», «Проектов: N из 50 · В изб
 - A draft has no hint about missing fields until its publish fails: then the card shows «Чтобы опубликовать, не хватает: роль, технологии, вклад.» from `details.missing_fields` of `PROJECT_INCOMPLETE`. The list response does not carry the fields needed to compute it in advance.
 - An empty list shows «[Пока нет проектов]».
 
-Delete asks in an accessible modal dialog (`AlertDialog`, focus starts on «Отмена», Escape closes it): title «Удалить проект?», text «Проект «{title}» удалится насовсем, вместе с технологиями и местом в главных. Отменить нельзя. Если хотите просто убрать с публичной страницы, отправьте его в архив.», buttons «Удалить навсегда» (`error` fill) and «Отмена». Nothing is sent before confirmation; on 204 the project leaves the list (and the featured rows).
+Delete asks in an accessible modal dialog (`AlertDialog`, focus starts on «Отмена», Escape closes it): title «Удалить проект?», text «Проект «{title}» удалится навсегда вместе со своими данными. Отменить нельзя.» It says nothing about featured projects or the archive: only drafts and archived projects can be deleted here, and they are never featured, buttons «Удалить навсегда» (`error` fill) and «Отмена». Nothing is sent before confirmation; on 204 the project leaves the list (and the featured rows).
 
 Behavior:
 

@@ -208,7 +208,7 @@ function ProjectsBoard({ initialProjects }: { initialProjects: ProjectSummary[] 
         <div className="flex flex-col gap-3">
           <h1 className="font-heading text-lg leading-relaxed uppercase">Мои проекты</h1>
           <p className="text-base text-text-muted">
-            Проектов: {projects.length} из {PROJECTS_MAX} · В избранном: {featured.length} из{" "}
+            Проектов: {projects.length} из {PROJECTS_MAX} · Главных: {featured.length} из{" "}
             {FEATURED_MAX}
           </p>
         </div>
@@ -405,7 +405,11 @@ function ProjectCard({
           ))}
         </ul>
       )}
-      {hidden && <p className="text-sm text-text-muted">Опубликован, но не виден посетителям.</p>}
+      {hidden && (
+        <p className="text-sm text-text-muted">
+          Опубликован, но не виден посетителям. Из главных убран.
+        </p>
+      )}
       {missing && (
         <p role="alert" className="text-sm text-error">
           Чтобы опубликовать, не хватает: {missing.map((f) => PROJECT_FIELD_TEXT[f].short).join(", ")}.
@@ -492,11 +496,11 @@ function DeleteDialog({
       {project && (
         <AlertDialogContent>
           <AlertDialogTitle>Удалить проект?</AlertDialogTitle>
-          {/* The mockup's text (my-projects.png). */}
+          {/* Only drafts and archived projects are deleted here, so the text
+              says nothing about featured projects or the archive (DESIGN.md). */}
           <AlertDialogDescription>
-            Проект «{project.title ?? UNTITLED}» удалится насовсем, вместе с технологиями и местом
-            в главных. Отменить нельзя. Если хотите просто убрать с публичной страницы, отправьте
-            его в архив.
+            Проект «{project.title ?? UNTITLED}» удалится навсегда вместе со своими данными.
+            Отменить нельзя.
           </AlertDialogDescription>
           <div className="flex flex-wrap gap-4">
             <AlertDialogAction asChild>
