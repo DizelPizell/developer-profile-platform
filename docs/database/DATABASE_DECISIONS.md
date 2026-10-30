@@ -34,27 +34,31 @@ project_demo
 
 github_accounts
 github_repositories
-project_repository
+project_repositories
 
 github_sync_jobs
 github_sync_category_status
-github_contributors
-github_commits
+github_contributors (deferred, not in V1)
+github_commits (deferred, not in V1)
 
 analytics_events
 
 files
 ```
 
-Storage shapes confirmed by ADR-011-partial-sync-success.md:
+V1 GitHub storage (ADR-016, ADR-017, ADR-018):
+- **No user token**: V1 reads public data with the app's credentials; `github_accounts` has no token columns (ADR-016).
+- **Repositories are shared**: `github_repositories` has one row per GitHub repository, unique on `github_repo_id`, not owned by a user or a GitHub account; `project_repositories` links a project to one repository, and many projects of different users may link the same one (ADR-017). This replaces the earlier `GITHUB_ACCOUNT 1:N GITHUB_REPOSITORY`, which contradicted unique external ids as soon as two developers linked one repository.
+- **Field list** of `github_repositories` for V1: fixed by ADR-017 (see `DATABASE_SCHEMA.md`).
+- **Stored categories**: metadata (columns) and languages (JSONB column, replaced wholesale on each successful fetch). Nothing else in V1 (ADR-018).
+
+Storage shapes confirmed by ADR-011-partial-sync-success.md for the deferred categories, applied when they return:
 - **README**: TEXT column on `github_repositories`, replaced wholesale on each successful fetch.
-- **Languages**: JSONB column on `github_repositories`, replaced wholesale on each successful fetch.
 - **File tree**: JSONB column on `github_repositories`, replaced wholesale on each successful fetch. Configurable entry limit; truncation is a final outcome, not a retry trigger (see ADR-011).
 - **Contributors**: separate table `github_contributors` (snapshot, upsert + delete missing per successful fetch).
+- **Commits**: separate table `github_commits` (history, append-only).
 
-The exact `github_repositories` field list is not fixed by this document.
-
-GitHub sync status storage is resolved: `github_sync_jobs` is the single source of truth, one row per logical sync job, retries reuse the same row (`attempt_count`) — see ADR-009-github-sync-worker-execution-model.md. `github_repositories` does not duplicate sync status. `outbox_events` remains removed; it existed only to support the Kafka-based transport rejected in ADR-008-no-kafka-outbox-v1.md.
+GitHub sync status storage is resolved: `github_sync_jobs` is the single source of truth, one row per logical sync job, retries reuse the same row (`attempt_count`) — see ADR-009-github-sync-worker-execution-model.md. `github_repositories` does not duplicate sync status; its `unavailable_since` (two 404s in a row) is a fact about the repository, not sync status (ADR-017, ADR-018). `outbox_events` remains removed; it existed only to support the Kafka-based transport rejected in ADR-008-no-kafka-outbox-v1.md.
 
 ## Important constraints
 
@@ -69,8 +73,10 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 - `github_accounts.avatar_url` is nullable GitHub data, refreshed on every login; a login response without a usable avatar keeps the stored value — see ADR-013.
 - One project has at most one showcase record (`project_showcases.project_id` unique); a showcase row means the project is featured.
 - One project has at most one Demo.
-- One project has at most one linked GitHub repository in V1.
-- GitHub external IDs are unique.
+- One project has at most one linked GitHub repository in V1 (`project_repositories.project_id` unique). A user links a given repository to at most one of their projects (domain rule under the owner's profile lock) — see ADR-017-repository-linking-and-import.md.
+- `project_repositories.relation` is one of OWNER, CONTRIBUTOR, NONE; set when linking, recomputed by every sync; the contributor list behind it is not stored — see ADR-017.
+- `project_repositories.project_id` cascades on project deletion; `github_repository_id` is `ON DELETE RESTRICT`, so a linked repository row cannot be removed.
+- GitHub external IDs are unique (`github_repositories.github_repo_id`).
 - Featured projects are limited to three per profile, held by the database: `project_showcases.position` CHECK 1..3 and UNIQUE (`profile_id`, `position`). The unique constraint is `DEFERRABLE INITIALLY IMMEDIATE`, so it is checked at the end of each statement and a reorder or gap renumbering is a single `UPDATE`. Positions have no gaps. Only `PUBLISHED` + `PUBLIC` projects are featured; that rule crosses tables and is enforced in the domain — see ADR-015-project-model.md.
 - `projects.owner_id` references `users.id`; at most 50 projects per user, checked in the domain under a lock on the owner's profile row.
 - `projects.status` is one of DRAFT, PUBLISHED, ARCHIVED (see ADR-005-project-lifecycle-and-visibility.md).
@@ -82,7 +88,9 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 - GitHub sync must be idempotent.
 - `github_sync_jobs` allows at most one row with `status IN ('QUEUED','SYNCING')` per `github_repository_id` (partial unique index) — see ADR-009-github-sync-worker-execution-model.md.
 - `github_sync_jobs` columns: `id`, `github_repository_id`, `status`, `attempt_count`, `scheduled_at`, `last_error`, `created_at`, `updated_at`.
-- `github_sync_category_status` is unique on `(github_repository_id, category)` — one row per pair, updated after each category attempt — see ADR-011-partial-sync-success.md.
+- `github_sync_category_status` is unique on `(github_repository_id, category)` — one row per pair, updated after each category attempt — see ADR-011-partial-sync-success.md. V1 categories: `metadata` and `languages`, both mandatory (ADR-018).
+- Jobs are queued idempotently (`INSERT ... ON CONFLICT DO NOTHING` on the partial unique index) on link and import, by a manual sync at most every 10 minutes per repository, and every 24 hours by the worker for repositories linked to a `PUBLISHED` project. A rate-limit answer moves the job to `x-ratelimit-reset` without increasing `attempt_count` — see ADR-018-github-sync-v1.md.
+- The rules below for contributors, commits, README and file tree apply when those categories return; they are not fetched or stored in V1 (ADR-018).
 - `github_contributors` is unique on `(github_repository_id, github_user_id)`; `github_user_id` is the GitHub numeric user id; `login` is a regular field; snapshot data, upsert + delete missing per successful contributors fetch — see ADR-011-partial-sync-success.md.
 - `github_commits` is unique on `(github_repository_id, sha)`; inserted idempotently (`ON CONFLICT ... DO NOTHING`); never automatically deleted; the 100-most-recent limit applies per sync run's fetch, not to the total rows stored for a repository — see ADR-010-github-evidence-data-model-v1.md.
 - Snapshot GitHub data (repository metadata, README, languages, file tree, contributors) and history data (commits) have different deletion rules: snapshot rows absent from a complete, successful fetch are deleted; history rows are never automatically deleted — see ADR-010-github-evidence-data-model-v1.md.
@@ -94,6 +102,8 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 - `outbox_events` table (existed only to support Kafka-based sync, removed — see ADR-008-no-kafka-outbox-v1.md);
 - GitHub Dependencies as a synced entity (deferred pending a separate GitHub API review, not rejected outright — see ADR-010-github-evidence-data-model-v1.md);
 - GitHub Pull Requests, Releases and CI/CD as separate synced entities, and storing GitHub file content in PostgreSQL, in V1 (see ADR-010-github-evidence-data-model-v1.md);
+- GitHub user tokens in V1 (see ADR-016-github-access-v1.md);
+- README, file tree, contributors and commits in V1 — deferred, not rejected (see ADR-018-github-sync-v1.md);
 - recruiter entities;
 - vacancies;
 - applications;

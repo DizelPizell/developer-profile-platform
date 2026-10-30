@@ -276,6 +276,8 @@ CORS should not be used as a substitute for an explicit authentication/CSRF desi
 
 ## 7.3 GitHub OAuth
 
+> **Note (2026-10-30):** the separate connect flow below is not part of V1. Login is the only GitHub OAuth flow; repository data is public and read with the app's credentials — see ADR-016-github-access-v1.md.
+
 GitHub OAuth is separate from the platform's own authentication.
 
 Expected flow:
@@ -293,6 +295,8 @@ The OAuth callback must validate the OAuth `state`.
 ---
 
 # 8. GitHub Token Storage
+
+> **Note (2026-10-30):** V1 stores no GitHub user token (ADR-016-github-access-v1.md). The rules below apply if one is ever stored.
 
 GitHub access tokens must never be stored in plaintext.
 

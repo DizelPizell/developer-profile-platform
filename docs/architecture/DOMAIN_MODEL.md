@@ -12,7 +12,7 @@ Professional profile, slug, publication state, experience, education, skills, fe
 Project lifecycle, context, technologies, screenshots, demo, repository association, showcase.
 
 ### GitHub
-OAuth connection, repository listing, import, synchronization, normalized technical data.
+Public repository listing, linking, import, synchronization, normalized technical data. Public data only, read with the app's credentials; no user token (ADR-016).
 
 ### Analytics
 Event collection, profile metrics, project metrics and funnel metrics.
@@ -23,8 +23,8 @@ Object storage, uploads and access policy.
 ## Main workflow
 
 ```text
-GitHub OAuth login -> Profile -> Connect GitHub (repo access) -> Repository list
--> Import repository -> Create/enrich project -> Showcase
+GitHub OAuth login -> Profile -> Public repository list
+-> Import repository, or link an existing project -> Enrich project -> Showcase
 -> Featured project -> Publish profile
 ```
 
@@ -56,11 +56,14 @@ Projects:
 - UnfeatureProject
 
 GitHub:
-- ConnectGitHub
-- DisconnectGitHub
-- ListRepositories
+- ListPublicRepositories
+- LinkRepository
+- UnlinkRepository
 - ImportRepository
-- SynchronizeRepository
+- RequestRepositorySync
+- SynchronizeRepository (worker)
+
+ConnectGitHub and DisconnectGitHub are not part of V1: the user grants no repository access (ADR-016).
 
 Analytics:
 - TrackEvent
@@ -71,7 +74,7 @@ Analytics:
 
 User fields: `id`, `github_user_id` (unique, stable GitHub numeric id), `github_login` (convenience, not stable), `email` (nullable, not unique), `created_at`.
 
-One User has exactly one GitHub Account (1:1). A GitHub Account holds the repository-access token, stored encrypted per ADR-003-github-token-storage.md.
+One User has exactly one GitHub Account (1:1). In V1 it holds no token: repository data is public and read with the app's credentials (ADR-016-github-access-v1.md). If a token is ever stored, ADR-003-github-token-storage.md applies.
 
 Sessions are stored server-side in `auth_sessions`: `id`, `user_id`, `token_hash` (unique), `created_at`, `expires_at`. The session cookie contains a random opaque token; only its hash is stored. See ADR-012-github-oauth-only-authentication.md.
 
@@ -90,35 +93,43 @@ Persisted on `github_sync_jobs` — the single source of truth for job status, n
 
 Per-category freshness is tracked separately in `github_sync_category_status` — one row per `(github_repository_id, category)`: `last_success_at`, `last_error`, `last_error_at`. See ADR-011-partial-sync-success.md.
 
+Jobs are created on link and import, by a manual sync (at most every 10 minutes per repository) and every 24 hours by the worker for repositories linked to a `PUBLISHED` project. A rate-limit answer is not a failure: the job waits for the limit's reset without using an attempt, and the worker claims nothing until then. Two 404s in a row mark the repository unavailable (`github_repositories.unavailable_since`, a repository fact, not sync status). The cabinet project response carries `github.sync`; there is no separate status endpoint. See ADR-018-github-sync-v1.md.
+
 External GitHub identifiers are unique.
+
+## Repository link
+
+A project links at most one repository; a repository is shared and may be linked by projects of several users. A link records the developer's relation to the repository from GitHub data: `OWNER` (the repository owner's id is the user's `github_user_id`), `CONTRIBUTOR` (the user is in the contributor list) or `NONE` (found by a later sync). Linking is refused unless the relation is `OWNER` or `CONTRIBUTOR`. With `NONE` or an unavailable repository the link stays, and the GitHub data is hidden publicly. See ADR-017-repository-linking-and-import.md and ADR-019-public-github-data.md.
 
 ## GitHub Evidence categories
 
-| Category | Classification | Failure behaviour |
-|---|---|---|
-| Repository metadata | Mandatory | Job retry → FAILED |
-| README | Mandatory | Job retry → FAILED |
-| Programming languages | Mandatory | Job retry → FAILED |
-| File tree metadata | Mandatory | Job retry → FAILED |
-| Contributors | Optional | Tolerated; existing data preserved; job may still reach SYNCED |
-| Commits | Optional (history, not snapshot) | Tolerated; existing commits preserved (append-only, ADR-010); job may still reach SYNCED |
+V1 synchronizes only repository metadata and programming languages (ADR-018-github-sync-v1.md). The other categories are deferred, not rejected; the table gives the classification they keep when they return (ADR-011).
+
+| Category | In V1 | Classification | Failure behaviour |
+|---|---|---|---|
+| Repository metadata | Yes | Mandatory | Job retry → FAILED |
+| Programming languages | Yes | Mandatory | Job retry → FAILED |
+| README | Deferred | Mandatory | Job retry → FAILED |
+| File tree metadata | Deferred | Mandatory | Job retry → FAILED |
+| Contributors | Deferred (the list is read only for the relation, not stored) | Optional | Tolerated; existing data preserved; job may still reach SYNCED |
+| Commits | Deferred | Optional (history, not snapshot) | Tolerated; existing commits preserved (append-only, ADR-010); job may still reach SYNCED |
 
 Each successfully fetched category (snapshot or history) is committed in its own short transaction. No single transaction covers the entire job. See ADR-011-partial-sync-success.md.
 
 ## GitHub Evidence storage shape
 
-- **Repository metadata**: columns on `github_repositories`.
-- **README**: column (or JSONB field) on `github_repositories`, replaced wholesale.
+- **Repository metadata**: columns on `github_repositories` (field list: ADR-017).
+- **README** (deferred): TEXT column on `github_repositories`, replaced wholesale (ADR-011).
 - **Languages**: JSONB column on `github_repositories`, replaced wholesale.
-- **File tree**: JSONB column on `github_repositories`, replaced wholesale on each successful fetch. Configurable entry limit; truncation is a final outcome, not a retry trigger — see ADR-011-partial-sync-success.md.
-- **Contributors**: separate table `github_contributors` (snapshot, upsert + delete missing per successful fetch).
-- **Commits**: separate table `github_commits` (history, append-only, `ON CONFLICT DO NOTHING`).
+- **File tree** (deferred): JSONB column on `github_repositories`, replaced wholesale on each successful fetch. Configurable entry limit; truncation is a final outcome, not a retry trigger — see ADR-011-partial-sync-success.md.
+- **Contributors** (deferred): separate table `github_contributors` (snapshot, upsert + delete missing per successful fetch).
+- **Commits** (deferred): separate table `github_commits` (history, append-only, `ON CONFLICT DO NOTHING`).
 
-Scope: repository metadata, README, languages, file tree metadata (`path`, `type`, `sha`, `size`, no content), contributors, commits (up to 100 most recent per sync run). Dependencies, Pull Requests, Releases and CI/CD are not part of the required V1 scope; file content is not stored in V1. See ADR-010-github-evidence-data-model-v1.md and ADR-011-partial-sync-success.md.
+Full evidence scope, of which V1 keeps metadata and languages (ADR-018): repository metadata, README, languages, file tree metadata (`path`, `type`, `sha`, `size`, no content), contributors, commits (up to 100 most recent per sync run). Dependencies, Pull Requests, Releases and CI/CD are not part of the required V1 scope; file content is not stored in V1. See ADR-010-github-evidence-data-model-v1.md and ADR-011-partial-sync-success.md.
 
 ## Project import
 
-Importing a repository creates an Imported Project. The developer enriches it with role, contribution, description and other context.
+Importing a repository creates an Imported Project: a `DRAFT` + `PRIVATE` project whose title is the repository name, with every other field empty, linked to the repository. The developer enriches it with role, contribution, description and other context. GitHub's own data stays in the GitHub block and is not copied into project fields (ADR-017).
 
 Role and contribution are plain fields on the Project (`projects.role`, `projects.contribution`), not a separate entity — see ADR-004-project-contribution.md.
 
