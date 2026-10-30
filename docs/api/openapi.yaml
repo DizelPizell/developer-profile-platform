@@ -126,7 +126,7 @@ paths:
         PUBLISHED profiles only; the slug is case-insensitive. Private, missing
         and malformed slugs return the same 404 as an unknown URL. Includes the
         profile's PUBLISHED + PUBLIC projects as `featured` and `other`
-        (ADR-015).
+        (ADR-015); each project carries a nullable `github` object (ADR-019).
       parameters:
         - name: slug
           in: path
@@ -368,40 +368,151 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "422": {$ref: "#/components/responses/ValidationError"}
         "500": {$ref: "#/components/responses/InternalError"}
-  /integrations/github/connect:
-    get:
-      summary: Start GitHub OAuth
+  /projects/{id}/repository:
+    parameters:
+      - {$ref: "#/components/parameters/ProjectId"}
+    post:
+      security: [{cookieAuth: []}]
+      summary: Link project to a GitHub repository
+      description: >-
+        Reads the public repository and, unless the developer owns it, up to 5
+        pages of its contributors from GitHub, then links it with the relation
+        OWNER or CONTRIBUTOR and queues a sync (ADR-017, ADR-018). Replaces the
+        project's previous link; the same repository again re-checks the
+        relation. On any error nothing is stored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RepositoryLinkRequest"}
       responses:
-        "302": {description: Redirect}
-  /integrations/github/callback:
-    get:
-      summary: GitHub OAuth callback
+        "200": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/GitHubRepositoryAlreadyLinked"}
+        "422":
+          description: >-
+            VALIDATION_ERROR (see ValidationError); GITHUB_REPOSITORY_NOT_FOUND
+            — the repository does not exist or is not public;
+            GITHUB_RELATION_NOT_FOUND — the developer is neither its owner nor
+            in its contributor list according to GitHub
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
+        "502": {$ref: "#/components/responses/GitHubUnavailable"}
+        "503": {$ref: "#/components/responses/GitHubRateLimited"}
+    delete:
+      security: [{cookieAuth: []}]
+      summary: Unlink project from its GitHub repository
+      description: >-
+        Removes the link; the shared repository data stays. Not linked: 200
+        without changes.
       responses:
-        "302": {description: Redirect}
+        "200": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /integrations/github/repositories:
     get:
-      summary: List repositories
+      security: [{cookieAuth: []}]
+      summary: List own public GitHub repositories
+      description: >-
+        The current user's own public repositories, read from GitHub in the
+        request with the app credentials (ADR-016), 100 per page, most
+        recently pushed first. Nothing is stored.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 100, default: 1}
       responses:
-        "200": {description: Repositories}
+        "200":
+          description: One page of repositories
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/GitHubRepositoryListResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "500": {$ref: "#/components/responses/InternalError"}
+        "502": {$ref: "#/components/responses/GitHubUnavailable"}
+        "503": {$ref: "#/components/responses/GitHubRateLimited"}
   /integrations/github/repositories/{id}/import:
     parameters:
-      - {name: id, in: path, required: true, description: Repository id; its type is defined with GitHub import (Phase 5), schema: {type: string}}
+      - {$ref: "#/components/parameters/GitHubRepoId"}
     post:
-      summary: Import repository
+      security: [{cookieAuth: []}]
+      summary: Import a GitHub repository as a project
+      description: >-
+        Creates a DRAFT + PRIVATE project whose title is the repository name
+        (every other field empty) and links it as POST /projects/{id}/repository
+        does, in one transaction (ADR-017).
       responses:
-        "201": {description: Imported project}
+        "201": {$ref: "#/components/responses/Project"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404":
+          description: >-
+            NOT_FOUND — malformed id, or the repository does not exist or is
+            not public
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            PROJECT_LIMIT_REACHED (details.limit = 50) or
+            GITHUB_REPOSITORY_ALREADY_LINKED (details.project_id)
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: >-
+            GITHUB_RELATION_NOT_FOUND — the developer is neither the owner nor
+            in the contributor list according to GitHub
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
+        "502": {$ref: "#/components/responses/GitHubUnavailable"}
+        "503": {$ref: "#/components/responses/GitHubRateLimited"}
   /integrations/github/repositories/{id}/sync:
     parameters:
-      - {name: id, in: path, required: true, description: Repository id; its type is defined with GitHub import (Phase 5), schema: {type: string}}
+      - {$ref: "#/components/parameters/GitHubRepoId"}
     post:
-      summary: Sync repository
+      security: [{cookieAuth: []}]
+      summary: Request a sync of a linked repository
+      description: >-
+        Queues a sync job, or returns the active one. Allowed when one of the
+        user's projects links the repository and no job of the repository was
+        created in the last 10 minutes (ADR-018).
       responses:
-        "202": {description: Sync accepted}
-  /integrations/github:
-    delete:
-      summary: Disconnect GitHub
-      responses:
-        "204": {description: Disconnected}
+        "202":
+          description: Sync queued or already active
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/GitHubSync"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404":
+          description: >-
+            NOT_FOUND — malformed id, or none of the user's projects links
+            this repository
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "429":
+          description: >-
+            GITHUB_SYNC_TOO_SOON — the repository's latest job was created less
+            than 10 minutes ago; details.retry_after_seconds
+          headers:
+            Retry-After:
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /analytics/events:
     post:
       summary: Track analytics event
@@ -446,6 +557,14 @@ components:
         urn:uuid: prefix), a missing project and another user's project all
         return the same 404 NOT_FOUND.
       schema: {type: string, format: uuid}
+    GitHubRepoId:
+      name: id
+      in: path
+      required: true
+      description: >-
+        GitHub's numeric repository id (github_repo_id) as a positive decimal
+        integer; anything else is 404 NOT_FOUND.
+      schema: {type: integer, format: int64, minimum: 1}
   schemas:
     Error:
       type: object
@@ -523,6 +642,38 @@ components:
           type: array
           description: Technology names in the developer's order.
           items: {type: string}
+        github:
+          type: object
+          allOf: [{$ref: "#/components/schemas/PublicGitHub"}]
+          nullable: true
+          description: >-
+            GitHub data of the linked repository; null when there is none, it
+            has not been synced, it is unavailable, or the relation is lost
+            (ADR-019).
+    PublicGitHub:
+      type: object
+      description: Public GitHub whitelist (ADR-019); nothing else is returned.
+      required: [full_name, html_url, description, languages, pushed_at, is_fork, parent_full_name, is_archived, relation, synced_at]
+      properties:
+        full_name: {type: string}
+        html_url: {type: string, description: Always https://github.com/...}
+        description: {type: string, nullable: true}
+        languages:
+          type: array
+          description: Bytes of code per language as GitHub reports them, descending.
+          items: {$ref: "#/components/schemas/GitHubLanguage"}
+        pushed_at: {type: string, format: date-time, nullable: true}
+        is_fork: {type: boolean}
+        parent_full_name: {type: string, nullable: true}
+        is_archived: {type: boolean}
+        relation: {type: string, enum: [OWNER, CONTRIBUTOR]}
+        synced_at: {type: string, format: date-time}
+    GitHubLanguage:
+      type: object
+      required: [name, bytes]
+      properties:
+        name: {type: string}
+        bytes: {type: integer, format: int64, minimum: 0}
     PublicFeaturedProject:
       allOf:
         - {$ref: "#/components/schemas/PublicProject"}
@@ -568,7 +719,7 @@ components:
           items: {$ref: "#/components/schemas/TechnologyName"}
     ProjectResponse:
       type: object
-      required: [id, status, visibility, title, summary, description, problem, results, role, contribution, technologies, featured_position]
+      required: [id, status, visibility, title, summary, description, problem, results, role, contribution, technologies, featured_position, github]
       properties:
         id: {type: string, format: uuid}
         status: {$ref: "#/components/schemas/ProjectStatus"}
@@ -582,6 +733,94 @@ components:
         contribution: {type: string, nullable: true}
         technologies: {type: array, items: {type: string}}
         featured_position: {type: integer, minimum: 1, maximum: 3, nullable: true}
+        github:
+          type: object
+          allOf: [{$ref: "#/components/schemas/ProjectGitHub"}]
+          nullable: true
+          description: The linked repository, or null.
+    ProjectGitHub:
+      type: object
+      description: The linked repository as the cabinet sees it (ADR-017, ADR-018).
+      required: [github_repo_id, full_name, html_url, description, languages, pushed_at, is_fork, parent_full_name, is_archived, relation, unavailable, synced_at, sync]
+      properties:
+        github_repo_id: {type: integer, format: int64}
+        full_name: {type: string}
+        html_url: {type: string}
+        description: {type: string, nullable: true}
+        languages:
+          type: array
+          description: Empty until the first successful sync.
+          items: {$ref: "#/components/schemas/GitHubLanguage"}
+        pushed_at: {type: string, format: date-time, nullable: true}
+        is_fork: {type: boolean}
+        parent_full_name: {type: string, nullable: true}
+        is_archived: {type: boolean}
+        relation:
+          type: string
+          enum: [OWNER, CONTRIBUTOR, NONE]
+          description: >-
+            NONE — a sync found the developer neither owner nor contributor;
+            hidden publicly until a later sync finds the relation again.
+        unavailable:
+          type: boolean
+          description: GitHub answered 404 twice in a row; hidden publicly.
+        synced_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: The older of the last successful metadata and languages reads.
+        sync: {$ref: "#/components/schemas/GitHubSync"}
+    GitHubSync:
+      type: object
+      required: [status, last_success_at, next_manual_sync_at]
+      properties:
+        status:
+          type: string
+          enum: [NOT_SYNCED, QUEUED, SYNCING, SYNCED, FAILED]
+          description: The latest sync job's state; NOT_SYNCED when there is none.
+        last_success_at: {type: string, format: date-time, nullable: true}
+        next_manual_sync_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When a manual sync is allowed again; null if allowed now.
+    RepositoryLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [full_name]
+      properties:
+        full_name:
+          type: string
+          maxLength: 140
+          pattern: '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9._-]{1,100}$'
+          description: >-
+            owner/name; the name must not be "." or "..". Checked before
+            GitHub is called (ADR-016).
+    GitHubRepositoryListResponse:
+      type: object
+      required: [items, next_page]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: {$ref: "#/components/schemas/GitHubRepositoryListItem"}
+        next_page: {type: integer, nullable: true}
+    GitHubRepositoryListItem:
+      type: object
+      required: [github_repo_id, full_name, html_url, description, is_fork, is_archived, pushed_at, linked_project_id]
+      properties:
+        github_repo_id: {type: integer, format: int64}
+        full_name: {type: string}
+        html_url: {type: string}
+        description: {type: string, nullable: true}
+        is_fork: {type: boolean}
+        is_archived: {type: boolean}
+        pushed_at: {type: string, format: date-time, nullable: true}
+        linked_project_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The user's own project that links this repository, if any.
     ProjectSummary:
       type: object
       required: [id, status, visibility, title, summary, technologies, featured_position]
@@ -727,6 +966,30 @@ components:
               details:
                 missing_fields: [display_name, headline]
               request_id: 3f1c2a9e-8f7b-4c1d-9a7e-2b6f0c4d5e61
+    GitHubRepositoryAlreadyLinked:
+      description: >-
+        GITHUB_REPOSITORY_ALREADY_LINKED — another of the user's projects
+        links this repository; details.project_id
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    GitHubUnavailable:
+      description: >-
+        GITHUB_UNAVAILABLE — GitHub timed out, answered with an error status or
+        an unexpected body; GitHub's response is not copied into the error.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    GitHubRateLimited:
+      description: >-
+        GITHUB_RATE_LIMITED — the platform's GitHub request budget is
+        exhausted; details.retry_after_seconds (ADR-018).
+      headers:
+        Retry-After:
+          schema: {type: integer}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
     InternalError:
       description: INTERNAL_ERROR — unexpected server error; no internal details are returned.
       headers:

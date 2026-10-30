@@ -124,7 +124,8 @@ No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A pr
       "summary": "string",
       "role": "string",
       "technologies": ["string"],
-      "position": 1
+      "position": 1,
+      "github": "PublicGitHub | null"
     }
   ],
   "other": [
@@ -133,11 +134,31 @@ No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A pr
       "title": "string",
       "summary": "string",
       "role": "string",
-      "technologies": ["string"]
+      "technologies": ["string"],
+      "github": "PublicGitHub | null"
     }
   ]
 }
 ```
+
+`PublicGitHub` (whitelist, ADR-019 — GitHub data about the project's linked repository; nothing else is returned):
+
+```json
+{
+  "full_name": "string",
+  "html_url": "string (https://github.com/...)",
+  "description": "string | null",
+  "languages": [{"name": "string", "bytes": 0}],
+  "pushed_at": "date-time | null",
+  "is_fork": false,
+  "parent_full_name": "string | null",
+  "is_archived": false,
+  "relation": "OWNER | CONTRIBUTOR",
+  "synced_at": "date-time"
+}
+```
+
+`github` is `null` when the project has no linked repository, the repository has not been synced successfully yet, the repository is unavailable (two 404s in a row), or the developer is no longer its owner or a contributor (ADR-017, ADR-018). `languages` is ordered by bytes, descending, and may be empty. Date-times are ISO 8601 in UTC (`2026-10-30T12:00:00Z`). Never returned: internal or GitHub ids, ETags, sync states or errors, the file tree, README.
 
 `featured` and `other` contain only projects that are `PUBLISHED` + `PUBLIC` (ADR-015). `featured` is ordered by `position` (1..3); `other` holds the remaining public projects, newest first. Both are empty arrays when there are none. A project carries only the fields shown; never `status`, `visibility`, `description`, `contribution` or timestamps. `technologies` are names in the developer's order. The public project page (`/u/{slug}/projects/{id}` on the frontend) and its endpoint come in Phase 4.
 
@@ -208,9 +229,12 @@ States (ADR-015): a new project is `DRAFT` + `PRIVATE`. Allowed pairs: `DRAFT`+`
   "role": "string | null",
   "contribution": "string | null",
   "technologies": ["string"],
-  "featured_position": "1 | 2 | 3 | null"
+  "featured_position": "1 | 2 | 3 | null",
+  "github": "ProjectGitHub | null"
 }
 ```
+
+`github` is the project's linked repository, or `null` when there is none; see "GitHub" below.
 
 `ProjectListResponse`: `{"items": [ProjectSummary]}`, newest first by creation time, at most 50 items (the project limit), no pagination. `ProjectSummary`:
 
@@ -261,15 +285,86 @@ A featured project is a showcase record with a position 1..3 without gaps; at mo
 ## GitHub
 
 ```http
-GET    /integrations/github/connect
-GET    /integrations/github/callback
 GET    /integrations/github/repositories
 POST   /integrations/github/repositories/{id}/import
 POST   /integrations/github/repositories/{id}/sync
-DELETE /integrations/github
+POST   /projects/{id}/repository
+DELETE /projects/{id}/repository
 ```
 
-Open question: how a client learns that an asynchronous sync job has finished (a dedicated status endpoint, a `sync_status` field on the repository list, or another mechanism) is not decided. Do not assume a specific mechanism until this is resolved.
+V1 reads only public GitHub data, with the platform's app credentials; the user grants no repository access, so there is no connect, callback or disconnect endpoint (ADR-016). All endpoints require a session; `POST` and `DELETE` require the frontend `Origin` (ADR-013). `{id}` under `/integrations/github/repositories/` is GitHub's numeric repository id (`github_repo_id`) as a positive decimal integer; anything else is 404 `NOT_FOUND`. `{id}` under `/projects/` is the project id, as for every project endpoint. Linking, import and sync rules: ADR-017 and ADR-018.
+
+| Endpoint | Success | Errors |
+|---|---|---|
+| `GET /integrations/github/repositories?page=N` | 200 `GitHubRepositoryListResponse` | 401; 422 `VALIDATION_ERROR` (`page` not an integer 1..100); 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
+| `POST /integrations/github/repositories/{id}/import` | 201 `ProjectResponse`: a new `DRAFT` + `PRIVATE` project titled after the repository, linked to it | 401; 403; 404 `NOT_FOUND` (malformed id, or the repository is not found or not public); 409 `PROJECT_LIMIT_REACHED`; 409 `GITHUB_REPOSITORY_ALREADY_LINKED`; 422 `GITHUB_RELATION_NOT_FOUND`; 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
+| `POST /integrations/github/repositories/{id}/sync` | 202 `GitHubSync`; an active job is reused | 401; 403; 404 `NOT_FOUND` (malformed id, or none of the user's projects links this repository); 429 `GITHUB_SYNC_TOO_SOON` |
+| `POST /projects/{id}/repository` | 200 `ProjectResponse`; replaces the project's previous link; the same repository again re-checks the relation | 401; 403; 404 `NOT_FOUND` (project); 409 `GITHUB_REPOSITORY_ALREADY_LINKED`; 422 `VALIDATION_ERROR`; 422 `GITHUB_REPOSITORY_NOT_FOUND`; 422 `GITHUB_RELATION_NOT_FOUND`; 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
+| `DELETE /projects/{id}/repository` | 200 `ProjectResponse` with `github: null`; not linked → no change | 401; 403; 404 `NOT_FOUND` |
+
+Every endpoint may also return 500 `INTERNAL_ERROR`.
+
+On every error of link and import nothing is stored, and an existing link stays as it was. A link or import queues a sync job; a link reads GitHub in the request (the repository and at most 5 pages of its contributors), so it may take a few seconds.
+
+`RepositoryLinkRequest` (body of `POST /projects/{id}/repository`): `{"full_name": "owner/name"}`. `owner` matches `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`; `name` matches `^[A-Za-z0-9._-]{1,100}$` and is not `.` or `..`. Anything else, and unknown fields, give 422 `VALIDATION_ERROR` before GitHub is called.
+
+`GitHubRepositoryListResponse`: the current user's own public repositories, read from GitHub in the request, 100 per page, most recently pushed first; nothing is stored. `next_page` is `null` on the last page.
+
+```json
+{
+  "items": [
+    {
+      "github_repo_id": 0,
+      "full_name": "string",
+      "html_url": "string",
+      "description": "string | null",
+      "is_fork": false,
+      "is_archived": false,
+      "pushed_at": "date-time | null",
+      "linked_project_id": "uuid | null"
+    }
+  ],
+  "next_page": "integer | null"
+}
+```
+
+`linked_project_id` is the user's own project that links the repository, if any. Repositories the user does not own but contributed to are linked by name through `POST /projects/{id}/repository`.
+
+`ProjectGitHub` (the `github` object of `ProjectResponse`, cabinet only):
+
+```json
+{
+  "github_repo_id": 0,
+  "full_name": "string",
+  "html_url": "string",
+  "description": "string | null",
+  "languages": [{"name": "string", "bytes": 0}],
+  "pushed_at": "date-time | null",
+  "is_fork": false,
+  "parent_full_name": "string | null",
+  "is_archived": false,
+  "relation": "OWNER | CONTRIBUTOR | NONE",
+  "unavailable": false,
+  "synced_at": "date-time | null",
+  "sync": "GitHubSync"
+}
+```
+
+- `relation`: `NONE` means a sync found the developer neither the owner nor in the contributor list; the GitHub block is hidden publicly until a later sync finds the relation again.
+- `unavailable`: GitHub answered 404 twice in a row (deleted or made private); the GitHub block is hidden publicly.
+- `synced_at`: the older of the times metadata and languages were last read successfully; `null` before the first successful sync. `languages` is `[]` until then.
+
+`GitHubSync` (also the body of the 202 answer of `POST .../sync`):
+
+```json
+{
+  "status": "NOT_SYNCED | QUEUED | SYNCING | SYNCED | FAILED",
+  "last_success_at": "date-time | null",
+  "next_manual_sync_at": "date-time | null"
+}
+```
+
+`status` is the latest sync job's state, `NOT_SYNCED` when there is none. `next_manual_sync_at` is when `POST .../sync` is allowed again (10 minutes after the repository's latest job was created), `null` if allowed now. Job errors are not returned. The client polls `GET /projects/{id}` while the status is `QUEUED` or `SYNCING`; there is no separate status endpoint (ADR-018).
 
 ## Analytics
 
@@ -315,6 +410,12 @@ Every error response, including framework errors, uses this shape:
 - 409 `PROJECT_NOT_FEATURABLE`: only a `PUBLISHED` + `PUBLIC` project can be featured; `details.status`, `details.visibility`.
 - 409 `FEATURED_LIMIT_REACHED`: three projects are already featured; `details.limit` (3).
 - 409 `FEATURED_ORDER_MISMATCH`: the reorder list is not the current featured set.
+- 502 `GITHUB_UNAVAILABLE`: GitHub timed out, answered with an error status or an unexpected body during the request. GitHub's response is not copied into the error.
+- 503 `GITHUB_RATE_LIMITED`: the platform's GitHub request budget is exhausted; `Retry-After` header and `details.retry_after_seconds` (ADR-018).
+- 422 `GITHUB_REPOSITORY_NOT_FOUND`: the named repository does not exist or is not public (GitHub does not tell the two apart).
+- 422 `GITHUB_RELATION_NOT_FOUND`: the developer is neither the repository's owner nor in its contributor list according to GitHub (ADR-017).
+- 409 `GITHUB_REPOSITORY_ALREADY_LINKED`: another of the user's projects already links this repository; `details.project_id`.
+- 429 `GITHUB_SYNC_TOO_SOON`: a manual sync of this repository was requested less than 10 minutes after its latest job; `Retry-After` header and `details.retry_after_seconds`.
 - A resource owned by another user returns the same 404 `NOT_FOUND` as a missing one; a malformed id in a project path is also `NOT_FOUND`, not `VALIDATION_ERROR`.
 - 500 `INTERNAL_ERROR`: generic message, empty `details`; the exception is logged server-side with the `request_id`.
 
@@ -333,5 +434,6 @@ Every error response, including framework errors, uses this shape:
 - 429 Too Many Requests
 - 500 Internal Server Error
 - 502 Bad Gateway (upstream GitHub failure)
+- 503 Service Unavailable (the platform's GitHub rate limit is exhausted)
 
 This is the preliminary contract. Exact schemas should be finalized during implementation and reflected in generated OpenAPI.

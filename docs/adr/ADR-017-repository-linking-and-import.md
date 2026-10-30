@@ -37,7 +37,7 @@ Public wording states the fact: «Владелец репозитория» or �
 
 ### Linking an existing project
 
-`PUT /projects/{id}/repository` with `{"full_name": "owner/name"}`:
+`POST /projects/{id}/repository` with `{"full_name": "owner/name"}` (`POST`, like the showcase actions, so CORS needs no new method):
 
 1. The owner and name are validated against the patterns of ADR-016 before any request.
 2. The backend reads the repository (one request) and, if the developer is not its owner, the contributor list (up to 5 requests). This is a bounded check of at most 6 requests, not a synchronization: ADR-008 rules out long syncs inside a request, and nothing here loops over repository content.
@@ -53,14 +53,14 @@ Linking replaces the project's previous link. Linking the same repository again 
 `POST /integrations/github/repositories/{id}/import`, where `{id}` is the numeric `github_repo_id` (from the repository list):
 
 - Creates a `DRAFT` + `PRIVATE` project whose `title` is the repository's `name` (at most 100 characters, as GitHub allows); every other project field is empty, and there are no technologies. GitHub's description is not copied into the project: it stays GitHub data, shown in the GitHub block (ADR-019).
-- Links the new project as above, with the same checks and errors, in one transaction with the project creation. The project limit (50) and `GITHUB_REPOSITORY_ALREADY_LINKED` apply.
+- Links the new project as above, with the same checks and errors, in one transaction with the project creation, except that a repository that is not found or not public is 404 `NOT_FOUND`, because it is the resource named in the path. The project limit (50) and `GITHUB_REPOSITORY_ALREADY_LINKED` apply.
 - Returns 201 with the project.
 
 Import is a convenience over "create project + link"; an imported project follows every rule of ADR-015.
 
 ### Repository list
 
-`GET /integrations/github/repositories` returns the current user's public repositories, read from GitHub in the request (`GET /users/{github_login}/repos`, owner repositories only), one GitHub page per call. Each item carries whether the user already links it to a project. The list is not stored. Repositories the user contributed to but does not own are linked by name through `PUT /projects/{id}/repository`.
+`GET /integrations/github/repositories` returns the current user's public repositories, read from GitHub in the request (`GET /users/{github_login}/repos`, owner repositories only), one GitHub page per call. Each item carries whether the user already links it to a project. The list is not stored. Repositories the user contributed to but does not own are linked by name through `POST /projects/{id}/repository`.
 
 ### Forks
 
