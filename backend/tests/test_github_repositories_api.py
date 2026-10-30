@@ -6,7 +6,7 @@ import logging
 import re
 import uuid
 from collections.abc import Generator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 import httpx
@@ -107,6 +107,8 @@ class Env:
     cache: RepositoryPageCache
     pause: RateLimitPause
     user: User
+    # Whether the database session had an open transaction at each GitHub request.
+    in_transaction: list[bool] = field(default_factory=list)
 
 
 @pytest.fixture
@@ -126,8 +128,12 @@ def env(make_auth_client, db_session: Session) -> Env:
         user=user,
     )
 
+    def handler(request: httpx.Request) -> httpx.Response:
+        state.in_transaction.append(db_session.in_transaction())
+        return github(request)
+
     def client() -> Generator[GitHubApiClient]:
-        with httpx.Client(transport=httpx.MockTransport(github)) as http_client:
+        with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
             yield GitHubApiClient(
                 http_client,
                 CLIENT_ID,
@@ -182,7 +188,9 @@ def _link(db: Session, owner: User, github_repo_id: int) -> uuid.UUID:
             relation="OWNER",
         )
     )
-    db.flush()
+    # Committed, as the application's own data is: the endpoint ends the request's
+    # read transaction before calling GitHub.
+    db.commit()
     return project.id
 
 
@@ -441,6 +449,16 @@ def test_query_count_does_not_depend_on_the_page_size(env, db_session):
 
 
 # Budget, pause and GitHub errors.
+
+
+def test_github_is_called_outside_any_transaction(env):
+    env.github.pages[(LOGIN, 1)] = [_repo(1)]
+    env.github.pages[(LOGIN, 2)] = [_repo(2)]
+
+    assert env.http.get(URL).status_code == 200
+    assert env.http.get(URL, params={"page": 2}).status_code == 200
+
+    assert env.in_transaction == [False, False]
 
 
 def test_exhausted_user_budget_is_refused_before_github(env):

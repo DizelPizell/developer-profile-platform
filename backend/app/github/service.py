@@ -36,7 +36,6 @@ from app.github.schemas import (
     ProjectGitHub,
 )
 from app.models.github import GitHubRepository, ProjectRepository
-from app.models.identity import User
 from app.models.projects import Project
 
 OWNER = "OWNER"
@@ -167,7 +166,9 @@ def _linked_projects(
 
 def list_repositories(
     db: Session,
-    user: User,
+    user_id: uuid.UUID,
+    github_login: str,
+    github_user_id: int,
     page: int,
     *,
     client: GitHubApiClient,
@@ -178,13 +179,14 @@ def list_repositories(
     """One page of the user's public repositories (ADR-017).
 
     Order of checks (ADR-018): the cache, which costs nothing; the user's budget
-    (429); the platform pause (503, in the client); GitHub.
+    (429); the platform pause (503, in the client); GitHub. The caller ends its
+    read transaction first; the linked projects are read after GitHub answers.
     """
-    result = cache.get(user.id, page, now)
+    result = cache.get(user_id, page, now)
     if result is None:
         try:
-            with budget.spend(user.id, LIST_PAGE_COST, now, client):
-                fetched = client.list_user_repositories(user.github_login, page)
+            with budget.spend(user_id, LIST_PAGE_COST, now, client):
+                fetched = client.list_user_repositories(github_login, page)
         except GitHubUserLimitReached as exc:
             raise _user_limit_reached(exc) from None
         except GitHubNotFound:
@@ -192,10 +194,10 @@ def list_repositories(
             raise _login_outdated() from None
         except GitHubError as exc:
             raise _github_error(exc, now) from None
-        result = _own_page(fetched, user.github_user_id)
-        cache.put(user.id, page, result, now)
+        result = _own_page(fetched, github_user_id)
+        cache.put(user_id, page, result, now)
 
-    linked = _linked_projects(db, user.id, [item.github_repo_id for item in result.items])
+    linked = _linked_projects(db, user_id, [item.github_repo_id for item in result.items])
     return GitHubRepositoryListResponse(
         items=[
             GitHubRepositoryListItem(

@@ -31,6 +31,18 @@ def list_repositories(
     cache: RepositoryPageCache = Depends(get_repository_page_cache),
     now: datetime = Depends(get_now),
 ) -> GitHubRepositoryListResponse:
+    user_id, github_login, github_user_id = user.id, user.github_login, user.github_user_id
+    # Ends the session check's read transaction: no transaction stays open while
+    # GitHub answers (ADR-010).
+    db.rollback()
     return service.list_repositories(
-        db, user, page, client=client, budget=budget, cache=cache, now=now
+        db,
+        user_id,
+        github_login,
+        github_user_id,
+        page,
+        client=client,
+        budget=budget,
+        cache=cache,
+        now=now,
     )
