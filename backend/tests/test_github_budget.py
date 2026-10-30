@@ -25,7 +25,7 @@ from app.github.client import (
     RateLimitPause,
     RateLimitState,
 )
-from app.settings import Settings
+from app.settings import Settings, settings
 
 T0 = datetime(2026, 10, 30, 12, 0, 0)
 USER = uuid.UUID("00000000-0000-0000-0000-000000000001")
@@ -38,7 +38,7 @@ def test_operation_costs_follow_adr_018():
 
 def test_settings_default_and_minimum():
     assert Settings.model_fields["github_user_requests_per_hour"].default == 60
-    assert user_request_budget._limit == 60
+    assert user_request_budget._limit == settings.github_user_requests_per_hour
     with pytest.raises(ValidationError):
         Settings(_env_file=None, github_user_requests_per_hour=6)
 
@@ -280,3 +280,81 @@ def test_invalid_input_is_reported_before_the_pause():
 
     with pytest.raises(InvalidGitHubInput):
         client.get_languages("octocat", "..")
+
+
+# spend(): the reservation is settled on every exit.
+
+
+def _owner_repository(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "id": 1296269,
+            "name": "Hello-World",
+            "full_name": "octocat/Hello-World",
+            "owner": {"login": "octocat", "id": 583231},
+            "private": False,
+            "html_url": "https://github.com/octocat/Hello-World",
+            "description": None,
+            "fork": False,
+            "archived": False,
+            "pushed_at": None,
+        },
+    )
+
+
+def test_spend_keeps_the_requests_sent():
+    budget = UserRequestBudget(60)
+    client = _client(_owner_repository, RateLimitPause(), Clock(T0))
+
+    with budget.spend(USER, LINK_COST, T0, client):
+        client.get_repository("octocat", "Hello-World")
+
+    assert budget.spent(USER, T0) == 1
+
+
+def test_spend_settles_when_the_operation_fails():
+    budget = UserRequestBudget(60)
+    pause = RateLimitPause()
+    pause.start(T0 + timedelta(minutes=5))
+    client = _client(_owner_repository, pause, Clock(T0))
+
+    with pytest.raises(GitHubRateLimited):
+        with budget.spend(USER, LINK_COST, T0, client):
+            client.get_repository("octocat", "Hello-World")
+
+    assert budget.spent(USER, T0) == 0
+
+
+def test_spend_counts_only_this_operation():
+    budget = UserRequestBudget(60)
+    client = _client(_owner_repository, RateLimitPause(), Clock(T0))
+    client.get_repository("octocat", "Hello-World")
+
+    with budget.spend(USER, LIST_PAGE_COST, T0, client):
+        client.get_repository("octocat", "Hello-World")
+
+    assert budget.spent(USER, T0) == 1
+
+
+def test_refused_spend_does_not_run_or_charge():
+    budget = UserRequestBudget(60)
+    budget.reserve(USER, 60, T0)
+    client = _client(_owner_repository, RateLimitPause(), Clock(T0))
+
+    with pytest.raises(GitHubUserLimitReached):
+        with budget.spend(USER, LINK_COST, T0, client):
+            client.get_repository("octocat", "Hello-World")
+
+    assert client.requests_sent == 0
+    assert budget.spent(USER, T0) == 60
+
+
+def test_users_without_recent_charges_are_forgotten():
+    budget = UserRequestBudget(60)
+    budget.reserve(USER, 1, T0)
+    budget.reserve(OTHER, 1, T0 + timedelta(minutes=30))
+
+    budget.reserve(OTHER, 1, T0 + timedelta(minutes=61))
+
+    assert set(budget._charges) == {OTHER}

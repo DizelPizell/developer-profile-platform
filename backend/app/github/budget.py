@@ -7,9 +7,12 @@ it; several processes would each keep their own, multiplying the limit.
 import math
 import threading
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from app.github.client import GitHubApiClient
 from app.settings import settings
 
 WINDOW = timedelta(hours=1)
@@ -57,11 +60,31 @@ class UserRequestBudget:
         self._limit = limit
         self._lock = threading.Lock()
         self._charges: dict[uuid.UUID, list[_Charge]] = {}
+        self._swept_at: datetime | None = None
+
+    @contextmanager
+    def spend(
+        self, user_id: uuid.UUID, max_requests: int, now: datetime, client: GitHubApiClient
+    ) -> Iterator[None]:
+        """Reserve the worst case, run the operation, keep what the client sent.
+
+        Settles on every exit, errors included, so a refused or paused operation
+        costs only the requests that reached GitHub (ADR-018). Use this for link,
+        import and the list; reserve() alone is for a manual sync, whose requests
+        the worker makes later.
+        """
+        reservation = self.reserve(user_id, max_requests, now)
+        sent_before = client.requests_sent
+        try:
+            yield
+        finally:
+            reservation.settle(client.requests_sent - sent_before)
 
     def reserve(self, user_id: uuid.UUID, max_requests: int, now: datetime) -> Reservation:
         if not 1 <= max_requests <= self._limit:
             raise ValueError("Invalid operation cost")
         with self._lock:
+            self._sweep(now)
             charges = [c for c in self._charges.get(user_id, []) if c.at > now - WINDOW]
             spent = sum(c.amount for c in charges)
             if spent + max_requests > self._limit:
@@ -75,6 +98,19 @@ class UserRequestBudget:
     def spent(self, user_id: uuid.UUID, now: datetime) -> int:
         with self._lock:
             return sum(c.amount for c in self._charges.get(user_id, []) if c.at > now - WINDOW)
+
+    def _sweep(self, now: datetime) -> None:
+        # At most once a window, forget users with no charge left in it, so the
+        # dict holds only users active in the last hour. Called under the lock.
+        if self._swept_at is not None and now - self._swept_at < WINDOW:
+            return
+        self._swept_at = now
+        for user_id in [
+            user_id
+            for user_id, charges in self._charges.items()
+            if all(c.at <= now - WINDOW for c in charges)
+        ]:
+            del self._charges[user_id]
 
     def _settle(self, charge: _Charge, used: int) -> None:
         with self._lock:
