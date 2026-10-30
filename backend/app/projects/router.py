@@ -1,9 +1,15 @@
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
+from app.github import service as github_service
+from app.github.budget import UserRequestBudget
+from app.github.client import GitHubApiClient
+from app.github.dependencies import get_github_api_client, get_now, get_user_request_budget
+from app.github.schemas import RepositoryLinkRequest
 from app.models.identity import User
 from app.models.projects import Project
 from app.projects import service
@@ -38,6 +44,7 @@ def _project_response(db: Session, project: Project) -> ProjectResponse:
         contribution=project.contribution,
         technologies=names,
         featured_position=position,
+        github=github_service.project_github(db, project.id),
     )
 
 
@@ -184,6 +191,42 @@ def unfeature_project(
     service.unfeature(db, project)
     db.commit()
     return _featured_response(db, profile_id)
+
+
+@router.post("/{project_id}/repository")
+def link_repository(
+    project_id: str,
+    payload: RepositoryLinkRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    client: GitHubApiClient = Depends(get_github_api_client),
+    budget: UserRequestBudget = Depends(get_user_request_budget),
+    now: datetime = Depends(get_now),
+) -> ProjectResponse:
+    # A missing or foreign project is 404 before GitHub is called.
+    service.get_own_project(db, user, project_id)
+    user_id, github_user_id = user.id, user.github_user_id
+    # Ends the read transaction: no transaction stays open while GitHub answers (ADR-010).
+    db.rollback()
+    checked = github_service.check_repository(
+        payload.full_name, user_id, github_user_id, client=client, budget=budget, now=now
+    )
+
+    project = service.get_own_project(db, user, project_id, for_update=True)
+    github_service.store_link(db, project, checked, now)
+    # Step 6.2: queue a sync job here, in this transaction (ADR-018).
+    db.commit()
+    return _project_response(db, project)
+
+
+@router.delete("/{project_id}/repository")
+def unlink_repository(
+    project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> ProjectResponse:
+    project = service.get_own_project(db, user, project_id, for_update=True)
+    github_service.unlink(db, project)
+    db.commit()
+    return _project_response(db, project)
 
 
 @featured_router.post("/reorder")

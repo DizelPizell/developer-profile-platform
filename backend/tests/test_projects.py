@@ -32,6 +32,7 @@ PROJECT_KEYS = {
     "contribution",
     "technologies",
     "featured_position",
+    "github",
 }
 SUMMARY_KEYS = {
     "id",
@@ -124,6 +125,7 @@ class TestCreate:
         assert body["visibility"] == "PRIVATE"
         assert body["technologies"] == []
         assert body["featured_position"] is None
+        assert body["github"] is None
         assert all(body[field] is None for field in PROJECT_TEXT_LIMITS)
 
     def test_create_with_all_fields(self, client):

@@ -1,26 +1,46 @@
 import logging
 import math
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, insert, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.github.budget import LIST_PAGE_COST, GitHubUserLimitReached, UserRequestBudget
+from app.github.budget import (
+    LINK_COST,
+    LIST_PAGE_COST,
+    GitHubUserLimitReached,
+    UserRequestBudget,
+)
 from app.github.client import (
     GitHubApiClient,
     GitHubCredentialsRejected,
     GitHubError,
+    GitHubMoved,
     GitHubNotFound,
     GitHubRateLimited,
+    GitHubRepositoryData,
     GitHubUnavailable,
     RepositoryPage,
 )
 from app.github.page_cache import RepositoryPageCache
-from app.github.schemas import GitHubRepositoryListItem, GitHubRepositoryListResponse
+from app.github.schemas import (
+    GitHubLanguage,
+    GitHubRepositoryListItem,
+    GitHubRepositoryListResponse,
+    GitHubSync,
+    ProjectGitHub,
+)
 from app.models.github import GitHubRepository, ProjectRepository
 from app.models.identity import User
+from app.models.projects import Project
+
+OWNER = "OWNER"
+CONTRIBUTOR = "CONTRIBUTOR"
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +85,28 @@ def _login_outdated() -> AppError:
         "Your GitHub login has changed, sign in again",
         409,
         log_context={"reason": "login_outdated"},
+    )
+
+
+def _repository_not_found() -> AppError:
+    return AppError("GITHUB_REPOSITORY_NOT_FOUND", "GitHub repository not found or not public", 422)
+
+
+def _relation_not_found() -> AppError:
+    return AppError(
+        "GITHUB_RELATION_NOT_FOUND",
+        "According to GitHub, you are neither the owner of this repository "
+        "nor in its contributor list",
+        422,
+    )
+
+
+def _already_linked(project_id: uuid.UUID | None) -> AppError:
+    return AppError(
+        "GITHUB_REPOSITORY_ALREADY_LINKED",
+        "Another of your projects already links this repository",
+        409,
+        {"project_id": str(project_id) if project_id else None},
     )
 
 
@@ -169,4 +211,156 @@ def list_repositories(
             for item in result.items
         ],
         next_page=page + 1 if result.has_next else None,
+    )
+
+
+# Linking (ADR-017).
+
+
+@dataclass(frozen=True)
+class CheckedRepository:
+    data: GitHubRepositoryData
+    relation: str
+
+
+def _read_repository(client: GitHubApiClient, owner: str, name: str) -> GitHubRepositoryData:
+    try:
+        return client.get_repository(owner, name)
+    except GitHubMoved as moved:
+        # An old name of a renamed or transferred repository: GitHub points to its id
+        # (ADR-017), so it is read by that id with one more request.
+        return client.get_repository_by_id(moved.repository_id)
+
+
+def check_repository(
+    full_name: str,
+    user_id: uuid.UUID,
+    github_user_id: int,
+    *,
+    client: GitHubApiClient,
+    budget: UserRequestBudget,
+    now: datetime,
+) -> CheckedRepository:
+    """The repository and the developer's relation to it, read from GitHub.
+
+    Touches no database: the caller ends its read transaction first, so no
+    transaction stays open while GitHub answers (ADR-010). The contributor list
+    is read only to find the developer's id in it and is not kept (ADR-017).
+    """
+    owner, _, name = full_name.partition("/")
+    try:
+        with budget.spend(user_id, LINK_COST, now, client):
+            data = _read_repository(client, owner, name)
+            if data.owner_github_id == github_user_id:
+                return CheckedRepository(data, OWNER)
+            if client.is_contributor(data.owner_login, data.name, github_user_id):
+                return CheckedRepository(data, CONTRIBUTOR)
+    except GitHubUserLimitReached as exc:
+        raise _user_limit_reached(exc) from None
+    except GitHubNotFound:
+        raise _repository_not_found() from None
+    except GitHubError as exc:
+        raise _github_error(exc, now) from None
+    raise _relation_not_found()
+
+
+def store_link(db: Session, project: Project, checked: CheckedRepository, now: datetime) -> None:
+    """Upserts the shared repository row and replaces the project's link.
+
+    Runs in the caller's write transaction, with the project row locked, so links
+    of one project are serialized; the database's unique constraints decide races
+    between projects. Nothing is committed here.
+    """
+    data = checked.data
+    metadata = {
+        "owner_github_id": data.owner_github_id,
+        "owner_login": data.owner_login,
+        "name": data.name,
+        "full_name": data.full_name,
+        "html_url": data.html_url,
+        "description": data.description,
+        "is_fork": data.is_fork,
+        "parent_full_name": data.parent_full_name,
+        "is_archived": data.is_archived,
+        "pushed_at": data.pushed_at,
+    }
+    # Languages are left to the sync (ADR-018); a successful read of the metadata
+    # clears unavailable_since.
+    repository_id = db.execute(
+        pg_insert(GitHubRepository)
+        .values(github_repo_id=data.github_repo_id, **metadata)
+        .on_conflict_do_update(
+            index_elements=[GitHubRepository.github_repo_id],
+            set_={**metadata, "unavailable_since": None, "updated_at": now},
+        )
+        .returning(GitHubRepository.id)
+    ).scalar_one()
+
+    db.execute(delete(ProjectRepository).where(ProjectRepository.project_id == project.id))
+    try:
+        with db.begin_nested():
+            db.execute(
+                insert(ProjectRepository).values(
+                    project_id=project.id,
+                    owner_id=project.owner_id,
+                    github_repository_id=repository_id,
+                    relation=checked.relation,
+                    relation_checked_at=now,
+                )
+            )
+    except IntegrityError as exc:
+        if (
+            getattr(exc.orig.diag, "constraint_name", None)
+            != "uq_project_repositories_owner_repository"
+        ):
+            raise
+        linked = db.scalar(
+            select(ProjectRepository.project_id).where(
+                ProjectRepository.owner_id == project.owner_id,
+                ProjectRepository.github_repository_id == repository_id,
+            )
+        )
+        raise _already_linked(linked) from None
+
+
+def unlink(db: Session, project: Project) -> None:
+    """Removes the project's link; the shared repository row stays (ADR-017)."""
+    db.execute(delete(ProjectRepository).where(ProjectRepository.project_id == project.id))
+
+
+def _utc(value: datetime | None) -> datetime | None:
+    return value.replace(tzinfo=UTC) if value else None
+
+
+def _languages(value: dict | None) -> list[GitHubLanguage]:
+    # Ordered when read: bytes descending, then name (ADR-017).
+    items = sorted((value or {}).items(), key=lambda item: (-item[1], item[0]))
+    return [GitHubLanguage(name=name, bytes=size) for name, size in items]
+
+
+def project_github(db: Session, project_id: uuid.UUID) -> ProjectGitHub | None:
+    """The cabinet's `github` object of a project, or None when it has no link."""
+    row = db.execute(
+        select(GitHubRepository, ProjectRepository.relation)
+        .join(ProjectRepository, ProjectRepository.github_repository_id == GitHubRepository.id)
+        .where(ProjectRepository.project_id == project_id)
+    ).first()
+    if row is None:
+        return None
+    repository, relation = row
+    return ProjectGitHub(
+        github_repo_id=repository.github_repo_id,
+        full_name=repository.full_name,
+        html_url=repository.html_url,
+        description=repository.description,
+        languages=_languages(repository.languages),
+        pushed_at=_utc(repository.pushed_at),
+        is_fork=repository.is_fork,
+        parent_full_name=repository.parent_full_name,
+        is_archived=repository.is_archived,
+        relation=relation,
+        unavailable=repository.unavailable_since is not None,
+        # No sync jobs before step 6.2 (ADR-018): never synced, a manual sync allowed.
+        synced_at=None,
+        sync=GitHubSync(status="NOT_SYNCED", last_success_at=None, next_manual_sync_at=None),
     )
