@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # GitHub requests one user may spend in any 60 minutes (ADR-018); at least
     # the most expensive operation, a manual sync of 7.
     github_user_requests_per_hour: int = Field(default=60, ge=7)
+    # How long a page of the repository list is kept in memory (ADR-017).
+    github_repository_list_cache_seconds: int = Field(default=300, ge=1)
 
     @property
     def secure_cookies(self) -> bool:

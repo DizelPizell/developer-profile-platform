@@ -64,3 +64,14 @@ def test_client_secret_hidden_in_repr():
 )
 def test_secure_cookies_off_only_in_development(app_env, expected):
     assert _settings(app_env=app_env).secure_cookies is expected
+
+
+def test_repository_list_cache_seconds_default_and_minimum(monkeypatch):
+    monkeypatch.delenv("GITHUB_REPOSITORY_LIST_CACHE_SECONDS", raising=False)
+
+    assert _settings().github_repository_list_cache_seconds == 300
+    assert (
+        _settings(github_repository_list_cache_seconds=1).github_repository_list_cache_seconds == 1
+    )
+    with pytest.raises(ValidationError):
+        _settings(github_repository_list_cache_seconds=0)

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.access_log import install_access_log_filter
 from app.errors import UnhandledErrorMiddleware, register_error_handlers
+from app.github.router import router as github_router
 from app.identity.router import router as auth_router
 from app.origin_check import OriginCheckMiddleware, origin_of
 from app.profile.router import public_router as public_profile_router
@@ -38,6 +39,7 @@ app.include_router(profile_router, prefix="/api/v1")
 app.include_router(public_profile_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(featured_projects_router, prefix="/api/v1")
+app.include_router(github_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

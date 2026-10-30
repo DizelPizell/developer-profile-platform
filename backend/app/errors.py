@@ -21,11 +21,14 @@ class AppError(Exception):
         details: dict | None = None,
         *,
         log_context: dict[str, str | int | None] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.code = code
         self.message = message
         self.status_code = status_code
         self.details = details or {}
+        # Response headers, such as Retry-After.
+        self.headers = headers
         # Server-side diagnostics only; never part of the response. Callers must
         # not put secrets, URLs with parameters or upstream response bodies here.
         self.log_context = log_context
@@ -67,7 +70,9 @@ def log_unhandled_exception(request: Request, exc: Exception) -> None:
 
 def app_error_response(request: Request, exc: AppError) -> JSONResponse:
     log_app_error(request, exc)
-    return error_response(request, exc.status_code, exc.code, exc.message, exc.details)
+    return error_response(
+        request, exc.status_code, exc.code, exc.message, exc.details, headers=exc.headers
+    )
 
 
 def internal_error_response(request: Request, exc: Exception) -> JSONResponse:
