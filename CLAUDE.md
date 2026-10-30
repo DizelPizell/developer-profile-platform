@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) has started ahead of Phase 4: steps 5.1–5.4 are done.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.5.
 
 
 
@@ -862,6 +862,8 @@ backend Phase 5 step 5.1: github_repositories and project_repositories models an
 
 backend Phase 5 steps 5.2–5.4: the GitHub API client with app credentials and the per-user request budget (ADR-016, ADR-018); the repository list with its in-memory page cache; linking and unlinking a project with the relation check (ADR-017)
 
+backend Phase 5 step 5.5: import of a repository as a DRAFT + PRIVATE project linked to it, in one transaction (ADR-017)
+
 
 
 Not yet started:
@@ -870,7 +872,7 @@ Not yet started:
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
-import and sync — Phase 5 step 5.5 and Phase 6 (ADR-016..019)
+sync and public GitHub data — Phase 6 (ADR-018, ADR-019)
 
 
 
@@ -878,7 +880,7 @@ Current next goal:
 
 
 
-Phase 5 step 5.5 (DEVELOPMENT_PLAN): import of a repository as a DRAFT + PRIVATE project (ADR-017). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+Phase 6 step 6.1 (DEVELOPMENT_PLAN): the sync tables github_sync_jobs and github_sync_category_status (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
