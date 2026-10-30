@@ -37,6 +37,24 @@ A job is a row in `github_sync_jobs` (ADR-009). The partial unique index on acti
 - Requests are made one at a time, never in parallel (GitHub's guidance against secondary limits).
 - In HTTP requests (link, import, repository list) an exhausted limit gives 503 `GITHUB_RATE_LIMITED` with `Retry-After`.
 
+### Request budget
+
+The platform's 5,000 requests per hour (ADR-016) are shared by the backend and the worker, and by every user; GitHub's `x-ratelimit-remaining` and `x-ratelimit-reset` describe this one shared budget. Without a split, one user who repeats links or manual syncs can exhaust it for everyone. Decided before step 5.2, 2026-10-30.
+
+Cost of one operation, in GitHub requests:
+
+- repository list: 1 per page;
+- link or import: 1, plus up to 5 contributor pages when the developer is not the owner (ADR-017);
+- sync job: up to 7 (metadata, languages, up to 5 contributor pages).
+
+Rules:
+
+- **Per user.** Each user may spend at most **60** GitHub requests in the last 60 minutes (configurable, `GITHUB_USER_REQUESTS_PER_HOUR`). Before calling GitHub the backend checks that the user's remaining budget covers the operation's maximum (6 for link and import, 1 for a list page); otherwise it answers 429 `GITHUB_USER_LIMIT_REACHED` with `Retry-After` and `details.retry_after_seconds`, without calling GitHub. The requests actually made are counted, so linking one's own repository costs 1. A manual sync that queues a new job counts 7 for the user who asked for it, because the worker makes those requests later; returning an active job counts nothing. Jobs queued by link, import and the periodic schedule are not counted against a user. Sixty requests cover a developer importing a dozen repositories in one sitting; the platform budget then holds about eighty users at their limit in the same hour.
+- **Reserve for users.** The worker claims no job while the latest `x-ratelimit-remaining` it has seen is at or below **500** (configurable, `GITHUB_WORKER_RESERVE`), until that response's `x-ratelimit-reset`. Syncs may wait (data is already up to 24 hours old), a developer who is linking a repository is waiting now, so the reserve protects HTTP requests and not the worker.
+- **Platform pause in the backend.** After an exhausted-limit answer the backend answers 503 `GITHUB_RATE_LIMITED` without calling GitHub until the reset time it was given, as the worker does.
+- The order in a request: input validation, then the repository list cache (ADR-017; a cached page costs nothing), then the user's budget (429), then the platform pause (503), then GitHub.
+- Counters and the pause are kept in the backend process's memory. V1 runs one backend process (the image starts uvicorn without `--workers`); a restart resets the counters, which allows at most one extra hour's budget per user. If the backend runs several processes, each keeps its own counters and the per-user limit multiplies by their number; that is the point to move the counters into PostgreSQL. Redis is not introduced for this.
+
 ### GitHub unavailable
 
 Timeouts, 5xx answers and malformed responses are retryable failures with ADR-009's backoff and attempt limit.
@@ -79,12 +97,17 @@ The worker is a separate process from the backend image (ADR-009), run as its ow
 
 - Data is up to 24 hours old unless a developer syncs manually.
 - A worker with a rate-limit pause in memory forgets it on restart and makes one more limited request.
+- The per-user budget is approximate: in-memory counters reset on restart and would multiply with several backend processes; a manual sync is counted at its maximum, not at what the worker spends.
+- A developer at the per-user limit waits up to an hour, even when the platform budget has room.
 - The deferred categories need a migration and new code when they return; their rules are already fixed, so it is additive.
 
 ## Alternatives considered
 
 - **Keep the full category set of ADR-011 in V1**: rejected — README and file tree would be stored before there is a safe way and a place to show them, and contributors and commits are other people's data with no V1 use.
 - **Counting rate-limit answers as failed attempts**: rejected — an exhausted platform budget would turn every queued job into `FAILED`.
+- **Only the platform limit, no per-user budget**: rejected — one user's repeated links or manual syncs (50 projects × 6 manual syncs an hour × 7 requests) could take the whole budget.
+- **A reserve for the worker instead of for users**: rejected — a delayed sync is invisible to most users, a refused link is not.
+- **Per-user counters in PostgreSQL or Redis**: rejected for V1 — one backend process is enough for in-memory counters; PostgreSQL is the path when there are several processes, and Redis is not part of V1.
 - **A separate sync status endpoint**: rejected for V1 — the cabinet already reads the project.
 - **A cron container for periodic syncs**: rejected — the worker already polls the database and the partial unique index makes its enqueue idempotent.
 

@@ -61,7 +61,11 @@ Import is a convenience over "create project + link"; an imported project follow
 
 ### Repository list
 
-`GET /integrations/github/repositories` returns the current user's public repositories, read from GitHub in the request (`GET /users/{github_login}/repos`, owner repositories only), one GitHub page per call. Each item carries whether the user already links it to a project. The list is not stored. Repositories the user contributed to but does not own are linked by name through `POST /projects/{id}/repository`.
+`GET /integrations/github/repositories` returns the current user's public repositories, read from GitHub in the request (`GET /users/{github_login}/repos`, owner repositories only), one GitHub page per call. Each item carries whether the user already links it to a project. The list is not stored in the database. Repositories the user contributed to but does not own are linked by name through `POST /projects/{id}/repository`.
+
+The backend keeps each page GitHub returned in its process memory for **5 minutes** (configurable, `GITHUB_REPOSITORY_LIST_CACHE_SECONDS`), keyed by user and page, so reopening the import screen does not spend the platform's budget (ADR-018, "Request budget"). Only successful answers are kept, and only GitHub's fields; whether an item is linked is read from the database on every call, so it is never stale. Expired entries are dropped when the cache is written. A repository created on GitHub a moment ago may appear only after the page expires; linking it by name is not cached. Conditional requests with ETags are not used until ADR-018's open check on them is done.
+
+Link, import and the list count against the user's GitHub request budget; over it they answer 429 `GITHUB_USER_LIMIT_REACHED` before calling GitHub (ADR-018).
 
 ### Forks
 
