@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     frontend_url: HttpUrl
     session_ttl_days: int = Field(default=14, ge=1)
     session_cookie_name: str = "session"
+    # GitHub requests one user may spend in any 60 minutes (ADR-018); at least
+    # the most expensive operation, a manual sync of 7.
+    github_user_requests_per_hour: int = Field(default=60, ge=7)
 
     @property
     def secure_cookies(self) -> bool:

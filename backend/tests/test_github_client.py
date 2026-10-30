@@ -20,6 +20,7 @@ from app.github.client import (
     GitHubUnavailable,
     GitHubUnexpected,
     InvalidGitHubInput,
+    RateLimitPause,
     RateLimitState,
 )
 
@@ -69,6 +70,7 @@ def _client(handler: Handler, state: RateLimitState | None = None):
         CLIENT_ID,
         CLIENT_SECRET,
         rate_limits=state or RateLimitState(),
+        pause=RateLimitPause(),
         now=lambda: NOW,
     )
     return client, recorder

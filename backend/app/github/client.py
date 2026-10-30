@@ -131,6 +131,32 @@ class RateLimitState:
 rate_limit_state = RateLimitState()
 
 
+class RateLimitPause:
+    """After an exhausted-limit answer, no request until the reset (ADR-018).
+
+    Each process keeps its own: the backend's makes link, import and the list
+    answer 503 GITHUB_RATE_LIMITED without calling GitHub.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._until: datetime | None = None
+
+    def start(self, until: datetime) -> None:
+        with self._lock:
+            if self._until is None or until > self._until:
+                self._until = until
+
+    def check(self, now: datetime) -> None:
+        with self._lock:
+            until = self._until
+        if until is not None and now < until:
+            raise GitHubRateLimited(until)
+
+
+backend_pause = RateLimitPause()
+
+
 @dataclass(frozen=True)
 class GitHubRepositoryData:
     """One repository, as stored in github_repositories (ADR-017)."""
@@ -316,7 +342,7 @@ def _check_page(page: int, maximum: int) -> None:
 
 
 class GitHubApiClient:
-    """One instance per unit of work; rate_limits is shared by the process.
+    """One instance per unit of work; rate_limits and pause are shared by the process.
 
     requests_sent counts requests that left this client (a timeout counts: GitHub
     may have served it), for the per-user budget (ADR-018).
@@ -329,12 +355,14 @@ class GitHubApiClient:
         client_secret: str,
         *,
         rate_limits: RateLimitState,
+        pause: RateLimitPause,
         now: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._client = http_client
         token = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode("ascii")
         self._authorization = f"Basic {token}"
         self._rate_limits = rate_limits
+        self._pause = pause
         self._now = now
         self.requests_sent = 0
 
@@ -429,6 +457,7 @@ class GitHubApiClient:
         return False
 
     def _get(self, operation: str, path: str, params: dict | None = None) -> httpx.Response:
+        self._pause.check(self._now())
         self.requests_sent += 1
         try:
             response = self._client.get(
@@ -470,6 +499,7 @@ class GitHubApiClient:
         if status in (403, 429):
             retry_at = _limited_until(response, rate, self._now())
             if retry_at is not None:
+                self._pause.start(retry_at)
                 raise GitHubRateLimited(retry_at)
         if status == 401:
             raise GitHubCredentialsRejected(status)
