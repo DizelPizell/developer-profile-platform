@@ -73,9 +73,9 @@ GitHub sync status storage is resolved: `github_sync_jobs` is the single source 
 - `github_accounts.avatar_url` is nullable GitHub data, refreshed on every login; a login response without a usable avatar keeps the stored value — see ADR-013.
 - One project has at most one showcase record (`project_showcases.project_id` unique); a showcase row means the project is featured.
 - One project has at most one Demo.
-- One project has at most one linked GitHub repository in V1 (`project_repositories.project_id` unique). A user links a given repository to at most one of their projects (domain rule under the owner's profile lock) — see ADR-017-repository-linking-and-import.md.
+- One project has at most one linked GitHub repository in V1 (`project_repositories.project_id` unique). A user links a given repository to at most one of their projects: `project_repositories.owner_id` repeats the project's owner, `UNIQUE (owner_id, github_repository_id)` holds the rule, and the composite foreign key `(project_id, owner_id) → projects (id, owner_id)` keeps `owner_id` correct — see ADR-017-repository-linking-and-import.md.
 - `project_repositories.relation` is one of OWNER, CONTRIBUTOR, NONE; set when linking, recomputed by every sync; the contributor list behind it is not stored — see ADR-017.
-- `project_repositories.project_id` cascades on project deletion; `github_repository_id` is `ON DELETE RESTRICT`, so a linked repository row cannot be removed.
+- `project_repositories (project_id, owner_id)` cascades on project deletion; `github_repository_id` is `ON DELETE RESTRICT`, so a linked repository row cannot be removed.
 - GitHub external IDs are unique (`github_repositories.github_repo_id`).
 - Featured projects are limited to three per profile, held by the database: `project_showcases.position` CHECK 1..3 and UNIQUE (`profile_id`, `position`). The unique constraint is `DEFERRABLE INITIALLY IMMEDIATE`, so it is checked at the end of each statement and a reorder or gap renumbering is a single `UPDATE`. Positions have no gaps. Only `PUBLISHED` + `PUBLIC` projects are featured; that rule crosses tables and is enforced in the domain — see ADR-015-project-model.md.
 - `projects.owner_id` references `users.id`; at most 50 projects per user, checked in the domain under a lock on the owner's profile row.

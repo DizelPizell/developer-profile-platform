@@ -66,6 +66,8 @@ class Project(Base):
             + ")",
             name="ck_projects_published_complete",
         ),
+        # Target of the composite foreign key from project_repositories (ADR-017).
+        UniqueConstraint("id", "owner_id", name="uq_projects_id_owner"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

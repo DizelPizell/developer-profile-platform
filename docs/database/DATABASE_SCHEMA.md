@@ -84,15 +84,19 @@ The four text fields are nullable; stored values are trimmed and never blank. `u
 
 ## GitHub repository fields (ADR-017)
 
-`id`, `github_repo_id` (BIGINT, unique), `owner_github_id` (BIGINT), `owner_login`, `name`, `full_name`, `html_url` (`https://github.com/...` only), `description` (nullable), `is_fork`, `parent_full_name` (nullable), `is_archived`, `pushed_at` (nullable), `languages` (JSONB, nullable until the first sync), `unavailable_since` (nullable), `created_at`, `updated_at`.
+`id`, `github_repo_id` (BIGINT, unique), `owner_github_id` (BIGINT), `owner_login` (TEXT), `name` (TEXT), `full_name` (TEXT), `html_url` (TEXT, `https://github.com/...` only), `description` (TEXT, nullable), `is_fork` (BOOLEAN), `parent_full_name` (TEXT, nullable), `is_archived` (BOOLEAN), `pushed_at` (nullable), `languages` (JSONB object `{"language": bytes}`, nullable until the first sync), `unavailable_since` (nullable), `created_at`, `updated_at`.
+
+Text from GitHub has no length limit: GitHub is the authority and the API client checks what it accepts. CHECKs hold the platform's invariants only: `ck_github_repositories_names` (`owner_login` and `name` not blank), `ck_github_repositories_full_name` (`full_name = owner_login || '/' || name`), `ck_github_repositories_html_url` (`starts_with(html_url, 'https://github.com/')`), `ck_github_repositories_languages` (`languages` is NULL or a JSON object).
 
 Shared by all users: one row per GitHub repository, whoever links it. `unavailable_since` is set after two 404s in a row and cleared by a successful sync (ADR-018); it is a repository fact, not sync status. Rows that no project links are kept (cleanup is an open question of ADR-017).
 
 ## Project repository fields (ADR-017)
 
-`id`, `project_id` (unique, FK → projects, `ON DELETE CASCADE`), `github_repository_id` (FK → github_repositories, `ON DELETE RESTRICT`), `relation` (VARCHAR(20): OWNER/CONTRIBUTOR/NONE), `relation_checked_at`, `created_at`.
+`id`, `project_id` (unique), `owner_id` (the project's owner), `github_repository_id` (FK → github_repositories, `ON DELETE RESTRICT`), `relation` (VARCHAR(20): OWNER/CONTRIBUTOR/NONE, `ck_project_repositories_relation`), `relation_checked_at`, `created_at`.
 
-One repository per project. A user links a given repository to at most one of their projects (domain rule under the owner's profile lock). The contributor list used for `relation` is not stored.
+`(project_id, owner_id)` is a foreign key to `projects (id, owner_id)` with `ON DELETE CASCADE`; `projects` carries `UNIQUE (id, owner_id)` (`uq_projects_id_owner`) as its target. Deleting a project or its user removes the link; the repository row stays.
+
+One repository per project. A user links a given repository to at most one of their projects: `UNIQUE (owner_id, github_repository_id)` (`uq_project_repositories_owner_repository`); the composite foreign key keeps `owner_id` equal to the project's owner. The contributor list used for `relation` is not stored.
 
 ## Project fields (Phase 3)
 
@@ -138,7 +142,7 @@ The seven text fields are nullable `TEXT` with CHECK constraints; stored values 
 - GitHub user/repository external IDs unique (github_repository.github_repo_id unique)
 - no GitHub user token is stored in V1 (ADR-016); if one ever is, it is encrypted at rest (ADR-003)
 - project_repository.project_id unique; project_repository.relation is one of OWNER, CONTRIBUTOR, NONE; github_repository_id `ON DELETE RESTRICT`
-- one repository per user's projects: enforced in the domain under the owner's profile lock (ADR-017)
+- one repository per user's projects: project_repository unique (owner_id, github_repository_id) (`uq_project_repositories_owner_repository`); (project_id, owner_id) FK → project (id, owner_id) `ON DELETE CASCADE`, with project unique (id, owner_id) (`uq_projects_id_owner`) — ADR-017
 - timestamps on mutable entities
 - github_sync_job: at most one row with status in (QUEUED, SYNCING) per github_repository (partial unique index) — see ADR-009-github-sync-worker-execution-model.md
 - github_sync_job columns: `id`, `github_repository_id`, `status` (QUEUED/SYNCING/SYNCED/FAILED), `attempt_count`, `scheduled_at`, `last_error`, `created_at`, `updated_at`

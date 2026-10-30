@@ -74,6 +74,29 @@ def test_migrations_apply_to_empty_database(db_engine, monkeypatch):
             # DEFERRABLE INITIALLY IMMEDIATE (ADR-015).
             assert tuple(deferrable) == (True, False)
 
+            # ADR-017: shared repositories and project links.
+            assert {"github_repositories", "project_repositories"} <= set(schema.get_table_names())
+            assert {
+                "ck_github_repositories_names",
+                "ck_github_repositories_full_name",
+                "ck_github_repositories_html_url",
+                "ck_github_repositories_languages",
+            } <= {c["name"] for c in schema.get_check_constraints("github_repositories")}
+            link_uniques = {
+                u["name"] for u in schema.get_unique_constraints("project_repositories")
+            }
+            assert "uq_project_repositories_owner_repository" in link_uniques
+            assert "uq_projects_id_owner" in {
+                u["name"] for u in schema.get_unique_constraints("projects")
+            }
+
+            alembic_command.downgrade(cfg, "f09e0777cfe5")
+            tables = set(inspect(engine).get_table_names())
+            assert not {"github_repositories", "project_repositories"} & tables
+            assert "uq_projects_id_owner" not in {
+                u["name"] for u in inspect(engine).get_unique_constraints("projects")
+            }
+
             alembic_command.downgrade(cfg, "a3f1c9e27b54")
             assert "projects" not in inspect(engine).get_table_names()
             assert "profiles" in inspect(engine).get_table_names()

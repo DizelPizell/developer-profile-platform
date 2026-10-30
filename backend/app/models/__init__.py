@@ -1,3 +1,4 @@
+from app.models.github import GitHubRepository, ProjectRepository
 from app.models.identity import AuthSession, GitHubAccount, Profile, User
 from app.models.projects import Project, ProjectShowcase, ProjectTechnology, Technology
 
@@ -10,4 +11,6 @@ __all__ = [
     "Technology",
     "ProjectTechnology",
     "ProjectShowcase",
+    "GitHubRepository",
+    "ProjectRepository",
 ]
