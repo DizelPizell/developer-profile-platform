@@ -36,6 +36,8 @@ _USER_AGENT = "developer-profile-platform"
 SECONDARY_LIMIT_WAIT = timedelta(seconds=60)
 # The primary limit resets every hour; a longer wait from a header is not believed.
 MAX_RATE_LIMIT_WAIT = timedelta(hours=1)
+# A wait of zero would make the pause end at once and the next request hit the limit.
+MIN_RATE_LIMIT_WAIT = timedelta(seconds=1)
 
 _MOVED_TO = re.compile(re.escape(GITHUB_API) + r"/repositories/([1-9][0-9]{0,18})(?:[/?#].*)?")
 
@@ -246,10 +248,11 @@ def _limited_until(
             return now + SECONDARY_LIMIT_WAIT
         # Capped before the addition, so a huge value cannot overflow datetime.
         wait = min(retry_after, int(MAX_RATE_LIMIT_WAIT.total_seconds()))
+        wait = max(wait, int(MIN_RATE_LIMIT_WAIT.total_seconds()))
         return now + timedelta(seconds=wait)
     if rate is not None and rate.remaining == 0:
         if rate.reset_at is not None and rate.reset_at > now:
-            return min(rate.reset_at, now + MAX_RATE_LIMIT_WAIT)
+            return min(max(rate.reset_at, now + MIN_RATE_LIMIT_WAIT), now + MAX_RATE_LIMIT_WAIT)
         return now + SECONDARY_LIMIT_WAIT
     if response.status_code == 429 or _is_secondary_limit(response):
         return now + SECONDARY_LIMIT_WAIT

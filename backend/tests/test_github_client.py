@@ -721,6 +721,31 @@ def test_exhausted_limit_with_invalid_reset_waits_a_minute(reset):
     assert exc.value.retry_at == NOW + timedelta(seconds=60)
 
 
+@pytest.mark.parametrize("status", [403, 429])
+def test_zero_retry_after_waits_a_second(status):
+    client, _ = _client(_json(status, {}, {"retry-after": "0"}))
+
+    with pytest.raises(GitHubRateLimited) as exc:
+        client.get_repository("octocat", "Hello-World")
+    assert exc.value.retry_at == NOW + timedelta(seconds=1)
+
+
+def test_reset_less_than_a_second_away_waits_a_second():
+    now = NOW - timedelta(milliseconds=500)
+    client = GitHubApiClient(
+        httpx.Client(transport=httpx.MockTransport(_json(403, {}, _rate_headers(0, NOW)))),
+        CLIENT_ID,
+        CLIENT_SECRET,
+        rate_limits=RateLimitState(),
+        pause=RateLimitPause(),
+        now=lambda: now,
+    )
+
+    with pytest.raises(GitHubRateLimited) as exc:
+        client.get_repository("octocat", "Hello-World")
+    assert exc.value.retry_at == now + timedelta(seconds=1)
+
+
 def test_far_reset_is_capped_at_an_hour():
     client, _ = _client(_json(403, {}, _rate_headers(0, NOW + timedelta(days=400))))
 
