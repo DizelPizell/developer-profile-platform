@@ -42,7 +42,7 @@ V1 reads only public GitHub data. A repository that GitHub does not return to an
 
 - Requests go only to the fixed base URL `https://api.github.com`. No URL is built from user input other than path segments that passed validation.
 - A repository named by the user is accepted only as `owner/name`, where `owner` matches `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$` and `name` matches `^[A-Za-z0-9._-]{1,100}$` and is not `.` or `..`. Anything else is a validation error before any request is made. These patterns are a safety filter; GitHub stays the authority on whether the repository exists.
-- Repository ids are integers. Redirects are followed only when the target is on `api.github.com`.
+- Repository ids are integers. Redirects are never followed. A redirect whose `Location` is `https://api.github.com/repositories/{id}` (what GitHub answers for a renamed repository) is reported to the caller as a moved repository with that id, and the caller decides whether to read it by id; any other redirect is an unexpected answer. Decided in step 5.2, 2026-10-30.
 - Logs carry the request id, the GitHub HTTP status and a fixed reason label, as the login client does today (`app/identity/github_client.py`). Response bodies, headers with credentials and README text are never logged.
 
 ### Private repositories later
@@ -70,12 +70,17 @@ If private repositories are needed, they come through a GitHub App with read-onl
 - **A GitHub App now.** Rejected for V1: a private key, JWT signing and an installation flow for a capability V1 does not need. It is the path for private repositories later.
 - **Unauthenticated requests.** Rejected: 60 requests per hour per IP is not enough for one active user.
 
+## Checked by hand
+
+Checked in step 5.2 on 2026-10-30, with the platform's app credentials and no user token, by one run of `backend/scripts/github_smoke.py`:
+
+- The credentials are accepted: `GET /rate_limit` reports a core limit of 5,000, not the unauthenticated 60. `/rate_limit` itself did not spend the limit.
+- A `304 Not Modified` answer to a request with Basic app credentials and `If-None-Match` did not spend the primary limit: `x-ratelimit-used` was 2 on the request before it, 2 on the 304 and 3 on the next request. This is one observation on an otherwise idle budget. Whether syncs send conditional requests is an open question of ADR-018.
+- Public repositories of an organization (`github`) are readable.
+
 ## Not verified
 
-The following were not confirmed in GitHub's documentation and are checked by hand, without a user token, in step 5.2 (DEVELOPMENT_PLAN). The design must not rely on them until then:
-
-- whether a `304 Not Modified` answer to a request with Basic app credentials is free of the primary rate limit (the documentation says a 304 is free only when the request carries an `Authorization` header);
-- whether public repositories of an organization with OAuth app access restrictions are readable with app credentials (the documentation says only that private resources are not).
+- Whether public repositories of an organization that restricts OAuth app access are readable with app credentials (the documentation says only that private resources are not). The run used an organization not known to restrict access. The design does not rely on it.
 
 ## Not decided by this ADR
 

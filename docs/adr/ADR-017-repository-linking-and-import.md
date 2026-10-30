@@ -63,7 +63,7 @@ Import is a convenience over "create project + link"; an imported project follow
 
 `GET /integrations/github/repositories` returns the current user's public repositories, read from GitHub in the request (`GET /users/{github_login}/repos`, owner repositories only), one GitHub page per call. Each item carries whether the user already links it to a project. The list is not stored in the database. Repositories the user contributed to but does not own are linked by name through `POST /projects/{id}/repository`.
 
-The backend keeps each page GitHub returned in its process memory for **5 minutes** (configurable, `GITHUB_REPOSITORY_LIST_CACHE_SECONDS`), keyed by user and page, so reopening the import screen does not spend the platform's budget (ADR-018, "Request budget"). Only successful answers are kept, and only GitHub's fields; whether an item is linked is read from the database on every call, so it is never stale. Expired entries are dropped when the cache is written. A repository created on GitHub a moment ago may appear only after the page expires; linking it by name is not cached. Conditional requests with ETags are not used until ADR-018's open check on them is done.
+The backend keeps each page GitHub returned in its process memory for **5 minutes** (configurable, `GITHUB_REPOSITORY_LIST_CACHE_SECONDS`), keyed by user and page, so reopening the import screen does not spend the platform's budget (ADR-018, "Request budget"). Only successful answers are kept, and only GitHub's fields; whether an item is linked is read from the database on every call, so it is never stale. Expired entries are dropped when the cache is written. A repository created on GitHub a moment ago may appear only after the page expires; linking it by name is not cached. Conditional requests with ETags are not used for the list in V1, although a 304 did not spend the limit in step 5.2 (ADR-016); the cache already covers repeated loads.
 
 Link, import and the list count against the user's GitHub request budget; over it they answer 429 `GITHUB_USER_LIMIT_REACHED` before calling GitHub (ADR-018).
 
@@ -104,16 +104,17 @@ If a sync finds the developer neither owner nor contributor, the link stays with
 - **Storing the contributor list**: rejected for V1 — it is other people's data and is needed only for the relation check.
 - **Computing the relation asynchronously after linking**: rejected — the developer would not get an immediate, clear refusal.
 
-## Not verified
+## Checked by hand
 
-To be checked by hand in step 5.2 (DEVELOPMENT_PLAN), without a user token:
+Checked in step 5.2 on 2026-10-30, with app credentials and no user token (`backend/scripts/github_smoke.py`, one run):
 
-- whether `GET /repositories/{id}` reads a public repository by numeric id with app credentials (import and sync rely on it; if it does not work, import takes `owner/name` instead and the contract changes);
-- what the API answers for a renamed or transferred repository (the documentation lists `301 Moved Permanently` without details);
-- that `GET /users/{username}/repos` with `type=owner` returns only public repositories when called with app credentials.
+- `GET /repositories/{id}` reads a public repository by numeric id. Import and sync by `github_repo_id` stay as decided; the contract does not change.
+- A request by an old name (`twitter/bootstrap`) answers `301` with `Location: https://api.github.com/repositories/2126244`. The client reports it as a moved repository with that id and does not follow it (ADR-016). A transfer was not checked; GitHub documents the same redirect.
+- `GET /users/{username}/repos` with `type=owner` returned only public repositories (8 of 8 for `octocat`). The evidence is weak, since the account may have no private repositories; the client also drops any item marked private (step 5.2).
 
 ## Open questions
 
+- Linking by an old name: whether `POST /projects/{id}/repository` reads the repository by the id of the redirect or refuses it; to be decided in step 5.4.
 - Cleanup of `github_repositories` rows that no project links.
 - Whether the data of an unavailable repository is deleted after some time.
 - Repositories the developer contributed to through an organization, when the contributor list does not show them.

@@ -111,15 +111,16 @@ The worker is a separate process from the backend image (ADR-009), run as its ow
 - **A separate sync status endpoint**: rejected for V1 — the cabinet already reads the project.
 - **A cron container for periodic syncs**: rejected — the worker already polls the database and the partial unique index makes its enqueue idempotent.
 
-## Not verified
+## Checked by hand
 
-Checked by hand in step 5.2 (DEVELOPMENT_PLAN), without a user token:
+Checked in step 5.2 on 2026-10-30, with app credentials and no user token (`backend/scripts/github_smoke.py`, one run):
 
-- whether README and the recursive file tree are readable with app credentials (needed only when those categories return);
-- whether conditional requests with Basic app credentials save the rate limit (ADR-016); V1 does not store ETags until this is known.
+- README and the recursive file tree of a public repository are readable (`octocat/Hello-World`; the tree was not truncated). Access does not block the deferred categories when they return.
+- A `304` to a conditional request did not spend the limit (ADR-016). V1 still does not store ETags; see "Open questions".
 
 ## Open questions
 
+- Conditional requests in syncs: storing an ETag per repository and category would let an unchanged repository cost no budget, since a 304 did not spend the limit in step 5.2. Not in V1 until decided, at the latest with steps 6.3–6.4.
 - File content for the code viewer (ADR-011's open question) and the return of README and the file tree.
 - Whether periodic syncs should skip repositories linked only to hidden (`PUBLISHED` + `PRIVATE`) projects.
 - Worker health checks and alerting beyond the restart policy (Phase 9).
