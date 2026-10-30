@@ -19,14 +19,26 @@ rate-limit headers, Location and a short conclusion: never response bodies or
 credentials. About 15 requests from the platform's shared hourly budget.
 
 Run from the repository root, with the backend image (compose passes .env to
-the container's environment):
+the container's environment). The script imports app.github.client, so build
+the image from the current code first: docker compose build backend.
+Linux and macOS:
 
     docker compose run --rm --no-deps -v "$PWD/backend/scripts:/app/scripts:ro" \
-        backend python scripts/github_smoke.py
+        backend python -m scripts.github_smoke
 
-or with the variables already exported in the shell:
+Git Bash on Windows (without MSYS_NO_PATHCONV the mount path is rewritten):
 
-    python backend/scripts/github_smoke.py --org github --empty-repo owner/name
+    MSYS_NO_PATHCONV=1 docker compose run --rm --no-deps \
+        -v "$(pwd -W)/backend/scripts:/app/scripts:ro" backend python -m scripts.github_smoke
+
+PowerShell:
+
+    docker compose run --rm --no-deps -v "${PWD}/backend/scripts:/app/scripts:ro" `
+        backend python -m scripts.github_smoke
+
+or from backend/, with the variables already exported in the shell:
+
+    python -m scripts.github_smoke --org github --empty-repo owner/name
 """
 
 import argparse
@@ -38,9 +50,9 @@ from dataclasses import dataclass
 
 import httpx
 
-GITHUB_API = "https://api.github.com"
-_OWNER = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?")
-_NAME = re.compile(r"[A-Za-z0-9._-]{1,100}")
+# The client's own filters; importing it needs no database or settings.
+from app.github.client import GITHUB_API, is_valid_name, is_valid_owner
+
 _RATE_HEADERS = ("limit", "remaining", "used", "resource")
 
 
@@ -55,13 +67,13 @@ class Row:
 
 def _full_name(value: str) -> tuple[str, str]:
     owner, _, name = value.partition("/")
-    if not _OWNER.fullmatch(owner) or not _NAME.fullmatch(name) or name in {".", ".."}:
+    if not is_valid_owner(owner) or not is_valid_name(name):
         raise argparse.ArgumentTypeError("expected owner/name")
     return owner, name
 
 
 def _owner(value: str) -> str:
-    if not _OWNER.fullmatch(value):
+    if not is_valid_owner(value):
         raise argparse.ArgumentTypeError("expected a GitHub login")
     return value
 
@@ -123,7 +135,9 @@ def run(smoke: Smoke, args: argparse.Namespace) -> None:
     owner, name = args.repo
 
     limits = _json(smoke.get("rate_limit", "/rate_limit"))
-    core = limits.get("resources", {}).get("core", {}) if isinstance(limits, dict) else {}
+    resources = limits.get("resources") if isinstance(limits, dict) else None
+    core = resources.get("core") if isinstance(resources, dict) else None
+    core = core if isinstance(core, dict) else {}
     smoke.conclude(
         f"core limit {core.get('limit')}: "
         + ("app credentials accepted" if core.get("limit") == 5000 else "NOT the app limit")
@@ -164,7 +178,7 @@ def run(smoke: Smoke, args: argparse.Namespace) -> None:
         "readable" if readme is not None and readme.status_code == 200 else "not readable"
     )
 
-    if isinstance(branch, str) and _NAME.fullmatch(branch):
+    if is_valid_name(branch):
         tree = _json(
             smoke.get(
                 "tree, recursive",
@@ -257,7 +271,11 @@ def main() -> int:
 
     with httpx.Client() as client:
         smoke = Smoke(client, f"Basic {token}")
-        run(smoke, args)
+        try:
+            run(smoke, args)
+        except Exception as exc:
+            # Print what was collected; the exception's type only, never its text.
+            smoke.rows.append(Row("script stopped", type(exc).__name__, "-", "-", ""))
 
     widths = [max(len(getattr(r, f)) for r in smoke.rows) for f in ("label", "status", "rate")]
     for row in smoke.rows:

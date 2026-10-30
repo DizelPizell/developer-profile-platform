@@ -82,3 +82,45 @@ def test_smoke_needs_credentials_in_the_environment(monkeypatch, capsys):
 def test_smoke_rejects_malformed_repository_names(value):
     with pytest.raises(argparse.ArgumentTypeError):
         github_smoke._full_name(value)
+
+
+def _args() -> argparse.Namespace:
+    return argparse.Namespace(
+        repo=("octocat", "Hello-World"),
+        renamed=("twitter", "bootstrap"),
+        user="octocat",
+        org="github",
+        empty_repo=None,
+    )
+
+
+@pytest.mark.parametrize("resources", [None, [], {"core": None}, {"core": [1]}])
+def test_smoke_survives_an_odd_rate_limit_body(resources):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rate_limit":
+            return httpx.Response(200, json={"resources": resources})
+        return _handler(request)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        smoke = github_smoke.Smoke(client, "Basic x")
+        github_smoke.run(smoke, _args())
+
+    assert smoke.rows[0].conclusion == "core limit None: NOT the app limit"
+    assert len(smoke.rows) > 5
+
+
+def test_smoke_prints_collected_rows_when_it_stops(monkeypatch, capsys):
+    def failing_run(smoke, args):
+        smoke.rows.append(github_smoke.Row("rate_limit", "200", "-", "-", "ok"))
+        raise RuntimeError(SECRET)
+
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "id")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", SECRET)
+    monkeypatch.setattr("sys.argv", ["github_smoke.py"])
+    monkeypatch.setattr(github_smoke, "run", failing_run)
+
+    assert github_smoke.main() == 0
+    out = capsys.readouterr().out
+    assert "rate_limit" in out
+    assert "script stopped  RuntimeError" in out
+    assert SECRET not in out
