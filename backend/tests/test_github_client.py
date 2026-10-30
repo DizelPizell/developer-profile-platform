@@ -699,6 +699,28 @@ def test_retry_after_is_capped_at_an_hour(retry_after):
     assert exc.value.retry_at == NOW + timedelta(hours=1)
 
 
+@pytest.mark.parametrize("status", [403, 429])
+@pytest.mark.parametrize(
+    "retry_after", ["-5", "soon", "1.5", "", "Wed, 21 Oct 2026 07:28:00 GMT", "١٢٠".encode()]
+)
+def test_invalid_retry_after_waits_a_minute(status, retry_after):
+    client, _ = _client(_json(status, {}, {"retry-after": retry_after}))
+
+    with pytest.raises(GitHubRateLimited) as exc:
+        client.get_repository("octocat", "Hello-World")
+    assert exc.value.retry_at == NOW + timedelta(seconds=60)
+
+
+@pytest.mark.parametrize("reset", ["-5", "soon", "9" * 40, "99999999999999"])
+def test_exhausted_limit_with_invalid_reset_waits_a_minute(reset):
+    headers = {"x-ratelimit-remaining": "0", "x-ratelimit-reset": reset}
+    client, _ = _client(_json(403, {}, headers))
+
+    with pytest.raises(GitHubRateLimited) as exc:
+        client.get_repository("octocat", "Hello-World")
+    assert exc.value.retry_at == NOW + timedelta(seconds=60)
+
+
 def test_far_reset_is_capped_at_an_hour():
     client, _ = _client(_json(403, {}, _rate_headers(0, NOW + timedelta(days=400))))
 

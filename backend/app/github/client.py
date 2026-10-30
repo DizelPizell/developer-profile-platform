@@ -239,8 +239,11 @@ def _limited_until(
     response: httpx.Response, rate: RateLimit | None, now: datetime
 ) -> datetime | None:
     """When a 403 or 429 is a rate limit, the time to wait until (ADR-018)."""
-    retry_after = _header_int(response.headers, "retry-after")
-    if retry_after is not None:
+    if "retry-after" in response.headers:
+        retry_after = _header_int(response.headers, "retry-after")
+        if retry_after is None:
+            # Negative, non-numeric or a date: still a limit, with GitHub's default wait.
+            return now + SECONDARY_LIMIT_WAIT
         # Capped before the addition, so a huge value cannot overflow datetime.
         wait = min(retry_after, int(MAX_RATE_LIMIT_WAIT.total_seconds()))
         return now + timedelta(seconds=wait)
