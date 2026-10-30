@@ -137,11 +137,14 @@ def run(smoke: Smoke, args: argparse.Namespace) -> None:
     limits = _json(smoke.get("rate_limit", "/rate_limit"))
     resources = limits.get("resources") if isinstance(limits, dict) else None
     core = resources.get("core") if isinstance(resources, dict) else None
-    core = core if isinstance(core, dict) else {}
-    smoke.conclude(
-        f"core limit {core.get('limit')}: "
-        + ("app credentials accepted" if core.get("limit") == 5000 else "NOT the app limit")
-    )
+    limit = core.get("limit") if isinstance(core, dict) else None
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        smoke.conclude("core limit unknown: unexpected /rate_limit body")
+    else:
+        smoke.conclude(
+            f"core limit {limit}: "
+            + ("app credentials accepted" if limit == 5000 else "NOT the app limit")
+        )
 
     first = smoke.get("repository by name", f"/repos/{owner}/{name}")
     repo = _json(first)

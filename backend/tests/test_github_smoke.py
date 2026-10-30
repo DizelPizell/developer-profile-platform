@@ -129,7 +129,10 @@ def _args() -> argparse.Namespace:
     )
 
 
-@pytest.mark.parametrize("resources", [None, [], {"core": None}, {"core": [1]}])
+@pytest.mark.parametrize(
+    "resources",
+    [None, [], "x", {"core": None}, {"core": [1]}, {"core": {}}, {"core": {"limit": "5000"}}],
+)
 def test_smoke_survives_an_odd_rate_limit_body(resources):
     github = FakeGitHub()
 
@@ -142,8 +145,23 @@ def test_smoke_survives_an_odd_rate_limit_body(resources):
         smoke = github_smoke.Smoke(client, "Basic x")
         github_smoke.run(smoke, _args())
 
-    assert smoke.rows[0].conclusion == "core limit None: NOT the app limit"
+    assert smoke.rows[0].conclusion == "core limit unknown: unexpected /rate_limit body"
     assert len(smoke.rows) > 5
+
+
+def test_smoke_reports_an_unauthenticated_limit():
+    github = FakeGitHub()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rate_limit":
+            return httpx.Response(200, json={"resources": {"core": {"limit": 60}}})
+        return github(request)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        smoke = github_smoke.Smoke(client, "Basic x")
+        github_smoke.run(smoke, _args())
+
+    assert smoke.rows[0].conclusion == "core limit 60: NOT the app limit"
 
 
 def test_smoke_prints_collected_rows_when_it_stops(monkeypatch, capsys):
