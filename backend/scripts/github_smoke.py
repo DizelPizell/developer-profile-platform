@@ -151,27 +151,29 @@ def run(smoke: Smoke, args: argparse.Namespace) -> None:
         f"id {repo_id}, private={repo.get('private') if isinstance(repo, dict) else '?'}"
     )
 
-    if isinstance(repo_id, int):
-        by_id = _json(smoke.get("repository by id", f"/repositories/{repo_id}"))
-        same = isinstance(by_id, dict) and by_id.get("id") == repo_id
-        smoke.conclude("reads by numeric id" if same else "does NOT read by id")
-
+    # The conditional request comes right after `first`, with nothing in between,
+    # so x-ratelimit-used of the three answers can be compared directly.
     etag = first.headers.get("etag") if first is not None else None
     if etag:
         conditional = smoke.get("same, If-None-Match", f"/repos/{owner}/{name}", etag=etag)
         after = smoke.get("same, unconditional", f"/repos/{owner}/{name}")
         used = (_used(first), _used(conditional), _used(after))
         if None in used or conditional is None or conditional.status_code != 304:
-            smoke.rows[-2].conclusion = "no 304; cannot tell"
+            verdict = "no 304; cannot tell"
+        elif used[1] == used[0] and used[2] == used[0] + 1:
+            verdict = "304 is free"
+        elif used[1] == used[0] + 1 and used[2] == used[0] + 2:
+            verdict = "304 spends the limit"
         else:
-            free = used[1] == used[0]
-            smoke.rows[-2].conclusion = (
-                f"304; used {used[0]} -> {used[1]} -> {used[2]}: "
-                + ("304 looks free" if free else "304 spends the limit")
-                + " (other traffic on the shared budget can blur this)"
-            )
+            verdict = "other traffic on the shared budget; run again"
+        smoke.rows[-2].conclusion = f"used {used[0]} -> {used[1]} -> {used[2]}: {verdict}"
     else:
         smoke.conclude("no ETag; conditional check skipped")
+
+    if isinstance(repo_id, int):
+        by_id = _json(smoke.get("repository by id", f"/repositories/{repo_id}"))
+        same = isinstance(by_id, dict) and by_id.get("id") == repo_id
+        smoke.conclude("reads by numeric id" if same else "does NOT read by id")
 
     readme = smoke.get("README", f"/repos/{owner}/{name}/readme")
     smoke.conclude(
