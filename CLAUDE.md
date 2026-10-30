@@ -404,6 +404,10 @@ GitHub synchronization is asynchronous but does not use Kafka, Outbox or Redis i
 
 GitHub Evidence V1 scope (snapshot data vs history data, and reconciliation rules) is defined in ADR-010-github-evidence-data-model-v1.md.
 
+ADR-010 is narrowed for V1 by ADR-018: contributors, commits, README and the file tree are deferred (not fetched or stored in V1); only repository metadata and languages are synced.
+
+GitHub V1 decisions: ADR-016-github-access-v1.md (public data only, app credentials, no user token), ADR-017-repository-linking-and-import.md (shared repositories, linking, import, relation), ADR-018-github-sync-v1.md (sync scope and schedule), ADR-019-public-github-data.md (what is shown publicly).
+
 
 
 GitHub tokens must never be stored as plaintext.
@@ -836,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 4 is next.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) has started ahead of Phase 4: step 5.1 is done.
 
 
 
@@ -854,6 +858,8 @@ backend Phase 3: projects, technologies and featured projects — models and mig
 
 frontend F1–F6: Next.js skeleton, sign-in, cabinet, public page /u/[slug], projects cabinet, project blocks on the public page (ADR-014, ADR-015; manual checks against the backend pending)
 
+backend Phase 5 step 5.1: github_repositories and project_repositories models and migration; the database holds "one repository per project" and "a user links a repository to at most one of their projects" (ADR-017)
+
 
 
 Not yet started:
@@ -862,7 +868,7 @@ Not yet started:
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
-GitHub repository integration, import and sync — Phases 5–6
+GitHub client, repository list, linking, import and sync — Phase 5 steps 5.2 onward and Phase 6 (ADR-016..019)
 
 
 
@@ -870,7 +876,7 @@ Current next goal:
 
 
 
-Phase 4 — Demo and Media (DEVELOPMENT_PLAN): demo, screenshots and the public project page /u/{slug}/projects/{id}.
+Phase 5 step 5.2 (DEVELOPMENT_PLAN): the GitHub API client with app credentials (ADR-016). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
