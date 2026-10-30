@@ -1,0 +1,13 @@
+{
+  "id": 2000001,
+  "name": "Hello-World",
+  "full_name": "dev-user/Hello-World",
+  "owner": {"login": "dev-user", "id": 4000001, "type": "User"},
+  "private": false,
+  "html_url": "https://github.com/dev-user/Hello-World",
+  "description": "This your first repo!",
+  "fork": true,
+  "archived": false,
+  "pushed_at": "2024-03-05T10:00:00Z",
+  "parent": {"id": 1296269, "full_name": "octocat/Hello-World"}
+}

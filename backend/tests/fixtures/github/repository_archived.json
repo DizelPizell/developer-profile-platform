@@ -1,0 +1,12 @@
+{
+  "id": 2000002,
+  "name": "old-project",
+  "full_name": "octocat/old-project",
+  "owner": {"login": "octocat", "id": 583231, "type": "User"},
+  "private": false,
+  "html_url": "https://github.com/octocat/old-project",
+  "description": null,
+  "fork": false,
+  "archived": true,
+  "pushed_at": "2019-07-01T08:30:00Z"
+}
