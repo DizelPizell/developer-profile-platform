@@ -1,6 +1,7 @@
 import logging
 import math
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import AppError
 from app.github.budget import (
+    IMPORT_COST,
     LINK_COST,
     LIST_PAGE_COST,
     GitHubUserLimitReached,
@@ -27,6 +29,7 @@ from app.github.client import (
     GitHubUnavailable,
     RepositoryPage,
 )
+from app.github.constants import MAX_BIGINT, is_valid_name
 from app.github.page_cache import RepositoryPageCache
 from app.github.schemas import (
     GitHubLanguage,
@@ -91,6 +94,11 @@ def _repository_not_found() -> AppError:
     return AppError("GITHUB_REPOSITORY_NOT_FOUND", "GitHub repository not found or not public", 422)
 
 
+def _imported_repository_not_found() -> AppError:
+    # The repository is the resource named in the import's path (ADR-017).
+    return AppError("NOT_FOUND", "Not Found", 404)
+
+
 def _relation_not_found() -> AppError:
     return AppError(
         "GITHUB_RELATION_NOT_FOUND",
@@ -100,7 +108,7 @@ def _relation_not_found() -> AppError:
     )
 
 
-def _already_linked(project_id: uuid.UUID | None) -> AppError:
+def already_linked(project_id: uuid.UUID | None) -> AppError:
     return AppError(
         "GITHUB_REPOSITORY_ALREADY_LINKED",
         "Another of your projects already links this repository",
@@ -234,8 +242,10 @@ def _read_repository(client: GitHubApiClient, owner: str, name: str) -> GitHubRe
         return client.get_repository_by_id(moved.repository_id)
 
 
-def check_repository(
-    full_name: str,
+def _check(
+    read: Callable[[], GitHubRepositoryData],
+    cost: int,
+    not_found: Callable[[], AppError],
     user_id: uuid.UUID,
     github_user_id: int,
     *,
@@ -249,10 +259,9 @@ def check_repository(
     transaction stays open while GitHub answers (ADR-010). The contributor list
     is read only to find the developer's id in it and is not kept (ADR-017).
     """
-    owner, _, name = full_name.partition("/")
     try:
-        with budget.spend(user_id, LINK_COST, now, client):
-            data = _read_repository(client, owner, name)
+        with budget.spend(user_id, cost, now, client):
+            data = read()
             if data.owner_github_id == github_user_id:
                 return CheckedRepository(data, OWNER)
             if client.is_contributor(data.owner_login, data.name, github_user_id):
@@ -260,10 +269,76 @@ def check_repository(
     except GitHubUserLimitReached as exc:
         raise _user_limit_reached(exc) from None
     except GitHubNotFound:
-        raise _repository_not_found() from None
+        raise not_found() from None
     except GitHubError as exc:
         raise _github_error(exc, now) from None
     raise _relation_not_found()
+
+
+def check_repository(
+    full_name: str,
+    user_id: uuid.UUID,
+    github_user_id: int,
+    *,
+    client: GitHubApiClient,
+    budget: UserRequestBudget,
+    now: datetime,
+) -> CheckedRepository:
+    """A link's check, by owner/name (ADR-017)."""
+    owner, _, name = full_name.partition("/")
+    return _check(
+        lambda: _read_repository(client, owner, name),
+        LINK_COST,
+        _repository_not_found,
+        user_id,
+        github_user_id,
+        client=client,
+        budget=budget,
+        now=now,
+    )
+
+
+def parse_github_repo_id(value: str) -> int:
+    """The import path's id: a positive decimal integer in canonical form (no sign,
+    no leading zeros) that fits a bigint; anything else is 404."""
+    if not (value.isascii() and value.isdigit()) or value[0] == "0" or len(value) > 19:
+        raise _imported_repository_not_found()
+    github_repo_id = int(value)
+    if github_repo_id > MAX_BIGINT:
+        raise _imported_repository_not_found()
+    return github_repo_id
+
+
+def check_import(
+    github_repo_id: int,
+    user_id: uuid.UUID,
+    github_user_id: int,
+    *,
+    client: GitHubApiClient,
+    budget: UserRequestBudget,
+    now: datetime,
+) -> CheckedRepository:
+    """An import's check, by GitHub's repository id: no redirect, at most 6 requests
+    (ADR-017). The repository's name becomes the project's title, so a name GitHub
+    would not allow is a malformed answer."""
+    checked = _check(
+        lambda: client.get_repository_by_id(github_repo_id),
+        IMPORT_COST,
+        _imported_repository_not_found,
+        user_id,
+        github_user_id,
+        client=client,
+        budget=budget,
+        now=now,
+    )
+    if not is_valid_name(checked.data.name):
+        raise _unavailable("invalid_repository_name", None)
+    return checked
+
+
+def linked_project_id(db: Session, owner_id: uuid.UUID, github_repo_id: int) -> uuid.UUID | None:
+    """The user's own project linking the repository, if any."""
+    return _linked_projects(db, owner_id, [github_repo_id]).get(github_repo_id)
 
 
 def store_link(db: Session, project: Project, checked: CheckedRepository, now: datetime) -> None:
@@ -322,7 +397,7 @@ def store_link(db: Session, project: Project, checked: CheckedRepository, now: d
                 ProjectRepository.github_repository_id == repository_id,
             )
         )
-        raise _already_linked(linked) from None
+        raise already_linked(linked) from None
 
 
 def unlink(db: Session, project: Project) -> None:

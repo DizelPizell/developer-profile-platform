@@ -145,8 +145,9 @@ class Env:
     in_transaction: list[bool] = field(default_factory=list)
 
 
-@pytest.fixture
-def env(make_auth_client, db_session: Session) -> Env:
+def make_env(make_auth_client, db_session: Session) -> Env:
+    """A signed-in user, a fake GitHub and the GitHub dependencies overridden; shared
+    with the import tests."""
     http = make_auth_client()
     login(http)
     user = db_session.scalar(select(User).where(User.github_user_id == GITHUB_ID))
@@ -189,6 +190,11 @@ def env(make_auth_client, db_session: Session) -> Env:
     app.dependency_overrides[get_user_request_budget] = lambda: state.budget
     app.dependency_overrides[get_now] = state.clock
     return state
+
+
+@pytest.fixture
+def env(make_auth_client, db_session: Session) -> Env:
+    return make_env(make_auth_client, db_session)
 
 
 def _new_client(make_auth_client, *args, **kwargs) -> TestClient:

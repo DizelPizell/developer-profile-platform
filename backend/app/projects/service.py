@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.canonical_uuid import parse_canonical_uuid
 from app.errors import AppError
+from app.github import service as github_service
 from app.models.identity import Profile, User
 from app.models.projects import (
     FEATURED_PROJECTS_PER_PROFILE,
@@ -341,13 +342,9 @@ def reorder_featured(db: Session, profile: Profile, project_ids: list[uuid.UUID]
 # ---------------------------------------------------------------------------
 
 
-def create_project(
-    db: Session,
-    user: User,
-    changes: dict[str, str | None],
-    technologies: list[str] | None,
-) -> Project:
-    """The caller holds the owner's profile lock, so the count below is stable."""
+def check_project_limit(db: Session, user: User) -> None:
+    """409 when the user has the maximum number of projects. Stable only under the
+    owner's profile lock; without it, an early check that saves work."""
     count = db.execute(
         select(func.count()).select_from(Project).where(Project.owner_id == user.id)
     ).scalar_one()
@@ -358,6 +355,16 @@ def create_project(
             409,
             {"limit": MAX_PROJECTS_PER_USER},
         )
+
+
+def create_project(
+    db: Session,
+    user: User,
+    changes: dict[str, str | None],
+    technologies: list[str] | None,
+) -> Project:
+    """The caller holds the owner's profile lock, so the limit check is stable."""
+    check_project_limit(db, user)
     now = _utcnow()
     # Timestamps from the application, not now(): they differ between projects
     # created in one transaction, which keeps "newest first" well defined.
@@ -373,6 +380,19 @@ def create_project(
     db.flush()
     if technologies:
         _replace_technologies(db, project, _resolve_technologies(db, technologies))
+    return project
+
+
+def create_imported_project(
+    db: Session, user: User, checked: github_service.CheckedRepository, now: datetime
+) -> Project:
+    """An import's write step (ADR-017): a DRAFT + PRIVATE project titled after the
+    repository, with no other fields and no technologies, and its link, in the
+    caller's transaction, so both are stored or neither. The profile lock is taken
+    first, as on every project creation. Nothing is committed here."""
+    lock_owner_profile(db, user)
+    project = create_project(db, user, {"title": checked.data.name}, None)
+    github_service.store_link(db, project, checked, now)
     return project
 
 

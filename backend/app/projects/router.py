@@ -26,6 +26,8 @@ from app.projects.schemas import (
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 featured_router = APIRouter(prefix="/profile/featured-projects", tags=["projects"])
+# Import creates a project, so it lives with the project routes (ADR-017).
+import_router = APIRouter(prefix="/integrations/github/repositories", tags=["github"])
 
 
 def _project_response(db: Session, project: Project) -> ProjectResponse:
@@ -225,6 +227,35 @@ def unlink_repository(
 ) -> ProjectResponse:
     project = service.get_own_project(db, user, project_id, for_update=True)
     github_service.unlink(db, project)
+    db.commit()
+    return _project_response(db, project)
+
+
+@import_router.post("/{repository_id}/import", status_code=201)
+def import_repository(
+    repository_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    client: GitHubApiClient = Depends(get_github_api_client),
+    budget: UserRequestBudget = Depends(get_user_request_budget),
+    now: datetime = Depends(get_now),
+) -> ProjectResponse:
+    github_repo_id = github_service.parse_github_repo_id(repository_id)
+    # Early checks that spare the user's GitHub budget; the write transaction
+    # below repeats them under the profile lock and the database's constraint.
+    service.check_project_limit(db, user)
+    linked = github_service.linked_project_id(db, user.id, github_repo_id)
+    if linked is not None:
+        raise github_service.already_linked(linked)
+    user_id, github_user_id = user.id, user.github_user_id
+    # Ends the read transaction: no transaction stays open while GitHub answers (ADR-010).
+    db.rollback()
+    checked = github_service.check_import(
+        github_repo_id, user_id, github_user_id, client=client, budget=budget, now=now
+    )
+
+    project = service.create_imported_project(db, user, checked, now)
+    # Step 6.2: queue a sync job here, in this transaction (ADR-018).
     db.commit()
     return _project_response(db, project)
 

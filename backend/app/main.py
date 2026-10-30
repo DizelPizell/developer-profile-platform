@@ -9,6 +9,7 @@ from app.origin_check import OriginCheckMiddleware, origin_of
 from app.profile.router import public_router as public_profile_router
 from app.profile.router import router as profile_router
 from app.projects.router import featured_router as featured_projects_router
+from app.projects.router import import_router as github_import_router
 from app.projects.router import router as projects_router
 from app.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
 from app.settings import settings  # validates config at startup
@@ -40,6 +41,7 @@ app.include_router(public_profile_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(featured_projects_router, prefix="/api/v1")
 app.include_router(github_router, prefix="/api/v1")
+app.include_router(github_import_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")
