@@ -296,15 +296,17 @@ V1 reads only public GitHub data, with the platform's app credentials; the user 
 
 | Endpoint | Success | Errors |
 |---|---|---|
-| `GET /integrations/github/repositories?page=N` | 200 `GitHubRepositoryListResponse` | 401; 422 `VALIDATION_ERROR` (`page` not an integer 1..100); 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
-| `POST /integrations/github/repositories/{id}/import` | 201 `ProjectResponse`: a new `DRAFT` + `PRIVATE` project titled after the repository, linked to it | 401; 403; 404 `NOT_FOUND` (malformed id, or the repository is not found or not public); 409 `PROJECT_LIMIT_REACHED`; 409 `GITHUB_REPOSITORY_ALREADY_LINKED`; 422 `GITHUB_RELATION_NOT_FOUND`; 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
-| `POST /integrations/github/repositories/{id}/sync` | 202 `GitHubSync`; an active job is reused | 401; 403; 404 `NOT_FOUND` (malformed id, or none of the user's projects links this repository); 429 `GITHUB_SYNC_TOO_SOON` |
-| `POST /projects/{id}/repository` | 200 `ProjectResponse`; replaces the project's previous link; the same repository again re-checks the relation | 401; 403; 404 `NOT_FOUND` (project); 409 `GITHUB_REPOSITORY_ALREADY_LINKED`; 422 `VALIDATION_ERROR`; 422 `GITHUB_REPOSITORY_NOT_FOUND`; 422 `GITHUB_RELATION_NOT_FOUND`; 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
+| `GET /integrations/github/repositories?page=N` | 200 `GitHubRepositoryListResponse` | 401; 422 `VALIDATION_ERROR` (`page` not an integer 1..100); 429 `GITHUB_USER_LIMIT_REACHED`; 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
+| `POST /integrations/github/repositories/{id}/import` | 201 `ProjectResponse`: a new `DRAFT` + `PRIVATE` project titled after the repository, linked to it | 401; 403; 404 `NOT_FOUND` (malformed id, or the repository is not found or not public); 409 `PROJECT_LIMIT_REACHED`; 409 `GITHUB_REPOSITORY_ALREADY_LINKED`; 422 `GITHUB_RELATION_NOT_FOUND`; 429 `GITHUB_USER_LIMIT_REACHED`; 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
+| `POST /integrations/github/repositories/{id}/sync` | 202 `GitHubSync`; an active job is reused | 401; 403; 404 `NOT_FOUND` (malformed id, or none of the user's projects links this repository); 429 `GITHUB_SYNC_TOO_SOON`; 429 `GITHUB_USER_LIMIT_REACHED` |
+| `POST /projects/{id}/repository` | 200 `ProjectResponse`; replaces the project's previous link; the same repository again re-checks the relation | 401; 403; 404 `NOT_FOUND` (project); 409 `GITHUB_REPOSITORY_ALREADY_LINKED`; 422 `VALIDATION_ERROR`; 422 `GITHUB_REPOSITORY_NOT_FOUND`; 422 `GITHUB_RELATION_NOT_FOUND`; 429 `GITHUB_USER_LIMIT_REACHED`; 502 `GITHUB_UNAVAILABLE`; 503 `GITHUB_RATE_LIMITED` |
 | `DELETE /projects/{id}/repository` | 200 `ProjectResponse` with `github: null`; not linked → no change | 401; 403; 404 `NOT_FOUND` |
 
 Every endpoint may also return 500 `INTERNAL_ERROR`.
 
 On every error of link and import nothing is stored, and an existing link stays as it was. A link or import queues a sync job; a link reads GitHub in the request (the repository and at most 5 pages of its contributors), so it may take a few seconds.
+
+The repository list is not stored in the database; a page GitHub returned is kept in the backend's memory for 5 minutes, and `linked_project_id` is read on every call (ADR-017).
 
 `RepositoryLinkRequest` (body of `POST /projects/{id}/repository`): `{"full_name": "owner/name"}`. `owner` matches `^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`; `name` matches `^[A-Za-z0-9._-]{1,100}$` and is not `.` or `..`. Anything else, and unknown fields, give 422 `VALIDATION_ERROR` before GitHub is called.
 
@@ -416,6 +418,7 @@ Every error response, including framework errors, uses this shape:
 - 422 `GITHUB_RELATION_NOT_FOUND`: the developer is neither the repository's owner nor in its contributor list according to GitHub (ADR-017).
 - 409 `GITHUB_REPOSITORY_ALREADY_LINKED`: another of the user's projects already links this repository; `details.project_id`.
 - 429 `GITHUB_SYNC_TOO_SOON`: a manual sync of this repository was requested less than 10 minutes after its latest job; `Retry-After` header and `details.retry_after_seconds`.
+- 429 `GITHUB_USER_LIMIT_REACHED`: the user's GitHub request budget for the last 60 minutes (60 requests by default) does not cover the operation (a list page 1, a link or import up to 6, a new manual sync job 7); GitHub is not called; `Retry-After` header and `details.retry_after_seconds` (ADR-018).
 - A resource owned by another user returns the same 404 `NOT_FOUND` as a missing one; a malformed id in a project path is also `NOT_FOUND`, not `VALIDATION_ERROR`.
 - 500 `INTERNAL_ERROR`: generic message, empty `details`; the exception is logged server-side with the `request_id`.
 

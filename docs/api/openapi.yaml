@@ -400,6 +400,7 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+        "429": {$ref: "#/components/responses/GitHubUserLimitReached"}
         "500": {$ref: "#/components/responses/InternalError"}
         "502": {$ref: "#/components/responses/GitHubUnavailable"}
         "503": {$ref: "#/components/responses/GitHubRateLimited"}
@@ -422,7 +423,9 @@ paths:
       description: >-
         The current user's own public repositories, read from GitHub in the
         request with the app credentials (ADR-016), 100 per page, most
-        recently pushed first. Nothing is stored.
+        recently pushed first. Not stored in the database; a page GitHub
+        returned is kept in the backend's memory for 5 minutes, and whether an
+        item is linked is read on every call (ADR-017).
       parameters:
         - name: page
           in: query
@@ -436,6 +439,7 @@ paths:
               schema: {$ref: "#/components/schemas/GitHubRepositoryListResponse"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "422": {$ref: "#/components/responses/ValidationError"}
+        "429": {$ref: "#/components/responses/GitHubUserLimitReached"}
         "500": {$ref: "#/components/responses/InternalError"}
         "502": {$ref: "#/components/responses/GitHubUnavailable"}
         "503": {$ref: "#/components/responses/GitHubRateLimited"}
@@ -474,6 +478,7 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+        "429": {$ref: "#/components/responses/GitHubUserLimitReached"}
         "500": {$ref: "#/components/responses/InternalError"}
         "502": {$ref: "#/components/responses/GitHubUnavailable"}
         "503": {$ref: "#/components/responses/GitHubRateLimited"}
@@ -505,7 +510,9 @@ paths:
         "429":
           description: >-
             GITHUB_SYNC_TOO_SOON — the repository's latest job was created less
-            than 10 minutes ago; details.retry_after_seconds
+            than 10 minutes ago; GITHUB_USER_LIMIT_REACHED — a new job would
+            exceed the user's GitHub request budget (ADR-018). Both carry
+            details.retry_after_seconds
           headers:
             Retry-After:
               schema: {type: integer}
@@ -977,6 +984,17 @@ components:
       description: >-
         GITHUB_UNAVAILABLE — GitHub timed out, answered with an error status or
         an unexpected body; GitHub's response is not copied into the error.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    GitHubUserLimitReached:
+      description: >-
+        GITHUB_USER_LIMIT_REACHED — the user's GitHub request budget for the
+        last 60 minutes does not cover this operation; GitHub was not called;
+        details.retry_after_seconds (ADR-018).
+      headers:
+        Retry-After:
+          schema: {type: integer}
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
