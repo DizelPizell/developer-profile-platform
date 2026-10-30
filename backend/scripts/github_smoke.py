@@ -19,7 +19,7 @@ rate-limit headers, Location and a short conclusion: never response bodies or
 credentials. About 15 requests from the platform's shared hourly budget.
 
 Run from the repository root, with the backend image (compose passes .env to
-the container's environment). The script imports app.github.client, so build
+the container's environment). The script imports app.github.constants, so build
 the image from the current code first: docker compose build backend.
 Linux and macOS:
 
@@ -50,8 +50,8 @@ from dataclasses import dataclass
 
 import httpx
 
-# The client's own filters; importing it needs no database or settings.
-from app.github.client import GITHUB_API, is_valid_name, is_valid_owner
+# The client's own filters; importing them needs no database or settings.
+from app.github.constants import GITHUB_API, is_valid_name, is_valid_owner
 
 _RATE_HEADERS = ("limit", "remaining", "used", "resource")
 

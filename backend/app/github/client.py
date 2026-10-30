@@ -16,42 +16,32 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from app.github import GITHUB_HTML_URL_PREFIX
+from app.github.constants import (
+    GITHUB_API,
+    GITHUB_HTML_URL_PREFIX,
+    MAX_BIGINT,
+    MAX_CONTRIBUTOR_PAGES,
+    MAX_LIST_PAGE,
+    PER_PAGE,
+    is_valid_name,
+    is_valid_owner,
+)
 
 logger = logging.getLogger(__name__)
 
-GITHUB_API = "https://api.github.com"
 _TIMEOUT = httpx.Timeout(10.0)
 _USER_AGENT = "developer-profile-platform"
 
-PER_PAGE = 100
-MAX_LIST_PAGE = 100
-# The relation check reads at most 5 contributor pages (ADR-017).
-MAX_CONTRIBUTOR_PAGES = 5
 # GitHub's guidance when a secondary limit gives no retry-after (ADR-018).
 SECONDARY_LIMIT_WAIT = timedelta(seconds=60)
 # The primary limit resets every hour; a longer wait from a header is not believed.
 MAX_RATE_LIMIT_WAIT = timedelta(hours=1)
-_MAX_BIGINT = 2**63 - 1
 
-# Safety filters from ADR-016; GitHub stays the authority on existence.
-_OWNER = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?")
-_NAME = re.compile(r"[A-Za-z0-9._-]{1,100}")
-_MOVED_TO = re.compile(r"https://api\.github\.com/repositories/([1-9][0-9]{0,18})(?:[/?#].*)?")
+_MOVED_TO = re.compile(re.escape(GITHUB_API) + r"/repositories/([1-9][0-9]{0,18})(?:[/?#].*)?")
 
 
 def _utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
-
-
-def is_valid_owner(value: object) -> bool:
-    return isinstance(value, str) and _OWNER.fullmatch(value) is not None
-
-
-def is_valid_name(value: object) -> bool:
-    return (
-        isinstance(value, str) and _NAME.fullmatch(value) is not None and value not in {".", ".."}
-    )
 
 
 class InvalidGitHubInput(ValueError):
@@ -265,7 +255,7 @@ def _limited_until(
 
 def _moved_to(response: httpx.Response) -> int:
     match = _MOVED_TO.fullmatch(response.headers.get("location", ""))
-    if match is None or int(match.group(1)) > _MAX_BIGINT:
+    if match is None or int(match.group(1)) > MAX_BIGINT:
         raise GitHubUnexpected(response.status_code)
     return int(match.group(1))
 
@@ -286,7 +276,7 @@ def _body(response: httpx.Response) -> object:
 
 
 def _positive_int(value: object, status: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= _MAX_BIGINT:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= MAX_BIGINT:
         raise _malformed(status)
     return value
 
@@ -410,7 +400,7 @@ class GitHubApiClient:
         if (
             isinstance(github_repo_id, bool)
             or not isinstance(github_repo_id, int)
-            or not 0 < github_repo_id <= _MAX_BIGINT
+            or not 0 < github_repo_id <= MAX_BIGINT
         ):
             raise InvalidGitHubInput("Invalid repository id")
         response = self._get("repository_by_id", f"/repositories/{github_repo_id}")

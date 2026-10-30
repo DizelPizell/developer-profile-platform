@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.github import GITHUB_HTML_URL_PREFIX
+from app.github.constants import GITHUB_HTML_URL_PREFIX
 
 # Relation of the developer to a linked repository, from GitHub data (ADR-017).
 REPOSITORY_RELATIONS: tuple[str, ...] = ("OWNER", "CONTRIBUTOR", "NONE")

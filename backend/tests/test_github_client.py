@@ -736,7 +736,10 @@ def test_list_entries_carry_no_parent():
 
 
 def test_client_does_not_import_the_database_layer():
-    script = "import sys, app.github.client; print('app.database' in sys.modules)"
+    script = (
+        "import sys, app.github.client; "
+        "print(any(m in sys.modules for m in ('app.database', 'app.settings', 'sqlalchemy')))"
+    )
     result = subprocess.run(
         [sys.executable, "-c", script],
         capture_output=True,
