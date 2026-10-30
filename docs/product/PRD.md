@@ -72,7 +72,7 @@ A project is `DRAFT`, `PUBLISHED` or `ARCHIVED`. A published project is public o
 
 ### GitHub is source of truth for technical evidence
 
-V1 scope (see ADR-010-github-evidence-data-model-v1.md):
+Evidence scope (see ADR-010-github-evidence-data-model-v1.md). V1 reads only public repositories, with the platform's app credentials and no access granted by the user (ADR-016), and synchronizes only repository metadata and languages; README, file tree, contributors and commits are deferred until the public project page and a README display decision (ADR-018). GitHub data is shown on the cards of projects the developer linked to a repository they own or contributed to (ADR-017, ADR-019).
 
 - repository (metadata)
 - README

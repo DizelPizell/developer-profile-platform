@@ -108,7 +108,7 @@ Blocks:
 | «О себе» | `bio` | Marked «От автора». Plain text with line breaks (`white-space: pre-line`). Empty `bio` hides the block. |
 | «Скилы» | — | Pending: no backend source yet, phase not assigned. A plain list in future; never levels or bars. |
 | «Главные проекты» | `featured` | Up to 3 cards in `position` order, marked «От автора». See "Projects on the public page". |
-| «Данные GitHub» | — | Pending backend Phases 5–6 (GitHub import and sync). Always marked «Источник: GitHub». |
+| «Данные GitHub» | — | Stays a placeholder in V1 and is not built: GitHub data lives on project cards (the nullable `github` object) and on the project page, not in a profile-level block, and nothing is totalled across the profile (ADR-019). Any GitHub data is always marked «Источник: GitHub». |
 | «Другие проекты» | `other` | One row per project, in API order, marked «От автора». See "Projects on the public page". |
 
 `display_name` and `headline` are never empty here: a profile can be published only with both (ADR-013). If one is missing anyway, the name falls back to `@github_login` and the «Класс» line is hidden.
@@ -316,7 +316,7 @@ Blocks (mockup `login.png`):
 - «Профиль разработчика с проектами и данными из GitHub. Войдите, чтобы создать свой.»;
 - the error block, when there is one;
 - the button «Войти через GitHub» (Pixelify Sans, normal case, large);
-- the note «Мы получаем только публичные данные GitHub: логин, аватар и email, если он открыт. Доступа к вашим репозиториям нет.» The mockup omits the email; the backend stores a public email (ADR-012), so the text names it.
+- the note «Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и публичные репозитории, которые вы привяжете к проектам. Доступа к приватным репозиториям нет.» The mockup omits the email; the backend stores a public email (ADR-012), so the text names it. The repositories are named because Phase 5 reads them with the app's credentials, without any access granted by the user (ADR-016). The text in the code is the F2 version until step F-GH1 (DEVELOPMENT_PLAN).
 
 The mockup's link «Посмотреть пример профиля» is left out until a public page (F4) and an example profile exist.
 

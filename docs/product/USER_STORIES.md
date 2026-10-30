@@ -12,8 +12,8 @@
 - **US-007** Select and order up to three featured projects.
 
 ## GitHub
-- **US-008** Connect GitHub using OAuth.
-- **US-009** View available repositories.
+- **US-008** Connect GitHub using OAuth. Not in V1: login is the only GitHub consent, and repository data is public (ADR-016).
+- **US-009** View available repositories (own public repositories).
 - **US-010** Import a repository as a project.
 - **US-011** Synchronize repository data.
 
@@ -23,7 +23,7 @@
 - **US-014** Add technologies.
 - **US-015** Add screenshots.
 - **US-016** Add demo.
-- **US-017** Associate GitHub repository.
+- **US-017** Associate GitHub repository (as its owner or a contributor, ADR-017).
 - **US-018** Publish project.
 
 ## Showcase

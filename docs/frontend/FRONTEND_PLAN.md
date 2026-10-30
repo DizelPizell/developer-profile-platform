@@ -157,7 +157,7 @@ Done in F6: `getPublicProfile` reads `featured` and `other` (both required, whit
 **Goal**: add project pages and technical evidence as the backend provides them.
 
 - The public project page `/u/{slug}/projects/{id}`, demos and screenshots — after backend Phase 4.
-- «Данные GitHub», import and sync status — after backend Phases 5–6.
-- Read-only IDE view — after backend Phase 6; depends on the open questions about sync status and file content (ADR-014, ADR-009–011).
+- GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). There is no profile-level «Данные GitHub» block in V1.
+- Read-only IDE view — not in V1 Phases 5–6: the file tree and README are deferred (ADR-018), and file content is still an open question (ADR-011).
 
 Each of these gets its own goal, done criteria and tests when its backend contract exists.

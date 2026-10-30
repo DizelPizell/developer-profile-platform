@@ -95,8 +95,8 @@ Phase 3 does not include skills, demos, screenshots, the public project page or 
 
 Order relative to later phases:
 - Phase 4 starts after Phase 3. It adds demo, screenshots and the public project page `/u/{slug}/projects/{id}` (the «Открыть проект» link and the image area of featured cards). It also covers object storage cleanup when a project is deleted.
-- Phase 5 builds on the Phase 3 model: an import creates a `DRAFT` project that the developer completes and publishes as usual.
-- Phase 6 shows GitHub data for projects that have a linked repository; it does not change the Phase 3 rules.
+- Phase 5 builds on the Phase 3 model: an import creates a `DRAFT` project that the developer completes and publishes as usual (ADR-017).
+- Phase 6 shows GitHub data on the cards of projects that have a linked repository (ADR-019); it does not change the Phase 3 rules.
 
 ## Phase 4 - Demo and Media
 - demo
@@ -107,25 +107,38 @@ Order relative to later phases:
 - demo-first UX
 - click analytics
 
-## Phase 5 - GitHub Integration and Import
-- separate OAuth consent for repository access on top of existing login (ADR-012, ADR-003)
-- encrypted token storage (ADR-003)
-- repository listing
-- import
-- repository association
+## Phase 5 - GitHub Repositories, Linking and Import
 
-## Phase 6 - GitHub Sync and Technical Workspace
-- GitHub Sync Worker as a separate process using PostgreSQL polling and SKIP LOCKED (ADR-009)
-- sync jobs and per-category status tables (ADR-011)
-- mandatory sync categories: metadata, README, languages, file tree
-- optional sync categories: contributors, commits (failure does not block SYNCED, commits are append-only)
-- normalized repository data
-- idempotent synchronization
-- file tree
-- code viewer
-- README
-- architecture
-- worker deployment task
+Decisions: ADR-016-github-access-v1.md (public data with the app's credentials, no user token), ADR-017-repository-linking-and-import.md. Contract: `docs/api/API_CONTRACT.md` ("GitHub"), `docs/api/openapi.yaml`. No OAuth consent for repository access and no token storage (ADR-016 replaces those items of the earlier plan).
+
+Steps, in order, each its own change with tests; a step starts when the previous one is merged. Sizes: S up to a day, M one to three days, L more.
+
+- **5.1 Models and migration** (S–M): `github_repositories` (shared, unique `github_repo_id`, the ADR-017 field list) and `project_repositories` (unique `project_id`, `relation` CHECK, cascades and `RESTRICT` per ADR-017). Schema only. Tests: upgrade and downgrade; each constraint rejects what it must.
+- **5.2 GitHub API client** (M): read-only client for `https://api.github.com` with Basic app credentials, timeouts, rate-limit headers parsed into a typed result, errors mapped to `GITHUB_UNAVAILABLE` and `GITHUB_RATE_LIMITED`, the `owner/name` patterns, redirects only within `api.github.com`, no bodies or credentials in logs. Recorded JSON fixtures from public repositories and the existing `MockTransport` pattern. Includes a **manual check without a user token** of the behaviors ADR-016, ADR-017 and ADR-018 mark as not verified; the results are written into those ADRs before 5.3.
+- **5.3 Repository list** (S–M): `GET /integrations/github/repositories` with pages and `linked_project_id`.
+- **5.4 Link and unlink** (M): `POST` and `DELETE /projects/{id}/repository`, the relation check (at most 1 + 5 requests), `GITHUB_REPOSITORY_ALREADY_LINKED` under the owner's profile lock, `github` in `ProjectResponse` (with `sync.status = NOT_SYNCED` until Phase 6). Tests: every error code, another user's project is 404, no request to GitHub on an invalid name, nothing stored on any error.
+- **5.5 Import** (S–M): `POST /integrations/github/repositories/{id}/import`: a `DRAFT` + `PRIVATE` project titled after the repository and its link in one transaction; the project limit and the link errors apply.
+
+## Phase 6 - GitHub Sync and Public GitHub Data
+
+Decisions: ADR-009, ADR-018-github-sync-v1.md (V1 syncs only metadata and languages; narrows ADR-010 and ADR-011), ADR-019-public-github-data.md.
+
+- **6.1 Sync tables** (S): `github_sync_jobs` (partial unique index on active jobs, claim index) and `github_sync_category_status`.
+- **6.2 Queueing and status** (S–M): a job queued with each link and import; `POST /integrations/github/repositories/{id}/sync` with the 10-minute pause per repository (`GITHUB_SYNC_TOO_SOON`); `github.sync` in `ProjectResponse`. Tests: an active job is reused, the pause and `Retry-After`.
+- **6.3 Worker core** (L): a separate process with `run_once(db, client, now)`: claim with `SKIP LOCKED`, retries with backoff, the watchdog for stale `SYNCING`, rate-limit answers that reschedule to the reset without an attempt and pause claiming, the startup credential check (exit on 401 or an unauthenticated limit). Tests on two transactions: one job is claimed once; the watchdog takes over a stale job; a rate-limited job keeps `attempt_count`.
+- **6.4 Categories** (M): metadata and languages with ADR-010 reconciliation (fetch outside, short write transaction per category), the relation recomputed from metadata and up to 5 contributor pages without storing them (a failure keeps the previous relation). Tests: a failed fetch leaves stored data unchanged; owner, contributor and `NONE`.
+- **6.5 Periodic syncs and missing repositories** (M): the worker queues repositories linked to a `PUBLISHED` project every 24 hours; two 404s in a row set `unavailable_since`, a success clears it; renames refresh `full_name` by `github_repo_id`.
+- **6.6 Worker service** (S): a `github-worker` service in `docker-compose.yml` on the backend image, after `migrate`, with the backend's environment; README and `.env.example` notes.
+- **6.7 Public API** (S–M): the nullable `github` object on public project cards with the ADR-019 whitelist, hidden for no sync yet, unavailable or `NONE`; one batched query. Tests: the whitelist, the four `null` cases, the same query count for 1 and 30 projects.
+
+Not in Phases 5–6 (deferred by ADR-018): README, file tree, code viewer, contributors, commits. They return after the public project page (Phase 4) together with a decision on how README is shown safely (ADR-019). The project "architecture" field belongs with the project page work.
+
+### Frontend for Phases 5–6
+
+Numbered after the Phase 4 frontend steps in `docs/frontend/FRONTEND_PLAN.md`; each starts when its backend steps are merged.
+
+- **F-GH1 Cabinet** (M–L, after 5.3–5.5 and 6.2): the repository list with import, link by `owner/name` and unlink in the project form, the relation and unavailable states, «Обновить» with the pause and polling while `QUEUED` or `SYNCING`. Also the login screen note from `docs/frontend/DESIGN.md`, which changes the F2 text.
+- **F-GH2 Public** (M, after 6.7): the GitHub block on project cards and on the project page with «Источник: GitHub», the relation and fork texts and language shares (ADR-019).
 
 ## Phase 7 - Analytics
 - event ingestion
