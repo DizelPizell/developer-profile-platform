@@ -36,50 +36,80 @@ def test_operation_costs_follow_adr_018():
     assert (LIST_PAGE_COST, LINK_COST, MANUAL_SYNC_COST) == (1, 6, 7)
 
 
-def test_settings_default_and_minimum():
-    assert Settings.model_fields["github_user_requests_per_hour"].default == 60
+def _settings(**values) -> Settings:
+    # Every required field given here, and neither .env nor the variable read, so
+    # the result does not depend on the machine running the tests.
+    required = {
+        "app_env": "test",
+        "database_url": "postgresql+psycopg://user:password@localhost/db",
+        "github_client_id": "id",
+        "github_client_secret": "secret",
+        "github_callback_url": "http://localhost:8000/callback",
+        "frontend_url": "http://localhost:3000",
+    }
+    return Settings(_env_file=None, **(required | values))
+
+
+def test_settings_default_and_minimum(monkeypatch):
+    monkeypatch.delenv("GITHUB_USER_REQUESTS_PER_HOUR", raising=False)
+
+    assert _settings().github_user_requests_per_hour == 60
+    assert _settings(github_user_requests_per_hour=7).github_user_requests_per_hour == 7
+    with pytest.raises(ValidationError) as exc:
+        _settings(github_user_requests_per_hour=6)
+    assert [error["loc"] for error in exc.value.errors()] == [("github_user_requests_per_hour",)]
+
+
+def test_shared_budget_uses_the_setting():
     assert user_request_budget._limit == settings.github_user_requests_per_hour
-    with pytest.raises(ValidationError):
-        Settings(_env_file=None, github_user_requests_per_hour=6)
 
 
 # Budget.
 
 
-def test_reserve_holds_the_worst_case_until_settled():
+class Counter:
+    """Stands in for the client: spend() reads only requests_sent."""
+
+    requests_sent = 0
+
+
+def test_spend_holds_the_worst_case_until_the_block_ends():
     budget = UserRequestBudget(60)
+    client = Counter()
 
-    reservation = budget.reserve(USER, LINK_COST, T0)
+    with budget.spend(USER, LINK_COST, T0, client):
+        client.requests_sent += 1
+        assert budget.spent(USER, T0) == 6
 
-    assert budget.spent(USER, T0) == 6
-    reservation.settle(1)
     assert budget.spent(USER, T0) == 1
 
 
 @pytest.mark.parametrize(("used", "kept"), [(-3, 0), (0, 0), (6, 6), (40, 6)])
-def test_settle_keeps_between_zero_and_reserved(used, kept):
+def test_spend_keeps_between_zero_and_reserved(used, kept):
     budget = UserRequestBudget(60)
+    client = Counter()
 
-    budget.reserve(USER, LINK_COST, T0).settle(used)
+    with budget.spend(USER, LINK_COST, T0, client):
+        client.requests_sent += used
 
     assert budget.spent(USER, T0) == kept
 
 
-def test_unsettled_reservation_counts_in_full():
+def test_manual_sync_charge_counts_in_full():
     budget = UserRequestBudget(60)
 
-    budget.reserve(USER, MANUAL_SYNC_COST, T0)
+    budget.charge(USER, MANUAL_SYNC_COST, T0)
 
     assert budget.spent(USER, T0) == 7
 
 
 def test_over_budget_is_refused_with_retry_after():
     budget = UserRequestBudget(60)
-    budget.reserve(USER, 30, T0).settle(30)
-    budget.reserve(USER, 30, T0 + timedelta(minutes=10)).settle(28)
+    budget.charge(USER, 30, T0)
+    budget.charge(USER, 28, T0 + timedelta(minutes=10))
 
     with pytest.raises(GitHubUserLimitReached) as exc:
-        budget.reserve(USER, LINK_COST, T0 + timedelta(minutes=20))
+        budget.charge(USER, LINK_COST, T0 + timedelta(minutes=20))
 
     # 58 spent; 6 more fit only once the first 30 leave the window at T0 + 60 min.
     assert exc.value.retry_after_seconds == 40 * 60
@@ -88,34 +118,34 @@ def test_over_budget_is_refused_with_retry_after():
 
 def test_cheaper_operation_still_fits():
     budget = UserRequestBudget(60)
-    budget.reserve(USER, 30, T0).settle(30)
-    budget.reserve(USER, 28, T0).settle(28)
+    budget.charge(USER, 30, T0)
+    budget.charge(USER, 28, T0)
 
     with pytest.raises(GitHubUserLimitReached):
-        budget.reserve(USER, LINK_COST, T0)
-    budget.reserve(USER, LIST_PAGE_COST, T0)
-    budget.reserve(USER, LIST_PAGE_COST, T0)
+        budget.charge(USER, LINK_COST, T0)
+    budget.charge(USER, LIST_PAGE_COST, T0)
+    budget.charge(USER, LIST_PAGE_COST, T0)
     with pytest.raises(GitHubUserLimitReached):
-        budget.reserve(USER, LIST_PAGE_COST, T0)
+        budget.charge(USER, LIST_PAGE_COST, T0)
 
 
 def test_window_slides():
     budget = UserRequestBudget(60)
-    budget.reserve(USER, 60, T0).settle(60)
+    budget.charge(USER, 60, T0)
 
     with pytest.raises(GitHubUserLimitReached) as exc:
-        budget.reserve(USER, 1, T0 + timedelta(minutes=59, seconds=59, microseconds=500_000))
+        budget.charge(USER, 1, T0 + timedelta(minutes=59, seconds=59, microseconds=500_000))
     assert exc.value.retry_after_seconds == 1
 
-    budget.reserve(USER, 1, T0 + timedelta(hours=1))
+    budget.charge(USER, 1, T0 + timedelta(hours=1))
     assert budget.spent(USER, T0 + timedelta(hours=1)) == 1
 
 
 def test_users_have_separate_budgets():
     budget = UserRequestBudget(60)
-    budget.reserve(USER, 60, T0).settle(60)
+    budget.charge(USER, 60, T0)
 
-    budget.reserve(OTHER, MANUAL_SYNC_COST, T0)
+    budget.charge(OTHER, MANUAL_SYNC_COST, T0)
 
     assert budget.spent(OTHER, T0) == 7
 
@@ -123,7 +153,7 @@ def test_users_have_separate_budgets():
 @pytest.mark.parametrize("cost", [0, -1, 61])
 def test_invalid_cost_is_rejected(cost):
     with pytest.raises(ValueError):
-        UserRequestBudget(60).reserve(USER, cost, T0)
+        UserRequestBudget(60).charge(USER, cost, T0)
 
 
 def test_limit_must_cover_a_manual_sync():
@@ -150,7 +180,7 @@ def test_concurrent_reservations_never_exceed_the_limit(monkeypatch):
     def worker() -> None:
         start.wait()
         try:
-            budget.reserve(USER, LINK_COST, T0)
+            budget.charge(USER, LINK_COST, T0)
         except GitHubUserLimitReached:
             refused.append(1)
         else:
@@ -326,6 +356,18 @@ def test_spend_settles_when_the_operation_fails():
     assert budget.spent(USER, T0) == 0
 
 
+def test_exception_inside_the_block_charges_the_requests_sent():
+    budget = UserRequestBudget(60)
+    client = _client(_owner_repository, RateLimitPause(), Clock(T0))
+
+    with pytest.raises(RuntimeError):
+        with budget.spend(USER, LINK_COST, T0, client):
+            client.get_repository("octocat", "Hello-World")
+            raise RuntimeError("the operation failed after one request")
+
+    assert budget.spent(USER, T0) == 1
+
+
 def test_spend_counts_only_this_operation():
     budget = UserRequestBudget(60)
     client = _client(_owner_repository, RateLimitPause(), Clock(T0))
@@ -339,7 +381,7 @@ def test_spend_counts_only_this_operation():
 
 def test_refused_spend_does_not_run_or_charge():
     budget = UserRequestBudget(60)
-    budget.reserve(USER, 60, T0)
+    budget.charge(USER, 60, T0)
     client = _client(_owner_repository, RateLimitPause(), Clock(T0))
 
     with pytest.raises(GitHubUserLimitReached):
@@ -352,9 +394,22 @@ def test_refused_spend_does_not_run_or_charge():
 
 def test_users_without_recent_charges_are_forgotten():
     budget = UserRequestBudget(60)
-    budget.reserve(USER, 1, T0)
-    budget.reserve(OTHER, 1, T0 + timedelta(minutes=30))
+    budget.charge(USER, 1, T0)
+    budget.charge(OTHER, 1, T0 + timedelta(minutes=30))
 
-    budget.reserve(OTHER, 1, T0 + timedelta(minutes=61))
+    budget.charge(OTHER, 1, T0 + timedelta(minutes=61))
 
+    assert set(budget._charges) == {OTHER}
+
+
+def test_sweep_runs_at_most_once_a_minute():
+    budget = UserRequestBudget(60)
+    budget.charge(OTHER, 1, T0)
+    budget.charge(USER, 1, T0 + timedelta(minutes=10))  # leaves the window at T0 + 70 min
+    budget.charge(OTHER, 1, T0 + timedelta(minutes=69, seconds=50))  # sweeps; USER stays
+
+    budget.charge(OTHER, 1, T0 + timedelta(minutes=70, seconds=30))
+    assert USER in budget._charges  # 40 s since the last sweep
+
+    budget.charge(OTHER, 1, T0 + timedelta(minutes=71))
     assert set(budget._charges) == {OTHER}

@@ -16,6 +16,7 @@ from app.github.client import GitHubApiClient
 from app.settings import settings
 
 WINDOW = timedelta(hours=1)
+SWEEP_INTERVAL = timedelta(minutes=1)
 
 # The most an operation may spend, reserved before it starts (ADR-018).
 LIST_PAGE_COST = 1
@@ -38,19 +39,6 @@ class _Charge:
     amount: int
 
 
-class Reservation:
-    """The worst case of one operation, held until settle() records what it spent."""
-
-    def __init__(self, budget: "UserRequestBudget", charge: _Charge) -> None:
-        self._budget = budget
-        self._charge = charge
-        self.reserved = charge.amount
-
-    def settle(self, used: int) -> None:
-        """Keep only the requests actually sent (at most the reserved amount)."""
-        self._budget._settle(self._charge, max(0, min(used, self.reserved)))
-
-
 class UserRequestBudget:
     """At most `limit` GitHub requests per user in any sliding 60 minutes."""
 
@@ -68,19 +56,27 @@ class UserRequestBudget:
     ) -> Iterator[None]:
         """Reserve the worst case, run the operation, keep what the client sent.
 
-        Settles on every exit, errors included, so a refused or paused operation
-        costs only the requests that reached GitHub (ADR-018). Use this for link,
-        import and the list; reserve() alone is for a manual sync, whose requests
-        the worker makes later.
+        For link, import and the list. Settles on every exit, errors included, so
+        a refused or paused operation costs only the requests that reached GitHub
+        (ADR-018).
         """
-        reservation = self.reserve(user_id, max_requests, now)
+        charge = self._reserve(user_id, max_requests, now)
         sent_before = client.requests_sent
         try:
             yield
         finally:
-            reservation.settle(client.requests_sent - sent_before)
+            self._settle(charge, client.requests_sent - sent_before)
 
-    def reserve(self, user_id: uuid.UUID, max_requests: int, now: datetime) -> Reservation:
+    def charge(self, user_id: uuid.UUID, requests: int, now: datetime) -> None:
+        """A fixed charge with nothing to settle: a manual sync that queues a job
+        counts its maximum, because the worker makes the requests later (ADR-018)."""
+        self._reserve(user_id, requests, now)
+
+    def spent(self, user_id: uuid.UUID, now: datetime) -> int:
+        with self._lock:
+            return sum(c.amount for c in self._charges.get(user_id, []) if c.at > now - WINDOW)
+
+    def _reserve(self, user_id: uuid.UUID, max_requests: int, now: datetime) -> _Charge:
         if not 1 <= max_requests <= self._limit:
             raise ValueError("Invalid operation cost")
         with self._lock:
@@ -93,16 +89,12 @@ class UserRequestBudget:
             charge = _Charge(at=now, amount=max_requests)
             charges.append(charge)
             self._charges[user_id] = charges
-            return Reservation(self, charge)
-
-    def spent(self, user_id: uuid.UUID, now: datetime) -> int:
-        with self._lock:
-            return sum(c.amount for c in self._charges.get(user_id, []) if c.at > now - WINDOW)
+            return charge
 
     def _sweep(self, now: datetime) -> None:
-        # At most once a window, forget users with no charge left in it, so the
-        # dict holds only users active in the last hour. Called under the lock.
-        if self._swept_at is not None and now - self._swept_at < WINDOW:
+        # At most once a minute, forget users with no charge left in the window, so
+        # the dict holds only users active in the last hour. Called under the lock.
+        if self._swept_at is not None and now - self._swept_at < SWEEP_INTERVAL:
             return
         self._swept_at = now
         for user_id in [
@@ -113,8 +105,9 @@ class UserRequestBudget:
             del self._charges[user_id]
 
     def _settle(self, charge: _Charge, used: int) -> None:
+        # Keep only the requests actually sent, at most the reserved amount.
         with self._lock:
-            charge.amount = used
+            charge.amount = max(0, min(used, charge.amount))
 
     def _retry_after(
         self, charges: list[_Charge], spent: int, max_requests: int, now: datetime
