@@ -3,6 +3,9 @@
 import base64
 import json
 import logging
+import os
+import subprocess
+import sys
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -17,9 +20,12 @@ from app.github.client import (
     GitHubMoved,
     GitHubNotFound,
     GitHubRateLimited,
+    GitHubRepositoryData,
+    GitHubRepositoryListEntry,
     GitHubUnavailable,
     GitHubUnexpected,
     InvalidGitHubInput,
+    RateLimit,
     RateLimitPause,
     RateLimitState,
 )
@@ -651,3 +657,92 @@ def test_invalid_rate_limit_headers_are_ignored():
     client.get_repository("octocat", "Hello-World")
 
     assert state.latest is None
+
+
+def _state_value(remaining: int | None, reset: datetime) -> RateLimit:
+    return RateLimit(limit=5000, remaining=remaining, reset_at=reset, used=None, resource="core")
+
+
+def test_rate_limit_state_keeps_the_lowest_remaining_of_a_window():
+    state = RateLimitState()
+    reset = NOW + timedelta(minutes=30)
+
+    state.update(_state_value(480, reset))
+    state.update(_state_value(520, reset))  # an older response processed late
+    assert state.latest.remaining == 480
+
+    state.update(_state_value(470, reset))
+    assert state.latest.remaining == 470
+
+
+def test_rate_limit_state_ignores_an_older_window_and_takes_a_newer_one():
+    state = RateLimitState()
+    reset = NOW + timedelta(minutes=30)
+    state.update(_state_value(10, reset))
+
+    state.update(_state_value(3, reset - timedelta(hours=1)))
+    assert state.latest.reset_at == reset
+
+    state.update(_state_value(4999, reset + timedelta(hours=1)))
+    assert state.latest.remaining == 4999
+
+
+# Review fixes: bounded waits, list items, list entry type.
+
+
+@pytest.mark.parametrize("retry_after", ["7200", "999999999999", "9" * 40])
+def test_retry_after_is_capped_at_an_hour(retry_after):
+    client, _ = _client(_json(429, {}, {"retry-after": retry_after}))
+
+    with pytest.raises(GitHubRateLimited) as exc:
+        client.get_repository("octocat", "Hello-World")
+    assert exc.value.retry_at == NOW + timedelta(hours=1)
+
+
+def test_far_reset_is_capped_at_an_hour():
+    client, _ = _client(_json(403, {}, _rate_headers(0, NOW + timedelta(days=400))))
+
+    with pytest.raises(GitHubRateLimited) as exc:
+        client.get_repository("octocat", "Hello-World")
+    assert exc.value.retry_at == NOW + timedelta(hours=1)
+
+
+def test_list_skips_private_and_malformed_items(github_log):
+    good, archived = _fixture("user_repositories.json")
+    body = [
+        good,
+        dict(good, id=3000001, private=True),
+        {"id": "broken", "description": BODY_MARKER},
+        archived,
+    ]
+    client, _ = _client(_json(200, body))
+
+    page = client.list_user_repositories("octocat", 1)
+
+    assert [item.github_repo_id for item in page.items] == [1296269, 2000002]
+    messages = [record.getMessage() for record in github_log.records]
+    assert "GitHub user_repositories: 2 items skipped" in messages
+    assert all(BODY_MARKER not in message for message in messages)
+
+
+def test_list_entries_carry_no_parent():
+    client, _ = _client(_json(200, [_fixture("repository_fork.json")]))
+
+    entry = client.list_user_repositories("octocat", 1).items[0]
+
+    assert isinstance(entry, GitHubRepositoryListEntry)
+    assert not isinstance(entry, GitHubRepositoryData)
+    assert not hasattr(entry, "parent_full_name")
+
+
+def test_client_does_not_import_the_database_layer():
+    script = "import sys, app.github.client; print('app.database' in sys.modules)"
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).parent.parent,
+        env={"PATH": os.environ.get("PATH", ""), "SYSTEMROOT": os.environ.get("SYSTEMROOT", "")},
+        check=True,
+    )
+    assert result.stdout.strip() == "False"

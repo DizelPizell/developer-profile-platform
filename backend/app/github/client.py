@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from app.models.github import GITHUB_HTML_URL_PREFIX
+from app.github import GITHUB_HTML_URL_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,8 @@ MAX_LIST_PAGE = 100
 MAX_CONTRIBUTOR_PAGES = 5
 # GitHub's guidance when a secondary limit gives no retry-after (ADR-018).
 SECONDARY_LIMIT_WAIT = timedelta(seconds=60)
+# The primary limit resets every hour; a longer wait from a header is not believed.
+MAX_RATE_LIMIT_WAIT = timedelta(hours=1)
 _MAX_BIGINT = 2**63 - 1
 
 # Safety filters from ADR-016; GitHub stays the authority on existence.
@@ -112,7 +114,11 @@ class RateLimit:
 
 
 class RateLimitState:
-    """The latest rate limit seen by this process, shared by its requests."""
+    """The latest rate limit seen by this process, shared by its requests.
+
+    Responses may be processed out of order: within one reset window the lowest
+    remaining is kept, and a response from an older window is ignored.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -120,6 +126,16 @@ class RateLimitState:
 
     def update(self, value: RateLimit) -> None:
         with self._lock:
+            current = self._latest
+            if current is not None and current.reset_at and value.reset_at:
+                if value.reset_at < current.reset_at:
+                    return
+                if (
+                    value.reset_at == current.reset_at
+                    and current.remaining is not None
+                    and (value.remaining is None or value.remaining > current.remaining)
+                ):
+                    return
             self._latest = value
 
     @property
@@ -158,8 +174,9 @@ backend_pause = RateLimitPause()
 
 
 @dataclass(frozen=True)
-class GitHubRepositoryData:
-    """One repository, as stored in github_repositories (ADR-017)."""
+class GitHubRepositoryListEntry:
+    """A repository as a list shows it: GitHub's lists carry no parent, so this type
+    has no parent_full_name and cannot overwrite a stored one."""
 
     github_repo_id: int
     owner_github_id: int
@@ -169,15 +186,20 @@ class GitHubRepositoryData:
     html_url: str
     description: str | None
     is_fork: bool
-    # Only the single-repository endpoints return the parent; None in lists.
-    parent_full_name: str | None
     is_archived: bool
     pushed_at: datetime | None
 
 
 @dataclass(frozen=True)
+class GitHubRepositoryData(GitHubRepositoryListEntry):
+    """One repository, as stored in github_repositories (ADR-017)."""
+
+    parent_full_name: str | None
+
+
+@dataclass(frozen=True)
 class RepositoryPage:
-    items: tuple[GitHubRepositoryData, ...]
+    items: tuple[GitHubRepositoryListEntry, ...]
     has_next: bool
 
 
@@ -229,10 +251,12 @@ def _limited_until(
     """When a 403 or 429 is a rate limit, the time to wait until (ADR-018)."""
     retry_after = _header_int(response.headers, "retry-after")
     if retry_after is not None:
-        return now + timedelta(seconds=retry_after)
+        # Capped before the addition, so a huge value cannot overflow datetime.
+        wait = min(retry_after, int(MAX_RATE_LIMIT_WAIT.total_seconds()))
+        return now + timedelta(seconds=wait)
     if rate is not None and rate.remaining == 0:
         if rate.reset_at is not None and rate.reset_at > now:
-            return rate.reset_at
+            return min(rate.reset_at, now + MAX_RATE_LIMIT_WAIT)
         return now + SECONDARY_LIMIT_WAIT
     if response.status_code == 429 or _is_secondary_limit(response):
         return now + SECONDARY_LIMIT_WAIT
@@ -293,12 +317,14 @@ def _timestamp(value: object, status: int) -> datetime | None:
     return parsed.astimezone(UTC).replace(tzinfo=None)
 
 
-def _repository(data: object, status: int, *, with_parent: bool) -> GitHubRepositoryData:
+def _is_private(data: object) -> bool:
+    # Public data only (ADR-016); app credentials should never see a private one.
+    return isinstance(data, dict) and data.get("private") is True
+
+
+def _list_entry(data: object, status: int) -> GitHubRepositoryListEntry:
     if not isinstance(data, dict) or not isinstance(data.get("owner"), dict):
         raise _malformed(status)
-    # Public data only (ADR-016); app credentials should never see a private one.
-    if data.get("private") is True:
-        raise GitHubNotFound()
     owner_login = _text(data["owner"].get("login"), status)
     name = _text(data.get("name"), status)
     full_name = _text(data.get("full_name"), status)
@@ -310,12 +336,7 @@ def _repository(data: object, status: int, *, with_parent: bool) -> GitHubReposi
     description = data.get("description")
     if description is not None and not isinstance(description, str):
         raise _malformed(status)
-    is_fork = _flag(data.get("fork"), status)
-    parent_full_name = None
-    if with_parent and is_fork and isinstance(data.get("parent"), dict):
-        parent = data["parent"].get("full_name")
-        parent_full_name = parent if isinstance(parent, str) and parent.strip() else None
-    return GitHubRepositoryData(
+    return GitHubRepositoryListEntry(
         github_repo_id=_positive_int(data.get("id"), status),
         owner_github_id=_positive_int(data["owner"].get("id"), status),
         owner_login=owner_login,
@@ -324,11 +345,22 @@ def _repository(data: object, status: int, *, with_parent: bool) -> GitHubReposi
         html_url=html_url,
         # PostgreSQL text cannot hold NUL.
         description=description.replace("\x00", "") if description else None,
-        is_fork=is_fork,
-        parent_full_name=parent_full_name,
+        is_fork=_flag(data.get("fork"), status),
         is_archived=_flag(data.get("archived"), status),
         pushed_at=_timestamp(data.get("pushed_at"), status),
     )
+
+
+def _repository(data: object, status: int) -> GitHubRepositoryData:
+    if _is_private(data):
+        raise GitHubNotFound()
+    entry = _list_entry(data, status)
+    parent_full_name = None
+    parent = data.get("parent") if isinstance(data, dict) else None
+    if entry.is_fork and isinstance(parent, dict):
+        value = parent.get("full_name")
+        parent_full_name = value if isinstance(value, str) and value.strip() else None
+    return GitHubRepositoryData(**vars(entry), parent_full_name=parent_full_name)
 
 
 def _check_repository_name(owner: str, name: str) -> None:
@@ -372,7 +404,7 @@ class GitHubApiClient:
     def get_repository(self, owner: str, name: str) -> GitHubRepositoryData:
         _check_repository_name(owner, name)
         response = self._get("repository", f"/repos/{owner}/{name}")
-        return _repository(_body(response), response.status_code, with_parent=True)
+        return _repository(_body(response), response.status_code)
 
     def get_repository_by_id(self, github_repo_id: int) -> GitHubRepositoryData:
         if (
@@ -382,7 +414,7 @@ class GitHubApiClient:
         ):
             raise InvalidGitHubInput("Invalid repository id")
         response = self._get("repository_by_id", f"/repositories/{github_repo_id}")
-        return _repository(_body(response), response.status_code, with_parent=True)
+        return _repository(_body(response), response.status_code)
 
     def list_user_repositories(self, login: str, page: int) -> RepositoryPage:
         """The user's own public repositories, most recently pushed first (ADR-017)."""
@@ -403,9 +435,22 @@ class GitHubApiClient:
         data = _body(response)
         if not isinstance(data, list):
             raise _malformed(response.status_code)
-        items = tuple(_repository(item, response.status_code, with_parent=False) for item in data)
+        # One bad item must not hide the rest of the page: private items are not
+        # shown (ADR-016), malformed ones are skipped and counted in the log.
+        items = []
+        skipped = 0
+        for item in data:
+            if _is_private(item):
+                skipped += 1
+                continue
+            try:
+                items.append(_list_entry(item, response.status_code))
+            except GitHubUnavailable:
+                skipped += 1
+        if skipped:
+            logger.warning("GitHub user_repositories: %s items skipped", skipped)
         has_next = "next" in response.links and page < MAX_LIST_PAGE
-        return RepositoryPage(items=items, has_next=has_next)
+        return RepositoryPage(items=tuple(items), has_next=has_next)
 
     def get_languages(self, owner: str, name: str) -> dict[str, int]:
         """GitHub's own shape: {"language": bytes}, in GitHub's order."""
