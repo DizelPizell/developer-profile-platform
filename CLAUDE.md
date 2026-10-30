@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) has started ahead of Phase 4: step 5.1 is done.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) has started ahead of Phase 4: steps 5.1–5.4 are done.
 
 
 
@@ -860,6 +860,8 @@ frontend F1–F6: Next.js skeleton, sign-in, cabinet, public page /u/[slug], pro
 
 backend Phase 5 step 5.1: github_repositories and project_repositories models and migration; the database holds "one repository per project" and "a user links a repository to at most one of their projects" (ADR-017)
 
+backend Phase 5 steps 5.2–5.4: the GitHub API client with app credentials and the per-user request budget (ADR-016, ADR-018); the repository list with its in-memory page cache; linking and unlinking a project with the relation check (ADR-017)
+
 
 
 Not yet started:
@@ -868,7 +870,7 @@ Not yet started:
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
-GitHub client, repository list, linking, import and sync — Phase 5 steps 5.2 onward and Phase 6 (ADR-016..019)
+import and sync — Phase 5 step 5.5 and Phase 6 (ADR-016..019)
 
 
 
@@ -876,7 +878,7 @@ Current next goal:
 
 
 
-Phase 5 step 5.2 (DEVELOPMENT_PLAN): the GitHub API client with app credentials (ADR-016). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+Phase 5 step 5.5 (DEVELOPMENT_PLAN): import of a repository as a DRAFT + PRIVATE project (ADR-017). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
