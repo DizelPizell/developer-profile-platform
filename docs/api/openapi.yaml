@@ -425,7 +425,9 @@ paths:
         request with the app credentials (ADR-016), 100 per page, most
         recently pushed first. Not stored in the database; a page GitHub
         returned is kept in the backend's memory for 5 minutes, and whether an
-        item is linked is read on every call (ADR-017).
+        item is linked is read on every call (ADR-017). The list is read by the
+        login stored at sign-in; items owned by another GitHub account are not
+        returned.
       parameters:
         - name: page
           in: query
@@ -438,6 +440,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/GitHubRepositoryListResponse"}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/GitHubLoginOutdated"}
         "422": {$ref: "#/components/responses/ValidationError"}
         "429": {$ref: "#/components/responses/GitHubUserLimitReached"}
         "500": {$ref: "#/components/responses/InternalError"}
@@ -984,6 +987,14 @@ components:
       description: >-
         GITHUB_UNAVAILABLE — GitHub timed out, answered with an error status or
         an unexpected body; GitHub's response is not copied into the error.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    GitHubLoginOutdated:
+      description: >-
+        GITHUB_LOGIN_OUTDATED — GitHub has no user with the login stored at
+        sign-in, or that login now belongs to another GitHub account: it was
+        renamed since sign-in; signing in again refreshes it (ADR-017).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
