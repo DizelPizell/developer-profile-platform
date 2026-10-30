@@ -231,7 +231,7 @@ A separate public project page, at the frontend address `/u/{slug}/projects/{id}
 - **Showcase presentation**: showcase description and highlights (ARCHITECTURAL_DIALOGUE §19), and whether `PATCH /projects/{id}/showcase` returns for them.
 - **Fields of later phases**: goals, architecture, highlights, demo, screenshots, repository link; which of them become required to publish.
 - **Public project page** (Phase 4): the endpoint, its whitelist, and the frontend address `/u/{slug}/projects/{id}`.
-- **Imported projects** (Phase 5): which fields a GitHub import fills and how imported values stay distinguishable from developer-provided ones.
+- **Imported projects** (Phase 5): which fields a GitHub import fills and how imported values stay distinguishable from developer-provided ones. Resolved by ADR-017-repository-linking-and-import.md (2026-10-30): an import fills only `title` from the repository name; GitHub's own data stays in the `github` object (ADR-019).
 - **Deletion side effects**: object storage cleanup (Phase 4) and analytics events of deleted projects (Phase 7).
 - **Markdown** in long project fields, together with the same question for `bio` (ADR-013).
 - **Limits**: 50 projects and 20 technologies are starting values; revisit with real usage. Rate limiting of project mutations is part of the general rate-limiting question (ADR-013).

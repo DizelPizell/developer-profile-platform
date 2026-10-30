@@ -4,6 +4,8 @@
 
 Accepted
 
+Note (2026-10-30): partly superseded by ADR-016-github-access-v1.md. The separate repository-access consent (`/integrations/github/connect`) and its stored token are not part of V1: repository data is read with the app's credentials, and no user token is stored. Login itself is unchanged.
+
 ## Context
 
 Legacy ADR `005-authentication.md` established HTTP-only cookie sessions as the session mechanism and described GitHub OAuth as "a separate account integration." This left the primary login method — email + password, GitHub OAuth, or both — unspecified. The PRD listed "registration", "login", and "recovery" as authentication features, implying email-based credentials.

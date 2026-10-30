@@ -4,6 +4,8 @@
 
 Accepted
 
+Note (2026-10-30): refined by ADR-018-github-sync-v1.md — when jobs are created (link, manual with a pause, every 24 hours by the worker), rate-limit answers that do not charge an attempt, the two-404 rule, and the status contract (`github.sync` in the cabinet project response). `github_repositories.unavailable_since` (ADR-017) is a repository fact, not sync status; the rule below that sync status lives only in `github_sync_jobs` is unchanged.
+
 ## Context
 
 ADR-008 established that GitHub synchronization in V1 is asynchronous but does not use Kafka or an Outbox pattern. The exact worker/queue mechanism was left as an open implementation decision. This ADR resolves that decision.

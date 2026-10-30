@@ -4,6 +4,8 @@
 
 Accepted
 
+Note (2026-10-30): narrowed for V1 by ADR-018-github-sync-v1.md. V1 synchronizes and stores only repository metadata and languages. README, file tree, contributors and commits are deferred, not rejected; the scope and reconciliation rules below apply to them unchanged when they return. The `github_repositories` field list for V1 is fixed by ADR-017-repository-linking-and-import.md.
+
 ## Context
 
 ADR-007 established that GitHub is the source of technical repository evidence. This ADR defines the concrete scope and reconciliation rules for GitHub Evidence in V1 — what is synchronized, how it is classified (snapshot vs history), and how synchronization stays idempotent and safe under partial failure.

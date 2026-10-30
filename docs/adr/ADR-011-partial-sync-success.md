@@ -4,6 +4,8 @@
 
 Accepted
 
+Note (2026-10-30): narrowed for V1 by ADR-018-github-sync-v1.md. The V1 categories are metadata and languages, both mandatory; README, file tree (mandatory here), contributors and commits (optional here) are not fetched or stored in V1 and keep the rules below for when they return. The sync status contract left open below is decided by ADR-018.
+
 ## Context
 
 ADR-010 defined the scope and reconciliation rules for GitHub Evidence and established that if a category fetch fails or is incomplete, existing stored data is not modified and the job is retried or marked `FAILED` per ADR-009.

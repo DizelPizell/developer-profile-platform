@@ -4,6 +4,8 @@
 
 Accepted
 
+Note (2026-10-30): not applied in V1. ADR-016-github-access-v1.md reads only public data with the app's credentials, so no user GitHub token is requested or stored. This ADR remains the rule if a GitHub token is ever stored (for example through a GitHub App).
+
 ## Context
 
 The platform needs a GitHub OAuth token to perform authorized GitHub API operations on behalf of the user.
