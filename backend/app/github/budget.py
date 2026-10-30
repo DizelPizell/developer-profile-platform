@@ -20,7 +20,10 @@ SWEEP_INTERVAL = timedelta(minutes=1)
 
 # The most an operation may spend, reserved before it starts (ADR-018).
 LIST_PAGE_COST = 1
-LINK_COST = 6  # the repository plus up to 5 contributor pages; import too
+# The repository, once more by id when the name is an old one GitHub redirects,
+# and up to 5 contributor pages (ADR-017).
+LINK_COST = 7
+IMPORT_COST = 6  # the repository by id plus up to 5 contributor pages
 MANUAL_SYNC_COST = 7  # metadata, languages, up to 5 contributor pages
 MAX_OPERATION_COST = MANUAL_SYNC_COST
 

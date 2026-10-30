@@ -304,7 +304,7 @@ V1 reads only public GitHub data, with the platform's app credentials; the user 
 
 Every endpoint may also return 500 `INTERNAL_ERROR`.
 
-On every error of link and import nothing is stored, and an existing link stays as it was. A link or import queues a sync job; a link reads GitHub in the request (the repository and at most 5 pages of its contributors), so it may take a few seconds.
+On every error of link and import nothing is stored, and an existing link stays as it was. A link or import queues a sync job; a link reads GitHub in the request (the repository, once more by id when the name is an old one that GitHub redirects, and at most 5 pages of its contributors), so it may take a few seconds. A link by an old name links the repository under its current name (ADR-017).
 
 The repository list is not stored in the database; a page GitHub returned is kept in the backend's memory for 5 minutes, and `linked_project_id` is read on every call (ADR-017).
 
@@ -419,7 +419,7 @@ Every error response, including framework errors, uses this shape:
 - 409 `GITHUB_REPOSITORY_ALREADY_LINKED`: another of the user's projects already links this repository; `details.project_id`.
 - 409 `GITHUB_LOGIN_OUTDATED`: GitHub has no user with the login stored at sign-in, or that login now belongs to another GitHub account; the user renamed their GitHub account since signing in, and signing in again refreshes the login (ADR-017).
 - 429 `GITHUB_SYNC_TOO_SOON`: a manual sync of this repository was requested less than 10 minutes after its latest job; `Retry-After` header and `details.retry_after_seconds`.
-- 429 `GITHUB_USER_LIMIT_REACHED`: the user's GitHub request budget for the last 60 minutes (60 requests by default) does not cover the operation (a list page 1, a link or import up to 6, a new manual sync job 7); GitHub is not called; `Retry-After` header and `details.retry_after_seconds` (ADR-018).
+- 429 `GITHUB_USER_LIMIT_REACHED`: the user's GitHub request budget for the last 60 minutes (60 requests by default) does not cover the operation (a list page 1, a link up to 7, an import up to 6, a new manual sync job 7); GitHub is not called; `Retry-After` header and `details.retry_after_seconds` (ADR-018).
 - A resource owned by another user returns the same 404 `NOT_FOUND` as a missing one; a malformed id in a project path is also `NOT_FOUND`, not `VALIDATION_ERROR`.
 - 500 `INTERNAL_ERROR`: generic message, empty `details`; the exception is logged server-side with the `request_id`.
 

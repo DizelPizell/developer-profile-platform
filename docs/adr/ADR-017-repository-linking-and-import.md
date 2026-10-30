@@ -41,7 +41,7 @@ Public wording states the fact: «Владелец репозитория» or �
 `POST /projects/{id}/repository` with `{"full_name": "owner/name"}` (`POST`, like the showcase actions, so CORS needs no new method):
 
 1. The owner and name are validated against the patterns of ADR-016 before any request.
-2. The backend reads the repository (one request) and, if the developer is not its owner, the contributor list (up to 5 requests). This is a bounded check of at most 6 requests, not a synchronization: ADR-008 rules out long syncs inside a request, and nothing here loops over repository content.
+2. The backend reads the repository (one request, and one more by id when the name is an old one that GitHub redirects; see "Renamed and transferred repositories") and, if the developer is not its owner, the contributor list (up to 5 requests). This is a bounded check of at most 7 requests (6 for an import, which reads by id), not a synchronization: ADR-008 rules out long syncs inside a request, and nothing here loops over repository content.
 3. Not found or not public: 422 `GITHUB_REPOSITORY_NOT_FOUND`. Neither owner nor contributor: 422 `GITHUB_RELATION_NOT_FOUND`, with a message saying that the developer is neither the owner nor in the repository's contributor list according to GitHub. GitHub unreachable: 502 `GITHUB_UNAVAILABLE`. GitHub's rate limit exhausted: 503 `GITHUB_RATE_LIMITED`. In all these cases nothing is stored.
 4. On success the repository row is created or updated with the metadata just read, the link is stored with its relation, and a sync job is queued (ADR-018).
 
@@ -77,9 +77,11 @@ A fork may be linked. It is always shown with «Форк {parent_full_name}», b
 
 The key is `github_repo_id`; `owner_login`, `name`, `full_name` and `html_url` are refreshed by every sync. A transfer changes `owner_github_id`, so the relation is recomputed (ADR-018).
 
+A link by an old name gets `301` to `/repositories/{id}` (ADR-016). The backend reads the repository by that id, one more request, and links it under its current name with the usual relation check. The developer typed an address of their own repository that GitHub still knows; refusing it would only send them to look up the new name. Any other redirect is 502 `GITHUB_UNAVAILABLE`. Decided in step 5.4, 2026-10-30.
+
 ### Unavailable repositories
 
-A repository that GitHub answers with 404 twice in a row is unavailable: `github_repositories.unavailable_since` is set (ADR-018 defines when). This is a fact about the repository, like `is_archived`, not a sync status; ADR-009's rule that sync status lives only in `github_sync_jobs` still holds. While it is set, the GitHub block is hidden publicly and the cabinet shows «Репозиторий недоступен: удалён или стал приватным». A later successful sync clears it.
+A repository that GitHub answers with 404 twice in a row is unavailable: `github_repositories.unavailable_since` is set (ADR-018 defines when). This is a fact about the repository, like `is_archived`, not a sync status; ADR-009's rule that sync status lives only in `github_sync_jobs` still holds. While it is set, the GitHub block is hidden publicly and the cabinet shows «Репозиторий недоступен: удалён или стал приватным». A later successful sync, or a link that reads the repository, clears it.
 
 ### Lost relation
 
@@ -96,7 +98,7 @@ If a sync finds the developer neither owner nor contributor, the link stays with
 ### Negative
 
 - False negatives: commits under an email not linked to the developer's account, or beyond GitHub's first 500 emails, do not make them a contributor; such a developer cannot link the repository in V1.
-- Linking makes up to 6 GitHub requests inside an HTTP request; a slow GitHub makes the link slow (each request has the client timeout).
+- Linking makes up to 7 GitHub requests inside an HTTP request; a slow GitHub makes the link slow (each request has the client timeout).
 - Repository rows that no project links any more stay in the table (see "Open questions").
 
 ## Alternatives considered
@@ -116,7 +118,6 @@ Checked in step 5.2 on 2026-10-30, with app credentials and no user token (`back
 
 ## Open questions
 
-- Linking by an old name: whether `POST /projects/{id}/repository` reads the repository by the id of the redirect or refuses it; to be decided in step 5.4.
 - Cleanup of `github_repositories` rows that no project links.
 - Whether the data of an unavailable repository is deleted after some time.
 - Repositories the developer contributed to through an organization, when the contributor list does not show them.

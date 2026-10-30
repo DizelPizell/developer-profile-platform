@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.github import budget as budget_module
 from app.github.budget import (
+    IMPORT_COST,
     LINK_COST,
     LIST_PAGE_COST,
     MANUAL_SYNC_COST,
@@ -33,7 +34,7 @@ OTHER = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
 
 def test_operation_costs_follow_adr_018():
-    assert (LIST_PAGE_COST, LINK_COST, MANUAL_SYNC_COST) == (1, 6, 7)
+    assert (LIST_PAGE_COST, LINK_COST, IMPORT_COST, MANUAL_SYNC_COST) == (1, 7, 6, 7)
 
 
 def _settings(**values) -> Settings:
@@ -77,7 +78,7 @@ def test_spend_holds_the_worst_case_until_the_block_ends():
     budget = UserRequestBudget(60)
     client = Counter()
 
-    with budget.spend(USER, LINK_COST, T0, client):
+    with budget.spend(USER, IMPORT_COST, T0, client):
         client.requests_sent += 1
         assert budget.spent(USER, T0) == 6
 
@@ -89,7 +90,7 @@ def test_spend_keeps_between_zero_and_reserved(used, kept):
     budget = UserRequestBudget(60)
     client = Counter()
 
-    with budget.spend(USER, LINK_COST, T0, client):
+    with budget.spend(USER, IMPORT_COST, T0, client):
         client.requests_sent += used
 
     assert budget.spent(USER, T0) == kept
@@ -180,7 +181,7 @@ def test_concurrent_reservations_never_exceed_the_limit(monkeypatch):
     def worker() -> None:
         start.wait()
         try:
-            budget.charge(USER, LINK_COST, T0)
+            budget.charge(USER, IMPORT_COST, T0)
         except GitHubUserLimitReached:
             refused.append(1)
         else:

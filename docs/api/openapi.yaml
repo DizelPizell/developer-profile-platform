@@ -375,8 +375,10 @@ paths:
       security: [{cookieAuth: []}]
       summary: Link project to a GitHub repository
       description: >-
-        Reads the public repository and, unless the developer owns it, up to 5
-        pages of its contributors from GitHub, then links it with the relation
+        Reads the public repository (once more by id when owner/name is an old
+        name that GitHub redirects; it is linked under its current name) and,
+        unless the developer owns it, up to 5 pages of its contributors from
+        GitHub, then links it with the relation
         OWNER or CONTRIBUTOR and queues a sync (ADR-017, ADR-018). Replaces the
         project's previous link; the same repository again re-checks the
         relation. On any error nothing is stored.

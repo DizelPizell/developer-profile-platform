@@ -662,7 +662,8 @@ def test_requires_a_session(env, make_auth_client):
 def test_exhausted_user_budget_is_refused_before_github(env, db_session):
     env.github.add(_repo(1))
     project_id = _create(env.http)
-    env.budget.charge(env.user.id, 55, T0 - timedelta(minutes=45))
+    # 6 left: a link reserves 7, its worst case with a redirect (ADR-018).
+    env.budget.charge(env.user.id, 54, T0 - timedelta(minutes=45))
 
     resp = _link(env.http, project_id, f"{LOGIN}/repo-1")
 

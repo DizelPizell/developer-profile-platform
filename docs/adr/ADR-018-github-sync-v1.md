@@ -44,12 +44,13 @@ The platform's 5,000 requests per hour (ADR-016) are shared by the backend and t
 Cost of one operation, in GitHub requests:
 
 - repository list: 1 per page;
-- link or import: 1, plus up to 5 contributor pages when the developer is not the owner (ADR-017);
+- link: 1, plus 1 when the name is an old one that GitHub redirects, plus up to 5 contributor pages when the developer is not the owner (ADR-017);
+- import: 1, plus up to 5 contributor pages;
 - sync job: up to 7 (metadata, languages, up to 5 contributor pages).
 
 Rules:
 
-- **Per user.** Each user may spend at most **60** GitHub requests in the last 60 minutes (configurable, `GITHUB_USER_REQUESTS_PER_HOUR`). Before calling GitHub the backend checks that the user's remaining budget covers the operation's maximum (6 for link and import, 1 for a list page); otherwise it answers 429 `GITHUB_USER_LIMIT_REACHED` with `Retry-After` and `details.retry_after_seconds`, without calling GitHub. The requests actually made are counted, so linking one's own repository costs 1. A manual sync that queues a new job counts 7 for the user who asked for it, because the worker makes those requests later; returning an active job counts nothing. Jobs queued by link, import and the periodic schedule are not counted against a user. Sixty requests cover a developer importing a dozen repositories in one sitting; the platform budget then holds about eighty users at their limit in the same hour.
+- **Per user.** Each user may spend at most **60** GitHub requests in the last 60 minutes (configurable, `GITHUB_USER_REQUESTS_PER_HOUR`). Before calling GitHub the backend checks that the user's remaining budget covers the operation's maximum (7 for a link, 6 for an import, 1 for a list page); otherwise it answers 429 `GITHUB_USER_LIMIT_REACHED` with `Retry-After` and `details.retry_after_seconds`, without calling GitHub. The requests actually made are counted, so linking one's own repository costs 1. A manual sync that queues a new job counts 7 for the user who asked for it, because the worker makes those requests later; returning an active job counts nothing. Jobs queued by link, import and the periodic schedule are not counted against a user. Sixty requests cover a developer importing a dozen repositories in one sitting; the platform budget then holds about eighty users at their limit in the same hour.
 - **Reserve for users.** The worker claims no job while the latest `x-ratelimit-remaining` it has seen is at or below **500** (configurable, `GITHUB_WORKER_RESERVE`), until that response's `x-ratelimit-reset`. Syncs may wait (data is already up to 24 hours old), a developer who is linking a repository is waiting now, so the reserve protects HTTP requests and not the worker.
 - **Platform pause in the backend.** After an exhausted-limit answer the backend answers 503 `GITHUB_RATE_LIMITED` without calling GitHub until the reset time it was given, as the worker does.
 - The order in a request: input validation, then the repository list cache (ADR-017; a cached page costs nothing), then the user's budget (429), then the platform pause (503), then GitHub.
