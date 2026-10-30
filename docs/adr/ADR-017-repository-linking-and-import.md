@@ -56,6 +56,7 @@ Linking replaces the project's previous link. Linking the same repository again 
 - Creates a `DRAFT` + `PRIVATE` project whose `title` is the repository's `name` (at most 100 characters, as GitHub allows); every other project field is empty, and there are no technologies. GitHub's description is not copied into the project: it stays GitHub data, shown in the GitHub block (ADR-019).
 - Links the new project as above, with the same checks and errors, in one transaction with the project creation, except that a repository that is not found or not public is 404 `NOT_FOUND`, because it is the resource named in the path. The project limit (50) and `GITHUB_REPOSITORY_ALREADY_LINKED` apply.
 - Returns 201 with the project.
+- The project limit and an existing link of the repository by one of the user's projects are checked before GitHub is called, so they cost no requests; the write transaction checks both again under the profile lock and the unique constraint, which decide races. The id in the path is canonical: no sign, no leading zeros. A name that GitHub would not allow (the pattern of ADR-016) cannot be a title and is treated as a malformed answer, 502 `GITHUB_UNAVAILABLE`. Decided in step 5.5, 2026-10-30.
 
 Import is a convenience over "create project + link"; an imported project follows every rule of ADR-015.
 

@@ -457,7 +457,8 @@ paths:
       description: >-
         Creates a DRAFT + PRIVATE project whose title is the repository name
         (every other field empty) and links it as POST /projects/{id}/repository
-        does, in one transaction (ADR-017).
+        does, in one transaction (ADR-017). The project limit and an existing
+        link of the repository are checked before GitHub is called.
       responses:
         "201": {$ref: "#/components/responses/Project"}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -575,7 +576,7 @@ components:
       required: true
       description: >-
         GitHub's numeric repository id (github_repo_id) as a positive decimal
-        integer; anything else is 404 NOT_FOUND.
+        integer without a sign or leading zeros; anything else is 404 NOT_FOUND.
       schema: {type: integer, format: int64, minimum: 1}
   schemas:
     Error:

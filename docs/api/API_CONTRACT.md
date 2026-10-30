@@ -292,7 +292,7 @@ POST   /projects/{id}/repository
 DELETE /projects/{id}/repository
 ```
 
-V1 reads only public GitHub data, with the platform's app credentials; the user grants no repository access, so there is no connect, callback or disconnect endpoint (ADR-016). All endpoints require a session; `POST` and `DELETE` require the frontend `Origin` (ADR-013). `{id}` under `/integrations/github/repositories/` is GitHub's numeric repository id (`github_repo_id`) as a positive decimal integer; anything else is 404 `NOT_FOUND`. `{id}` under `/projects/` is the project id, as for every project endpoint. Linking, import and sync rules: ADR-017 and ADR-018.
+V1 reads only public GitHub data, with the platform's app credentials; the user grants no repository access, so there is no connect, callback or disconnect endpoint (ADR-016). All endpoints require a session; `POST` and `DELETE` require the frontend `Origin` (ADR-013). `{id}` under `/integrations/github/repositories/` is GitHub's numeric repository id (`github_repo_id`) as a positive decimal integer without a sign or leading zeros, at most 9223372036854775807; anything else is 404 `NOT_FOUND`. `{id}` under `/projects/` is the project id, as for every project endpoint. Linking, import and sync rules: ADR-017 and ADR-018.
 
 | Endpoint | Success | Errors |
 |---|---|---|
@@ -304,7 +304,7 @@ V1 reads only public GitHub data, with the platform's app credentials; the user 
 
 Every endpoint may also return 500 `INTERNAL_ERROR`.
 
-On every error of link and import nothing is stored, and an existing link stays as it was. A link or import queues a sync job; a link reads GitHub in the request (the repository, once more by id when the name is an old one that GitHub redirects, and at most 5 pages of its contributors), so it may take a few seconds. A link by an old name links the repository under its current name (ADR-017).
+On every error of link and import nothing is stored, and an existing link stays as it was. A link or import queues a sync job; a link reads GitHub in the request (the repository, once more by id when the name is an old one that GitHub redirects, and at most 5 pages of its contributors), so it may take a few seconds. A link by an old name links the repository under its current name (ADR-017). An import checks the project limit and whether one of the user's projects already links the repository before calling GitHub, so these errors cost no GitHub requests; the write transaction checks both again. A repository name that GitHub would not allow (the pattern of `RepositoryLinkRequest`) is a malformed answer: 502 `GITHUB_UNAVAILABLE`.
 
 The repository list is not stored in the database; a page GitHub returned is kept in the backend's memory for 5 minutes, and `linked_project_id` is read on every call (ADR-017).
 
