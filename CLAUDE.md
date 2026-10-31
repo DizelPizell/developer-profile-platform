@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: step 6.1.
 
 
 
@@ -872,6 +872,8 @@ frontend F-GH1.2: the repository page /me/repositories (list, paging, import, th
 
 frontend F-GH1.3 (with the former F-GH1.4): the repository block in the project form (link by name, replace, unlink, the GitHub error states with the countdown), the GitHub label on «Мои проекты» and the login note (manual check against the backend pending)
 
+backend Phase 6 step 6.1: the sync tables github_sync_jobs and github_sync_category_status, schema and migration only; links made before it have no job and stay NOT_SYNCED (ADR-018)
+
 
 
 Not yet started:
@@ -882,7 +884,7 @@ demo, screenshots, file storage (MinIO/S3) and the public project page — Phase
 
 frontend sync status in the cabinet — F-GH1.5, after backend step 6.2 (FRONTEND_PLAN)
 
-sync and public GitHub data — Phase 6 (ADR-018, ADR-019)
+sync and public GitHub data — Phase 6 steps 6.2–6.7 (ADR-018, ADR-019)
 
 
 
@@ -890,7 +892,7 @@ Current next goal:
 
 
 
-Phase 6 step 6.1 (DEVELOPMENT_PLAN): the sync tables github_sync_jobs and github_sync_category_status (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+Phase 6 step 6.2 (DEVELOPMENT_PLAN): a sync job queued with each link and import, POST /integrations/github/repositories/{id}/sync with the 10-minute pause per repository, and github.sync in ProjectResponse (ADR-018); then F-GH1.5. Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
