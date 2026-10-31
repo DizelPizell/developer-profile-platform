@@ -866,6 +866,8 @@ backend Phase 5 step 5.5: import of a repository as a DRAFT + PRIVATE project li
 
 backend Phase 5 step 5.6: the linked repository (github: null or full_name and html_url) in the items of GET /projects, in one batched query (ADR-017)
 
+frontend F-GH1.1: the API client and types for the GitHub endpoints, with whitelist readers for GitHub data and typed GitHub error codes
+
 
 
 Not yet started:
@@ -874,7 +876,7 @@ Not yet started:
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
-frontend for GitHub in the cabinet — F-GH1 (FRONTEND_PLAN)
+frontend for GitHub in the cabinet — F-GH1.2–F-GH1.5 (FRONTEND_PLAN)
 
 sync and public GitHub data — Phase 6 (ADR-018, ADR-019)
 
@@ -884,7 +886,7 @@ Current next goal:
 
 
 
-F-GH1.1 (FRONTEND_PLAN): the frontend API client and types for the GitHub endpoints and the github field of projects. Then Phase 6 step 6.1: the sync tables github_sync_jobs and github_sync_category_status (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+F-GH1.2 (FRONTEND_PLAN): the repository page /me/repositories with import and the link dialog. Then Phase 6 step 6.1: the sync tables github_sync_jobs and github_sync_category_status (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
