@@ -105,7 +105,33 @@ The backend rebuilt with the GitHub code (`docker compose up -d --build` in the 
 15. Narrow screen (DevTools device mode, 375 px): cards, buttons and the dialog fit without horizontal scroll.
 16. «Выйти» → `/login`; `/me/repositories` then redirects to `/login`.
 
-Not checked by hand, only by tests: 422 `GITHUB_RELATION_NOT_FOUND` (the list holds only your own repositories, so a link or import from it is always as the owner; linking by name comes with F-GH1.3), 503 `GITHUB_RATE_LIMITED` (the platform-wide GitHub limit cannot be reached on purpose), 409 `PROJECT_LIMIT_REACHED` from the API (at 50 projects the page disables import before a request; reaching the API error needs 50 projects and a second tab), 404 `NOT_FOUND` on import (a repository deleted on GitHub within the 5 minutes its page is cached), 500 `INTERNAL_ERROR` with «Код запроса», and the countdown reaching its end.
+`GITHUB_RELATION_NOT_FOUND` cannot come from this page (the list holds only your own repositories, so a link or import from it is always as the owner); it is checked by hand when linking by name in the project form ("Manual project repository check").
+
+Not checked by hand, only by tests: 503 `GITHUB_RATE_LIMITED` (the platform-wide GitHub limit cannot be reached on purpose), 409 `PROJECT_LIMIT_REACHED` from the API (at 50 projects the page disables import before a request; reaching the API error needs 50 projects and a second tab), 404 `NOT_FOUND` on import (a repository deleted on GitHub within the 5 minutes its page is cached), 500 `INTERNAL_ERROR` with «Код запроса», and the countdown reaching its end.
+
+## Manual project repository check
+
+The same setup as above (backend rebuilt, `npm run dev`, signed in, `http://localhost:3000`, DevTools → Network open), with at least one saved project and your own public repositories on github.com.
+
+1. «Новый проект» → `/me/projects/new`: the «Репозиторий GitHub» block shows only «Репозиторий можно привязать после первого сохранения.» The line under the form is «Демо и скриншоты добавим в следующих версиях.»
+2. Open a project without a repository: «Источник: GitHub», «Необязательно», the text about facts from GitHub, the input with «владелец/репозиторий», «Привязать» disabled while it is empty, and «выберите из своего списка» → `/me/repositories`.
+3. Type `not a name` and press «Привязать», then Enter → «Формат: владелец/репозиторий.» each time; no request in Network, and Enter does not save the form.
+4. Change «Название» without saving. Type ` <your-login>/<your-repo> ` (spaces around) and «Привязать» → the button reads «Проверяем на GitHub…» and the form's buttons are disabled; then the panel: the name opens the repository in a new tab, «Обновлён: <date>», the description, «Владелец репозитория», «Форк …» or «В архиве на GitHub» where they apply, and the placeholder «Языки и другие данные появятся после первой синхронизации…». The request body is `{"full_name": "<your-login>/<your-repo>"}` without the spaces. The changed title is still in the field, «Сохранить» is active, no `PATCH` was sent.
+5. A repository of another account where you are in the contributors list (if you have one) → «В списке контрибьюторов (по данным GitHub)». Without one this label is checked by tests only.
+6. Relation not found: «Заменить репозиторий» → `octocat/Hello-World` → «Связь с репозиторием не найдена», the block keeps the input; «Отмена» → the linked panel is still the old repository (a reload confirms it).
+7. Repository not found: «Заменить репозиторий» → `<your-login>/does-not-exist-123` → «Репозиторий не найден» with the spelling hint.
+8. Replace: «Заменить репозиторий» → another of your repositories → the panel shows it; on `/me/repositories` the old one has its buttons back and the new one is «Привязан».
+9. Already linked: in a second project link a repository the first project uses → «Репозиторий уже привязан», «…к вашему проекту «<title>»» and «Открыть проект», which opens the first project. Network shows one `GET /projects` after the error.
+10. Unlink: «Отвязать» → the dialog «Отвязать репозиторий?» with the repository name, the focus on «Отмена»; Escape and «Отмена» send nothing. «Отвязать» in the dialog → `DELETE /projects/<id>/repository`, the block shows the input with the focus in it, unsaved edits stay.
+11. «Мои проекты»: a linked project's card shows «GitHub» and the repository name (opens GitHub) under the technologies, in every state: publish, hide and archive one linked project to see it each time; a card without a repository has no such line. Unlink in the form and go back → the line is gone.
+12. Double-click «Привязать» quickly → one request in Network.
+13. The project's 404: open a draft in two tabs, delete it from «Мои проекты» in one, link in the other → «Проект не найден» with «Мои проекты».
+14. Your request limit: `GITHUB_USER_REQUESTS_PER_HOUR=7` in the root `.env`, `docker compose up -d backend`; a link costs up to 7 requests, so the second link gives «Слишком много обращений к GitHub», «Привязать» disabled and «Повторить через N мин» counting down. Put the value back and restart.
+15. GitHub unavailable: disconnect the computer from the internet and link → «GitHub сейчас недоступен». Reconnect, change the text in the input, press «Повторить» → the request carries the first name.
+16. «Выйти» → the login screen note reads «Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и публичные репозитории, которые вы привяжете к проектам. Доступа к приватным репозиториям нет.»
+17. Narrow screen (375 px): the block, the input and its buttons fit without horizontal scroll.
+
+Not checked by hand, only by tests: the `unavailable` and `relation: "NONE"` warnings (only a sync sets them, Phase 6), 503 `GITHUB_RATE_LIMITED`, 422 `VALIDATION_ERROR` from the API (the client check sends no invalid name), 500 `INTERNAL_ERROR` with «Код запроса», an unlink error, and the countdown reaching its end.
 
 ## Manual public page check
 
