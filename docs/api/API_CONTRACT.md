@@ -246,9 +246,12 @@ States (ADR-015): a new project is `DRAFT` + `PRIVATE`. Allowed pairs: `DRAFT`+`
   "title": "string | null",
   "summary": "string | null",
   "technologies": ["string"],
-  "featured_position": "1 | 2 | 3 | null"
+  "featured_position": "1 | 2 | 3 | null",
+  "github": "ProjectSummaryGitHub | null"
 }
 ```
+
+`github` is the project's linked repository, or `null` when there is none. `ProjectSummaryGitHub`: `{"full_name": "string", "html_url": "string"}`, the stored values, the same as `full_name` and `html_url` of `ProjectGitHub`. It carries no relation, languages or sync state; the cabinet reads those from `GET /projects/{id}`. It is not hidden for an unavailable repository or a `NONE` relation: it says only which repository is linked. The list is read with a fixed number of database queries, whatever the number of projects.
 
 `ProjectVisibilityUpdate` (body of `POST /projects/{id}/visibility`): `{"visibility": "PUBLIC | PRIVATE"}`.
 

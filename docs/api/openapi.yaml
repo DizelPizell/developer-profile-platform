@@ -836,7 +836,7 @@ components:
           description: The user's own project that links this repository, if any.
     ProjectSummary:
       type: object
-      required: [id, status, visibility, title, summary, technologies, featured_position]
+      required: [id, status, visibility, title, summary, technologies, featured_position, github]
       properties:
         id: {type: string, format: uuid}
         status: {$ref: "#/components/schemas/ProjectStatus"}
@@ -845,6 +845,22 @@ components:
         summary: {type: string, nullable: true}
         technologies: {type: array, items: {type: string}}
         featured_position: {type: integer, minimum: 1, maximum: 3, nullable: true}
+        github:
+          type: object
+          allOf: [{$ref: "#/components/schemas/ProjectSummaryGitHub"}]
+          nullable: true
+          description: The linked repository, or null.
+    ProjectSummaryGitHub:
+      type: object
+      description: >-
+        Which repository a project links, for the cabinet list (ADR-017): the
+        stored full_name and html_url, the same as in ProjectGitHub. No relation,
+        languages or sync state; those are in GET /projects/{id}. Not hidden for
+        an unavailable repository or a NONE relation.
+      required: [full_name, html_url]
+      properties:
+        full_name: {type: string}
+        html_url: {type: string}
     ProjectListResponse:
       type: object
       required: [items]
