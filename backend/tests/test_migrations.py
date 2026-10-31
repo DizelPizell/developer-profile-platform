@@ -90,6 +90,40 @@ def test_migrations_apply_to_empty_database(db_engine, monkeypatch):
                 u["name"] for u in schema.get_unique_constraints("projects")
             }
 
+            # ADR-009, ADR-018: sync jobs and category freshness.
+            assert {"github_sync_jobs", "github_sync_category_status"} <= set(
+                schema.get_table_names()
+            )
+            assert {
+                "ck_github_sync_jobs_status",
+                "ck_github_sync_jobs_attempt_count",
+                "ck_github_sync_jobs_last_error",
+            } <= {c["name"] for c in schema.get_check_constraints("github_sync_jobs")}
+            assert {
+                "ck_github_sync_category_status_category",
+                "ck_github_sync_category_status_last_error",
+                "ck_github_sync_category_status_error_time",
+            } <= {c["name"] for c in schema.get_check_constraints("github_sync_category_status")}
+            with engine.connect() as conn:
+                job_indexes = dict(
+                    conn.execute(
+                        text(
+                            "SELECT indexname, indexdef FROM pg_indexes "
+                            "WHERE tablename = 'github_sync_jobs'"
+                        )
+                    ).all()
+                )
+            assert "UNIQUE" in job_indexes["uq_github_sync_jobs_active"]
+            assert "'QUEUED'" in job_indexes["uq_github_sync_jobs_active"]
+            assert "'SYNCING'" in job_indexes["uq_github_sync_jobs_active"]
+            assert "WHERE" in job_indexes["ix_github_sync_jobs_claim"]
+            assert "ix_github_sync_jobs_repository_created" in job_indexes
+
+            alembic_command.downgrade(cfg, "818c44e09940")
+            tables = set(inspect(engine).get_table_names())
+            assert not {"github_sync_jobs", "github_sync_category_status"} & tables
+            assert {"github_repositories", "project_repositories"} <= tables
+
             alembic_command.downgrade(cfg, "f09e0777cfe5")
             tables = set(inspect(engine).get_table_names())
             assert not {"github_repositories", "project_repositories"} & tables
@@ -106,6 +140,82 @@ def test_migrations_apply_to_empty_database(db_engine, monkeypatch):
 
             alembic_command.upgrade(cfg, "head")
             assert "profiles" in inspect(engine).get_table_names()
+        finally:
+            engine.dispose()
+    finally:
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{temp_name}" WITH (FORCE)'))
+        admin.dispose()
+
+
+def test_sync_tables_keep_existing_links(db_engine, monkeypatch):
+    """Links made before the sync tables survive the upgrade and the downgrade,
+    and have no jobs: their status is NOT_SYNCED (ADR-018)."""
+    base_url = make_url(os.environ["DATABASE_URL"])
+    temp_name = f"{base_url.database}_migrations_{uuid.uuid4().hex[:8]}"
+    temp_url = base_url.set(database=temp_name).render_as_string(hide_password=False)
+
+    admin = create_engine(base_url.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        conn.execute(text(f'CREATE DATABASE "{temp_name}"'))
+    try:
+        monkeypatch.setattr(settings, "database_url", temp_url)
+        cfg = Config(str(_ALEMBIC_INI))
+        alembic_command.upgrade(cfg, "818c44e09940")
+        engine = create_engine(temp_url)
+        try:
+            with engine.begin() as conn:
+                user_id = conn.execute(
+                    text(
+                        "INSERT INTO users (github_user_id, github_login) "
+                        "VALUES (7001, 'ann') RETURNING id"
+                    )
+                ).scalar_one()
+                project_id = conn.execute(
+                    text("INSERT INTO projects (owner_id) VALUES (:user) RETURNING id"),
+                    {"user": user_id},
+                ).scalar_one()
+                repository_id = conn.execute(
+                    text(
+                        "INSERT INTO github_repositories (github_repo_id, owner_github_id, "
+                        "owner_login, name, full_name, html_url, is_fork, is_archived) "
+                        "VALUES (42, 7001, 'ann', 'site', 'ann/site', "
+                        "'https://github.com/ann/site', false, false) RETURNING id"
+                    )
+                ).scalar_one()
+                conn.execute(
+                    text(
+                        "INSERT INTO project_repositories "
+                        "(project_id, owner_id, github_repository_id, relation) "
+                        "VALUES (:project, :user, :repository, 'OWNER')"
+                    ),
+                    {"project": project_id, "user": user_id, "repository": repository_id},
+                )
+
+            def link() -> tuple:
+                with engine.connect() as conn:
+                    return conn.execute(
+                        text(
+                            "SELECT r.full_name, l.relation FROM project_repositories l "
+                            "JOIN github_repositories r ON r.id = l.github_repository_id "
+                            "WHERE l.project_id = :project"
+                        ),
+                        {"project": project_id},
+                    ).one()
+
+            alembic_command.upgrade(cfg, "head")
+            assert link() == ("ann/site", "OWNER")
+            with engine.connect() as conn:
+                assert conn.execute(text("SELECT count(*) FROM github_sync_jobs")).scalar_one() == 0
+                assert (
+                    conn.execute(
+                        text("SELECT count(*) FROM github_sync_category_status")
+                    ).scalar_one()
+                    == 0
+                )
+
+            alembic_command.downgrade(cfg, "818c44e09940")
+            assert link() == ("ann/site", "OWNER")
         finally:
             engine.dispose()
     finally:
