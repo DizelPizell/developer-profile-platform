@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: step 6.1.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.2.
 
 
 
@@ -874,6 +874,8 @@ frontend F-GH1.3 (with the former F-GH1.4): the repository block in the project 
 
 backend Phase 6 step 6.1: the sync tables github_sync_jobs and github_sync_category_status, schema and migration only; links made before it have no job and stay NOT_SYNCED (ADR-018)
 
+backend Phase 6 step 6.2: a sync job queued with each link and import (their metadata read recorded as a metadata success), POST /integrations/github/repositories/{id}/sync with the 10-minute pause per repository and 7 requests charged to the user, and github.sync in ProjectResponse (ADR-018); jobs stay QUEUED until the worker (6.3)
+
 
 
 Not yet started:
@@ -882,9 +884,9 @@ Not yet started:
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
-frontend sync status in the cabinet — F-GH1.5, after backend step 6.2 (FRONTEND_PLAN)
+frontend sync status in the cabinet — F-GH1.5 (FRONTEND_PLAN; its full manual check waits for the worker)
 
-sync and public GitHub data — Phase 6 steps 6.2–6.7 (ADR-018, ADR-019)
+sync and public GitHub data — Phase 6 steps 6.3–6.7 (ADR-018, ADR-019)
 
 
 
@@ -892,7 +894,7 @@ Current next goal:
 
 
 
-Phase 6 step 6.2 (DEVELOPMENT_PLAN): a sync job queued with each link and import, POST /integrations/github/repositories/{id}/sync with the 10-minute pause per repository, and github.sync in ProjectResponse (ADR-018); then F-GH1.5. Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+F-GH1.5 (FRONTEND_PLAN): the sync status and «Обновить» with the pause in the project form; then Phase 6 step 6.3 (DEVELOPMENT_PLAN): the worker core (ADR-009, ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
