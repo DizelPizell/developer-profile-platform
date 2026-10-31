@@ -215,7 +215,7 @@ Done in F-GH1.1:
 - «Импорт из GitHub» on «Мои проекты».
 - Import: the 50-project check from `GET /projects`, then a move to the form with the «Проект создан» panel.
 - The «Привязать к проекту…» dialog with the radio list and «Уже привязан к {full_name}. Новая привязка заменит старую.» under a project that has a repository (from `github` in `GET /projects`), then the local update of the cards and of the project list.
-- The `ALREADY_LINKED`, `RELATION_NOT_FOUND`, import 404 and `PROJECT_LIMIT_REACHED` messages. The waiting states were planned for F-GH1.4; the F-GH1.2 task brought them here for the list page and the dialog (see "Done in F-GH1.2").
+- The `ALREADY_LINKED`, `RELATION_NOT_FOUND`, import 404 and `PROJECT_LIMIT_REACHED` messages. The waiting states were planned for F-GH1.4; the F-GH1.2 task brought them here for the list page and the dialog (see "Done in F-GH1.2"), and F-GH1.4 is folded into F-GH1.3.
 
 **Tests** (Vitest + RTL, API mocked):
 - Cards:
@@ -267,7 +267,7 @@ Done in F-GH1.2:
 - Additions to `DESIGN.md` made in this step: «На этой странице репозиториев нет.» for an empty later page, «Репозиторий: {full_name}» in the dialog, «Проверяем на GitHub…» on the dialog's button, and the focus moving to the confirmation after a link.
 - Checked with Vitest + RTL (fetch mocked, fake timers for the countdown; 443 tests), 18 mutations (all fail tests), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual repositories check"; it has not been run yet.
 
-### F-GH1.3 — The repository block in the project form and the login note (M)
+### F-GH1.3 — The repository block in the project form, waiting states and the login note (M)
 
 **What**:
 - The «Репозиторий GitHub» block per `DESIGN.md`:
@@ -279,6 +279,10 @@ Done in F-GH1.2:
   - the hint on `/me/projects/new`.
 - The GitHub label on «Мои проекты»: the «GitHub» chip and `full_name` on cards of linked projects, from `github` in `GET /projects`.
 - The form takes only `github` from link and unlink responses, so unsaved edits are kept.
+- Errors of a link from the form go through the shared `GitHubErrorAlert` (`request="link"`), the waiting states of the former F-GH1.4 included:
+  - 429 `GITHUB_USER_LIMIT_REACHED` and 503 `GITHUB_RATE_LIMITED`: the countdown from `details.retry_after_seconds`; «Привязать» stays disabled while it runs, and «Повторить» then closes the message;
+  - 502 `GITHUB_UNAVAILABLE`: «Повторить» sends the same `full_name` again, once per click;
+  - 500 and network errors as in the cabinet. Unlink does not read GitHub, so it has only the cabinet errors and the project 404.
 - The line under the form becomes «Демо и скриншоты добавим в следующих версиях.»
 - The login screen note switches to the `DESIGN.md` text that names the public repositories (planned since F2).
 
@@ -295,6 +299,12 @@ Done in F-GH1.2:
   - an unsaved title edit survives a successful link and an unlink.
 - Unlink sends nothing without confirmation, and on 200 the block returns to the input.
 - The `GITHUB_REPOSITORY_NOT_FOUND`, `RELATION_NOT_FOUND`, `ALREADY_LINKED` and project 404 messages render in the block.
+- Waiting states in the block (fake timers):
+  - a 429 keeps «Привязать» disabled until the countdown ends, and «Повторить» then closes the message without a request;
+  - a missing or invalid `retry_after_seconds` gives «Попробуйте позже.» with «Привязать» active;
+  - 502 «Повторить» sends the same name again; no request goes out without a click;
+  - 500 shows «Код запроса»;
+  - the countdown timer is cleared when the form unmounts.
 - The label on «Мои проекты»: shown with `full_name` for a linked project, absent for `github: null`; `full_name` links only to a `https://github.com/` URL; markup in it is shown as text.
 - The login note test is updated to the new text.
 
@@ -309,42 +319,19 @@ Done in F-GH1.2:
 8. Link a repository that another project already uses. The message is «Репозиторий уже привязан» with a link to that project.
 9. «Мои проекты» shows the GitHub label on the linked projects and none on the others; after an unlink the label is gone.
 10. The login screen shows the new note.
+11. Waiting: with `GITHUB_USER_REQUESTS_PER_HOUR=7` in the root `.env` (the minimum; `docker compose up -d backend`), link by name until «Слишком много обращений к GitHub» appears → «Привязать» is disabled and the minutes count down. Put the value back and restart (the budget lives in the backend's memory).
+12. 502: disconnect the computer from the internet (the browser still reaches `localhost`) and link → «GitHub сейчас недоступен»; reconnect and press «Повторить» → the same name is sent again.
 
-The `unavailable` and `NONE` warnings cannot be produced before Phase 6. They are checked in tests only and manually in F-GH1.5.
+The `unavailable` and `NONE` warnings cannot be produced before Phase 6. They are checked in tests only and manually in F-GH1.5. 503 `GITHUB_RATE_LIMITED` and the end of a long countdown are checked in tests only.
 
 **Risks**:
 - Mixing an immediate action (link) into a form with a separate «Сохранить» can surprise users. The note under the block and the confirmation text are the mitigation, and taking only `github` from the response keeps edits safe.
 - A link waits on GitHub for up to several seconds (up to 7 requests). The button text shows the wait, and every button is disabled meanwhile.
+- The countdown is a client timer. It reads the clock on every tick, so it stays right after a laptop sleeps; the API stays the source of truth, and a too-early retry just shows the message again.
 
-### F-GH1.4 — Waiting and failure states (S–M)
+### F-GH1.4 — Waiting and failure states [folded]
 
-F-GH1.2 built the shared component, the countdown, the login-outdated and «Повторить» states for the list page and the link dialog, with their tests and manual steps (see "Done in F-GH1.2"). What is left here is the same for the form block of F-GH1.3, if F-GH1.3 does not cover it already (see Open questions).
-
-**What**:
-- 409 `GITHUB_LOGIN_OUTDATED` on the list: the message and «Войти через GitHub».
-- 429 `GITHUB_USER_LIMIT_REACHED` and 503 `GITHUB_RATE_LIMITED`: the countdown from `details.retry_after_seconds`, and the failed action disabled while it runs.
-- 502 `GITHUB_UNAVAILABLE`: «Повторить», which repeats the same request once per click.
-- One shared message component for the list page, the dialog and the form block, so the texts of the `DESIGN.md` table live in one place.
-
-**Tests** (Vitest + RTL, fake timers):
-- The countdown:
-  - 125 seconds shows «3 мин», and 30 seconds shows «1 мин»;
-  - the button stays disabled until the time passes, then reads «Повторить»;
-  - a missing or invalid value gives «Попробуйте позже.» with an active button.
-- The failed action is disabled during the countdown: paging on the list, import and link elsewhere.
-- 502 «Повторить» repeats the same request, list or action. There is no automatic retry, so no request goes out without a click.
-- 409 `GITHUB_LOGIN_OUTDATED` shows the button with the login URL.
-- 500 shows «Код запроса».
-- A countdown is cleared when the component unmounts (no timer left running).
-
-**Manual check** (local backend):
-1. Exhaust your budget: start the local backend with `GITHUB_USER_REQUESTS_PER_HOUR=7` (the minimum) and import or link until 429 appears. Check the countdown, then that the action works after it ends. The budget lives in the backend's memory, so a backend restart resets it.
-2. 502 and 503 are hard to produce against the real GitHub; the client always calls `https://api.github.com`. 502 can be produced by cutting the backend's network while the page is open. 503 is checked in tests only. The check notes which way was used.
-3. `GITHUB_LOGIN_OUTDATED`: rename the GitHub account of a test user after signing in (or change the stored login in the test database). The list shows the message; signing in again fixes it.
-
-**Risks**:
-- The countdown is a client timer: after a laptop sleeps it can be wrong. The API stays the source of truth, and a too-early retry just shows the message again.
-- Renaming a real GitHub account breaks links to it elsewhere, so the login-outdated check uses a test account or the test database.
+Folded on 2026-10-31 (the owner): the list page and the link dialog got these states in F-GH1.2, and the form block gets them in F-GH1.3 with the same component (`src/app/me/github-error.tsx`). Its tests and manual steps moved there.
 
 ### F-GH1.5 — Sync status and «Обновить» (S–M; after backend 6.2)
 
@@ -358,11 +345,11 @@ Its texts and the polling interval are added to `DESIGN.md` when step 6.2 is mer
 
 ### Decided
 
+- **F-GH1.4 folded into F-GH1.3** (2026-10-31, the owner). F-GH1.2 built the waiting states and their shared component for the list page and the link dialog, so only the form block was left; F-GH1.3 builds it with the same component, and its tests and manual steps are listed there. Rejected: keeping F-GH1.4 as a separate small PR that would only repeat the form block's error tests.
+
 - **The repository of a project in `GET /projects`** (2026-10-31, the owner). `ProjectSummary` gets a nullable `github: {full_name, html_url}`: no relation, languages or sync state. Backend step 5.6 implements it before the F-GH1 code. The «GitHub» label on «Мои проекты» and the line «Уже привязан к …» in the link dialog rely on it. Rejected: loading each project with `GET /projects/{id}` (up to 50 requests) and dropping both elements from the mockups.
 
 ### Open questions
-
-- **What is left of F-GH1.4.** After F-GH1.2 only the form block of F-GH1.3 needs the waiting states, and that block will use the same component. F-GH1.4 can be folded into F-GH1.3 (its tests and manual steps added there) or kept as a short follow-up step. The owner decides before F-GH1.3 starts.
 
 - **Opening the repository page for a specific project.** The form's «выберите из своего списка» opens `/me/repositories` without preselecting the project in the link dialog. A preselect (`?project={id}`) would save a step; it is left out of F-GH1 unless the owner asks for it.
 

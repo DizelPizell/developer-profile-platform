@@ -313,7 +313,7 @@ Mockups: `repositories.png` (the repository list), `github-states.png` (messages
 
 The general cabinet rules apply: tokens, typography, buttons in Pixelify Sans in normal case, the header from `GET /profile` with «Источник: GitHub», focus, a second click during a request sends nothing.
 
-Sync is not part of F-GH1.1–F-GH1.4 (FRONTEND_PLAN). Until Phase 6 queues jobs, every linked repository has `sync.status = NOT_SYNCED`, `synced_at = null` and `languages = []`. «Обновить», its pause and polling while `QUEUED` or `SYNCING` come with F-GH1.5. The public «Данные GitHub» data on project cards is F-GH2.
+Sync is not part of F-GH1.1–F-GH1.3 (FRONTEND_PLAN; F-GH1.4 is folded into F-GH1.3). Until Phase 6 queues jobs, every linked repository has `sync.status = NOT_SYNCED`, `synced_at = null` and `languages = []`. «Обновить», its pause and polling while `QUEUED` or `SYNCING` come with F-GH1.5. The public «Данные GitHub» data on project cards is F-GH2.
 
 #### Wording
 
