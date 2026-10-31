@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     github_user_requests_per_hour: int = Field(default=60, ge=7)
     # How long a page of the repository list is kept in memory (ADR-017).
     github_repository_list_cache_seconds: int = Field(default=300, ge=1)
+    # The pause between manual syncs of one repository, counted from its latest
+    # job (ADR-018).
+    github_manual_sync_cooldown_seconds: int = Field(default=600, ge=1)
 
     @property
     def secure_cookies(self) -> bool:

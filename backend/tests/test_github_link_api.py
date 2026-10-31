@@ -294,7 +294,12 @@ def test_own_repository_is_linked_as_owner(env, db_session):
         "relation": "OWNER",
         "unavailable": False,
         "synced_at": None,
-        "sync": {"status": "NOT_SYNCED", "last_success_at": None, "next_manual_sync_at": None},
+        # Queued with the link; a manual sync waits for the pause (ADR-018).
+        "sync": {
+            "status": "QUEUED",
+            "last_success_at": None,
+            "next_manual_sync_at": "2026-10-30T12:10:00Z",
+        },
     }
     assert env.http.get(f"{PROJECTS}/{project_id}").json()["github"] == body["github"]
     assert [r.url.path for r in env.github.requests] == [f"/repos/{LOGIN}/repo-1"]

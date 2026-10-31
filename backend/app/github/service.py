@@ -3,7 +3,7 @@ import math
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, insert, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -41,12 +41,14 @@ from app.github.schemas import (
 )
 from app.models.github import (
     ACTIVE_SYNC_JOB_STATUSES,
+    SYNC_CATEGORIES,
     GitHubRepository,
     GitHubSyncCategoryStatus,
     GitHubSyncJob,
     ProjectRepository,
 )
 from app.models.projects import Project
+from app.settings import settings
 
 OWNER = "OWNER"
 CONTRIBUTOR = "CONTRIBUTOR"
@@ -498,7 +500,47 @@ def linked_repositories(
     }
 
 
-def project_github(db: Session, project_id: uuid.UUID) -> ProjectGitHub | None:
+def manual_sync_cooldown() -> timedelta:
+    return timedelta(seconds=settings.github_manual_sync_cooldown_seconds)
+
+
+def _latest_job(db: Session, repository_id: uuid.UUID) -> tuple[str, datetime] | None:
+    """The status and creation time of the repository's latest sync job."""
+    row = db.execute(
+        select(GitHubSyncJob.status, GitHubSyncJob.created_at)
+        .where(GitHubSyncJob.github_repository_id == repository_id)
+        .order_by(GitHubSyncJob.created_at.desc(), GitHubSyncJob.id.desc())
+        .limit(1)
+    ).first()
+    return (row.status, row.created_at) if row else None
+
+
+def repository_sync(db: Session, repository_id: uuid.UUID, now: datetime) -> GitHubSync:
+    """The repository's sync state for the cabinet (ADR-018): two queries, whatever
+    the number of jobs."""
+    latest = _latest_job(db, repository_id)
+    successes = dict(
+        db.execute(
+            select(
+                GitHubSyncCategoryStatus.category, GitHubSyncCategoryStatus.last_success_at
+            ).where(GitHubSyncCategoryStatus.github_repository_id == repository_id)
+        ).all()
+    )
+    # The data is as old as its oldest category; null until every category has
+    # succeeded once.
+    times = [successes.get(category) for category in SYNC_CATEGORIES]
+    last_success_at = None if None in times else min(times)
+    next_manual_sync_at = None
+    if latest is not None and latest[1] + manual_sync_cooldown() > now:
+        next_manual_sync_at = latest[1] + manual_sync_cooldown()
+    return GitHubSync(
+        status=latest[0] if latest else "NOT_SYNCED",
+        last_success_at=_utc(last_success_at),
+        next_manual_sync_at=_utc(next_manual_sync_at),
+    )
+
+
+def project_github(db: Session, project_id: uuid.UUID, now: datetime) -> ProjectGitHub | None:
     """The cabinet's `github` object of a project, or None when it has no link."""
     row = db.execute(
         select(GitHubRepository, ProjectRepository.relation)
@@ -508,6 +550,7 @@ def project_github(db: Session, project_id: uuid.UUID) -> ProjectGitHub | None:
     if row is None:
         return None
     repository, relation = row
+    sync = repository_sync(db, repository.id, now)
     return ProjectGitHub(
         github_repo_id=repository.github_repo_id,
         full_name=repository.full_name,
@@ -520,7 +563,6 @@ def project_github(db: Session, project_id: uuid.UUID) -> ProjectGitHub | None:
         is_archived=repository.is_archived,
         relation=relation,
         unavailable=repository.unavailable_since is not None,
-        # No sync jobs before step 6.2 (ADR-018): never synced, a manual sync allowed.
-        synced_at=None,
-        sync=GitHubSync(status="NOT_SYNCED", last_success_at=None, next_manual_sync_at=None),
+        synced_at=sync.last_success_at,
+        sync=sync,
     )

@@ -125,7 +125,12 @@ def test_own_repository_is_imported_as_a_draft_private_project(env, db_session):
         "relation": "OWNER",
         "unavailable": False,
         "synced_at": None,
-        "sync": {"status": "NOT_SYNCED", "last_success_at": None, "next_manual_sync_at": None},
+        # Queued with the link; a manual sync waits for the pause (ADR-018).
+        "sync": {
+            "status": "QUEUED",
+            "last_success_at": None,
+            "next_manual_sync_at": "2026-10-30T12:10:00Z",
+        },
     }
     # Read by id: no redirect, one request for an owned repository.
     assert [r.url.path for r in env.github.requests] == ["/repositories/1"]

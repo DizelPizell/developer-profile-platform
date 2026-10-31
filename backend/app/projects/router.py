@@ -30,7 +30,7 @@ featured_router = APIRouter(prefix="/profile/featured-projects", tags=["projects
 import_router = APIRouter(prefix="/integrations/github/repositories", tags=["github"])
 
 
-def _project_response(db: Session, project: Project) -> ProjectResponse:
+def _project_response(db: Session, project: Project, now: datetime) -> ProjectResponse:
     names = service.technology_names(db, [project.id])[project.id]
     position = service.featured_positions(db, [project.id]).get(project.id)
     return ProjectResponse(
@@ -46,7 +46,7 @@ def _project_response(db: Session, project: Project) -> ProjectResponse:
         contribution=project.contribution,
         technologies=names,
         featured_position=position,
-        github=github_service.project_github(db, project.id),
+        github=github_service.project_github(db, project.id, now),
     )
 
 
@@ -98,19 +98,23 @@ def create_project(
     payload: ProjectWrite,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    now: datetime = Depends(get_now),
 ) -> ProjectResponse:
     service.lock_owner_profile(db, user)
     changes, technologies = _split(payload)
     project = service.create_project(db, user, changes, technologies)
     db.commit()
-    return _project_response(db, project)
+    return _project_response(db, project, now)
 
 
 @router.get("/{project_id}")
 def get_project(
-    project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    now: datetime = Depends(get_now),
 ) -> ProjectResponse:
-    return _project_response(db, service.get_own_project(db, user, project_id))
+    return _project_response(db, service.get_own_project(db, user, project_id), now)
 
 
 @router.patch("/{project_id}")
@@ -119,12 +123,13 @@ def update_project(
     payload: ProjectWrite,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    now: datetime = Depends(get_now),
 ) -> ProjectResponse:
     project = service.get_own_project(db, user, project_id, for_update=True)
     changes, technologies = _split(payload)
     service.update_project(db, project, changes, technologies)
     db.commit()
-    return _project_response(db, project)
+    return _project_response(db, project, now)
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -140,23 +145,29 @@ def delete_project(
 
 @router.post("/{project_id}/publish")
 def publish_project(
-    project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    now: datetime = Depends(get_now),
 ) -> ProjectResponse:
     project = service.get_own_project(db, user, project_id, for_update=True)
     service.publish(db, project)
     db.commit()
-    return _project_response(db, project)
+    return _project_response(db, project, now)
 
 
 @router.post("/{project_id}/archive")
 def archive_project(
-    project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    now: datetime = Depends(get_now),
 ) -> ProjectResponse:
     service.lock_owner_profile(db, user)
     project = service.get_own_project(db, user, project_id, for_update=True)
     service.archive(db, project)
     db.commit()
-    return _project_response(db, project)
+    return _project_response(db, project, now)
 
 
 @router.post("/{project_id}/visibility")
@@ -165,12 +176,13 @@ def change_project_visibility(
     payload: ProjectVisibilityUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    now: datetime = Depends(get_now),
 ) -> ProjectResponse:
     service.lock_owner_profile(db, user)
     project = service.get_own_project(db, user, project_id, for_update=True)
     service.change_visibility(db, project, payload.visibility)
     db.commit()
-    return _project_response(db, project)
+    return _project_response(db, project, now)
 
 
 @router.post("/{project_id}/showcase")
@@ -219,17 +231,20 @@ def link_repository(
     project = service.get_own_project(db, user, project_id, for_update=True)
     github_service.store_link(db, project, checked, now)
     db.commit()
-    return _project_response(db, project)
+    return _project_response(db, project, now)
 
 
 @router.delete("/{project_id}/repository")
 def unlink_repository(
-    project_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    now: datetime = Depends(get_now),
 ) -> ProjectResponse:
     project = service.get_own_project(db, user, project_id, for_update=True)
     github_service.unlink(db, project)
     db.commit()
-    return _project_response(db, project)
+    return _project_response(db, project, now)
 
 
 @import_router.post("/{repository_id}/import", status_code=201)
@@ -257,7 +272,7 @@ def import_repository(
 
     project = service.create_imported_project(db, user, checked, now)
     db.commit()
-    return _project_response(db, project)
+    return _project_response(db, project, now)
 
 
 @featured_router.post("/reorder")

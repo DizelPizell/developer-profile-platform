@@ -75,3 +75,12 @@ def test_repository_list_cache_seconds_default_and_minimum(monkeypatch):
     )
     with pytest.raises(ValidationError):
         _settings(github_repository_list_cache_seconds=0)
+
+
+def test_manual_sync_cooldown_default_and_minimum(monkeypatch):
+    monkeypatch.delenv("GITHUB_MANUAL_SYNC_COOLDOWN_SECONDS", raising=False)
+
+    assert _settings().github_manual_sync_cooldown_seconds == 600
+    assert _settings(github_manual_sync_cooldown_seconds=1).github_manual_sync_cooldown_seconds == 1
+    with pytest.raises(ValidationError):
+        _settings(github_manual_sync_cooldown_seconds=0)
