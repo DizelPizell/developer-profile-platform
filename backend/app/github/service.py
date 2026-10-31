@@ -37,6 +37,7 @@ from app.github.schemas import (
     GitHubRepositoryListResponse,
     GitHubSync,
     ProjectGitHub,
+    ProjectSummaryGitHub,
 )
 from app.models.github import GitHubRepository, ProjectRepository
 from app.models.projects import Project
@@ -413,6 +414,27 @@ def _languages(value: dict | None) -> list[GitHubLanguage]:
     # Ordered when read: bytes descending, then name (ADR-017).
     items = sorted((value or {}).items(), key=lambda item: (-item[1], item[0]))
     return [GitHubLanguage(name=name, bytes=size) for name, size in items]
+
+
+def linked_repositories(
+    db: Session, owner_id: uuid.UUID, project_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, ProjectSummaryGitHub]:
+    """The repository each of the user's projects links, from the stored rows; one
+    query for the whole project list."""
+    if not project_ids:
+        return {}
+    rows = db.execute(
+        select(ProjectRepository.project_id, GitHubRepository.full_name, GitHubRepository.html_url)
+        .join(GitHubRepository, GitHubRepository.id == ProjectRepository.github_repository_id)
+        .where(
+            ProjectRepository.owner_id == owner_id,
+            ProjectRepository.project_id.in_(project_ids),
+        )
+    )
+    return {
+        project_id: ProjectSummaryGitHub(full_name=full_name, html_url=html_url)
+        for project_id, full_name, html_url in rows
+    }
 
 
 def project_github(db: Session, project_id: uuid.UUID) -> ProjectGitHub | None:

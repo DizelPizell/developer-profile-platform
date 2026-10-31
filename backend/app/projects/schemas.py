@@ -6,7 +6,7 @@ from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Fie
 from pydantic_core import PydanticCustomError
 
 from app.canonical_uuid import parse_canonical_uuid
-from app.github.schemas import ProjectGitHub
+from app.github.schemas import ProjectGitHub, ProjectSummaryGitHub
 from app.models.projects import (
     FEATURED_PROJECTS_PER_PROFILE,
     PROJECT_TEXT_LIMITS,
@@ -99,6 +99,7 @@ class ProjectSummary(BaseModel):
     summary: str | None
     technologies: list[str]
     featured_position: int | None
+    github: ProjectSummaryGitHub | None
 
 
 class ProjectListResponse(BaseModel):

@@ -70,3 +70,11 @@ class ProjectGitHub(BaseModel):
     unavailable: bool
     synced_at: datetime | None
     sync: GitHubSync
+
+
+class ProjectSummaryGitHub(BaseModel):
+    """Which repository a project links, for the cabinet list (ADR-017): no relation,
+    languages or sync state, and shown for an unavailable repository too."""
+
+    full_name: str
+    html_url: str

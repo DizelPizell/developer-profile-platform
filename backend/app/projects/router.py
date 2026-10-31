@@ -75,6 +75,7 @@ def list_projects(
     ids = [project.id for project in projects]
     names = service.technology_names(db, ids)
     positions = service.featured_positions(db, ids)
+    repositories = github_service.linked_repositories(db, user.id, ids)
     return ProjectListResponse(
         items=[
             ProjectSummary(
@@ -85,6 +86,7 @@ def list_projects(
                 summary=project.summary,
                 technologies=names[project.id],
                 featured_position=positions.get(project.id),
+                github=repositories.get(project.id),
             )
             for project in projects
         ]

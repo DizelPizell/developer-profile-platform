@@ -42,6 +42,7 @@ SUMMARY_KEYS = {
     "summary",
     "technologies",
     "featured_position",
+    "github",
 }
 SINGLE_LINE = ("title", "summary", "role")
 MULTI_LINE = ("description", "problem", "results", "contribution")
@@ -192,6 +193,7 @@ class TestList:
         assert set(items[0]) == SUMMARY_KEYS
         assert items[0]["technologies"] == ["Go"]
         assert items[0]["featured_position"] is None
+        assert items[0]["github"] is None
 
     def test_empty_list(self, client):
         assert client.get(PROJECTS).json() == {"items": []}
