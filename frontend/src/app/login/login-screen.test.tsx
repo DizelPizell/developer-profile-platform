@@ -81,6 +81,18 @@ describe("sign-in button", () => {
   });
 });
 
+test("the note names the public data that is read (DESIGN.md)", async () => {
+  await renderSignedOut();
+  expect(
+    screen.getByText(
+      "Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и " +
+        "публичные репозитории, которые вы привяжете к проектам. Доступа к приватным " +
+        "репозиториям нет.",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByText(/Доступа к вашим репозиториям нет/)).toBeNull();
+});
+
 describe("?error=", () => {
   test("no parameter, no error block", async () => {
     await renderSignedOut();
