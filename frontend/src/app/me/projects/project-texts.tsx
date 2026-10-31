@@ -122,7 +122,7 @@ const STATE_BADGE: Record<string, { label: string; className: string }> = {
   "ARCHIVED PRIVATE": { label: "В архиве", className: "bg-bg text-text-muted" },
 };
 
-const BADGE = "border-2 border-outline px-2 py-1 font-heading text-[0.625rem] leading-normal";
+export const BADGE = "border-2 border-outline px-2 py-1 font-heading text-[0.625rem] leading-normal";
 
 export function ProjectStateBadge({
   status,

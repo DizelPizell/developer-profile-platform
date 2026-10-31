@@ -217,19 +217,25 @@ function ProjectsBoard({ initialProjects }: { initialProjects: ProjectSummary[] 
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          {atLimit ? (
-            <>
+          <div className="flex flex-wrap gap-3">
+            {/* Active at the limit too: linking still works there (DESIGN.md). */}
+            <Button asChild variant="secondary" size="lg">
+              <Link href="/me/repositories">Импорт из GitHub</Link>
+            </Button>
+            {atLimit ? (
               <Button variant="label" size="lg" disabled aria-describedby="project-limit">
                 Новый проект
               </Button>
-              <p id="project-limit" className="text-sm text-text-muted">
-                {PROJECT_LIMIT_TEXT}
-              </p>
-            </>
-          ) : (
-            <Button asChild variant="label" size="lg">
-              <Link href="/me/projects/new">Новый проект</Link>
-            </Button>
+            ) : (
+              <Button asChild variant="label" size="lg">
+                <Link href="/me/projects/new">Новый проект</Link>
+              </Button>
+            )}
+          </div>
+          {atLimit && (
+            <p id="project-limit" className="text-sm text-text-muted">
+              {PROJECT_LIMIT_TEXT}
+            </p>
           )}
         </div>
       </section>

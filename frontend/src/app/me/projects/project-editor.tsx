@@ -27,7 +27,12 @@ import {
   type ProjectWrite,
 } from "@/lib/api";
 
-import { PROJECT_FIELD_TEXT, projectActionError, ProjectStateBadge } from "./project-texts";
+import {
+  PROJECT_FIELD_TEXT,
+  projectActionError,
+  ProjectStateBadge,
+  UNTITLED,
+} from "./project-texts";
 import { TechnologiesInput } from "./technologies-input";
 
 type Values = Record<ProjectTextField, string> & { technologies: string[] };
@@ -89,10 +94,13 @@ function fieldList(fields: ProjectField[]): string {
 
 export function ProjectEditor({
   initialProject,
+  imported = false,
   onNotFound,
 }: {
   /** null on /me/projects/new. */
   initialProject: ProjectResponse | null;
+  /** Shows «Проект создан» until the next save (DESIGN.md, import). */
+  imported?: boolean;
   onNotFound: () => void;
 }) {
   const router = useRouter();
@@ -108,6 +116,10 @@ export function ProjectEditor({
   const [message, setMessage] = useState<string | null>(null);
   const [requestError, setRequestError] = useState<unknown>(null);
   const [savedNotice, setSavedNotice] = useState(false);
+  // Fixed at the first render: the values come from the project as imported.
+  const [importNotice, setImportNotice] = useState(() =>
+    imported && initialProject?.github ? importNoticeText(initialProject) : null,
+  );
   // The buttons are at the bottom of a long form and the error block at the top.
   const alerts = useRef<HTMLDivElement>(null);
   const hasAlert = incomplete !== null || message !== null || requestError !== null;
@@ -204,6 +216,7 @@ export function ProjectEditor({
       // The server normalizes values (trim, blank → null, stored spelling); show them.
       setValues(toValues(project));
       setSavedNotice(true);
+      setImportNotice(null);
       return "stay";
     });
   }
@@ -275,6 +288,15 @@ export function ProjectEditor({
           <p className="text-sm text-text-muted">Публичная страница проекта появится позже</p>
         </div>
       </section>
+
+      {importNotice !== null && (
+        <div role="status" className="flex flex-col gap-3 border-4 border-success bg-bg px-4 py-4">
+          <p className="font-heading text-xs leading-normal text-success uppercase">
+            Проект создан
+          </p>
+          <p className="break-words">{importNotice}</p>
+        </div>
+      )}
 
       {hasAlert && (
         <div ref={alerts} className="flex flex-col gap-4">
@@ -357,6 +379,14 @@ export function ProjectEditor({
         </div>
       </form>
     </>
+  );
+}
+
+/** The «Проект создан» text; the values come from the project response. */
+function importNoticeText(project: ProjectResponse): string {
+  return (
+    `Из репозитория ${project.github?.full_name} создан черновик «${project.title ?? UNTITLED}». ` +
+    "Заполните «Коротко о проекте», «Роль», «Ваш вклад» и «Технологии», чтобы опубликовать его."
   );
 }
 

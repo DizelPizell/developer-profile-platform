@@ -17,13 +17,28 @@ type Loaded =
   | { status: "error"; error: unknown };
 
 /** /me/projects/new without projectId, /me/projects/[id] with it. */
-export function ProjectEditScreen({ projectId }: { projectId?: string }) {
+export function ProjectEditScreen({
+  projectId,
+  imported = false,
+}: {
+  projectId?: string;
+  /** Opened right after an import (the marker in the address). */
+  imported?: boolean;
+}) {
   const router = useRouter();
   const account = useAccount();
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<Loaded>(
     projectId === undefined ? { status: "ready", project: null } : { status: "loading" },
   );
+
+  useEffect(() => {
+    if (imported) {
+      // The panel is shown once: a reload or a later visit opens the plain form.
+      // history.replaceState changes the address without a navigation (Next.js syncs it).
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [imported]);
 
   useEffect(() => {
     if (projectId === undefined) {
@@ -77,6 +92,7 @@ export function ProjectEditScreen({ projectId }: { projectId?: string }) {
       {loaded.status === "ready" && (
         <ProjectEditor
           initialProject={loaded.project}
+          imported={imported}
           onNotFound={() => setLoaded({ status: "not-found" })}
         />
       )}

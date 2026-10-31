@@ -481,3 +481,77 @@ describe("publish and archive", () => {
     expect(field("Роль").readOnly).toBe(false);
   });
 });
+
+describe("after an import", () => {
+  const GITHUB = {
+    github_repo_id: 1296269,
+    full_name: "ann/payments",
+    html_url: "https://github.com/ann/payments",
+    description: null,
+    languages: [],
+    pushed_at: null,
+    is_fork: false,
+    parent_full_name: null,
+    is_archived: false,
+    relation: "OWNER" as const,
+    unavailable: false,
+    synced_at: null,
+    sync: { status: "NOT_SYNCED" as const, last_success_at: null, next_manual_sync_at: null },
+  };
+  const IMPORTED: ProjectResponse = {
+    ...PROJECT,
+    title: "payments",
+    summary: null,
+    technologies: [],
+    github: GITHUB,
+  };
+  const NOTICE =
+    "Из репозитория ann/payments создан черновик «payments». Заполните «Коротко о проекте», " +
+    "«Роль», «Ваш вклад» и «Технологии», чтобы опубликовать его.";
+
+  async function renderImported(imported: boolean, project = IMPORTED) {
+    window.history.replaceState(null, "", `/me/projects/${ID}${imported ? "?imported=1" : ""}`);
+    routes({
+      "GET /profile": [Response.json(PROFILE)],
+      [`GET /projects/${ID}`]: [Response.json(project)],
+      [`PATCH /projects/${ID}`]: [Response.json({ ...project, role: "Dev" })],
+    });
+    const view = render(<ProjectEditScreen projectId={ID} imported={imported} />);
+    await screen.findByRole("form", { name: "Проект" });
+    return view;
+  }
+
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
+  test("the form shows «Проект создан» and removes the marker from the address", async () => {
+    await renderImported(true);
+    const notice = screen.getByText("Проект создан").closest('[role="status"]')!;
+    expect(within(notice as HTMLElement).getByText(NOTICE)).toBeTruthy();
+    expect(window.location.pathname).toBe(`/me/projects/${ID}`);
+    expect(window.location.search).toBe("");
+  });
+
+  test("the panel is shown once: opened again without the marker, there is none", async () => {
+    const view = await renderImported(true);
+    expect(screen.getByText("Проект создан")).toBeTruthy();
+    view.unmount();
+    // A reload reads the cleaned address.
+    await renderImported(new URLSearchParams(window.location.search).get("imported") === "1");
+    expect(screen.queryByText("Проект создан")).toBeNull();
+  });
+
+  test("the next save closes the panel", async () => {
+    await renderImported(true);
+    type("Роль", "Dev");
+    fireEvent.click(button("Сохранить"));
+    await screen.findByText("Сохранено");
+    expect(screen.queryByText("Проект создан")).toBeNull();
+  });
+
+  test("without a linked repository the marker shows nothing", async () => {
+    await renderImported(true, { ...IMPORTED, github: null });
+    expect(screen.queryByText("Проект создан")).toBeNull();
+  });
+});

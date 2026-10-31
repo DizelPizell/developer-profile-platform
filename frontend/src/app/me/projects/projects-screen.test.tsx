@@ -216,6 +216,17 @@ describe("list", () => {
     expect(document.getElementById(create.getAttribute("aria-describedby")!)!.textContent).toBe(
       "Можно создать не больше 50 проектов.",
     );
+    // Linking still works at the limit, so the repository page stays reachable.
+    expect(screen.getByRole("link", { name: "Импорт из GitHub" }).getAttribute("href")).toBe(
+      "/me/repositories",
+    );
+  });
+
+  test("«Импорт из GitHub» opens the repository page", async () => {
+    await renderList();
+    expect(screen.getByRole("link", { name: "Импорт из GitHub" }).getAttribute("href")).toBe(
+      "/me/repositories",
+    );
   });
 
   test("an empty list", async () => {
