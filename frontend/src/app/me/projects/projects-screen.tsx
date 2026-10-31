@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "cn";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -36,7 +37,9 @@ import {
 } from "@/lib/api";
 
 import { CabinetPage, LoadErrorPanel, LoadingPanel, useAccount } from "../cabinet-page";
+import { RepositoryName } from "../github-texts";
 import {
+  BADGE,
   FEATURED_LIMIT_TEXT,
   FeaturedBadge,
   PROJECT_FIELD_TEXT,
@@ -414,6 +417,13 @@ function ProjectCard({
             </li>
           ))}
         </ul>
+      )}
+      {project.github && (
+        // Only which repository is linked; relation, languages and sync live in the form.
+        <p className="flex flex-wrap items-center gap-3">
+          <span className={cn(BADGE, "bg-bg text-label")}>GitHub</span>
+          <RepositoryName fullName={project.github.full_name} htmlUrl={project.github.html_url} />
+        </p>
       )}
       {hidden && (
         <p className="text-sm text-text-muted">

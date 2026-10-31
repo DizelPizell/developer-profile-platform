@@ -21,7 +21,7 @@ type Summary = {
   summary: string | null;
   technologies: string[];
   featured_position: number | null;
-  github: null;
+  github: { full_name: string; html_url: string } | null;
 };
 
 function project(id: string, title: string, fields: Partial<Summary> = {}): Summary {
@@ -483,5 +483,55 @@ describe("delete", () => {
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Zeta" })).toBeNull());
     expect(calls("DELETE /projects/z")).toHaveLength(1);
     expect(screen.getByText("Проектов: 5 из 50 · Главных: 2 из 3")).toBeTruthy();
+  });
+});
+
+describe("the GitHub label", () => {
+  const repo = (name: string) => ({ full_name: `ann/${name}`, html_url: `https://github.com/ann/${name}` });
+
+  test("a linked project shows «GitHub» and full_name in every state; github null shows nothing", async () => {
+    const linked = [
+      project("l1", "Live", { featured_position: 1, github: repo("live") }),
+      project("l2", "Hidden", { visibility: "PRIVATE", github: repo("hidden") }),
+      project("l3", "Draft", { status: "DRAFT", visibility: "PRIVATE", github: repo("draft") }),
+      project("l4", "Archived", { status: "ARCHIVED", visibility: "PRIVATE", github: repo("archived") }),
+    ];
+    await renderList([...linked, project("n1", "Plain")]);
+
+    for (const [title, name] of [
+      ["Live", "live"],
+      ["Hidden", "hidden"],
+      ["Draft", "draft"],
+      ["Archived", "archived"],
+    ]) {
+      const item = card(title);
+      expect(within(item).getByText("GitHub")).toBeTruthy();
+      const link = within(item).getByRole("link", { name: `ann/${name}` });
+      expect(link.getAttribute("href")).toBe(`https://github.com/ann/${name}`);
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    }
+    const plain = card("Plain");
+    expect(within(plain).queryByText("GitHub")).toBeNull();
+    expect(within(plain).queryByRole("link", { name: /ann\// })).toBeNull();
+  });
+
+  test("the label says only which repository: no relation, languages or sync", async () => {
+    await renderList([project("l1", "Live", { technologies: ["Go"], github: repo("live") })]);
+    const item = card("Live");
+    const label = within(item).getByText("GitHub").parentElement!;
+    expect(label.textContent).toBe("GitHubann/live");
+  });
+
+  test("full_name with a non-GitHub URL is plain text, and markup is text", async () => {
+    await renderList([
+      project("x", "Odd", {
+        github: { full_name: "<b>ann</b>/x", html_url: "javascript:alert(1)" },
+      }),
+    ]);
+    const item = card("Odd");
+    expect(within(item).getByText("<b>ann</b>/x")).toBeTruthy();
+    expect(within(item).queryByRole("link", { name: /ann/ })).toBeNull();
+    expect(item.querySelector("b")).toBeNull();
   });
 });
