@@ -22,6 +22,7 @@
 - [Frontend stack (ADR-014)](adr/ADR-014-frontend-stack.md)
 - [Design Guide](frontend/DESIGN.md)
 - [Frontend Plan](frontend/FRONTEND_PLAN.md)
+  - [F-GH1 — GitHub in the cabinet](frontend/FRONTEND_PLAN.md#f-gh1--github-in-the-cabinet); screens: [GitHub in the cabinet](frontend/DESIGN.md#github-in-the-cabinet-f-gh1)
 - [Mockups](frontend/mockups/)
 
 ## Development

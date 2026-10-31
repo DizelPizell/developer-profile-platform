@@ -137,7 +137,7 @@ Not in Phases 5–6 (deferred by ADR-018): README, file tree, code viewer, contr
 
 Numbered after the Phase 4 frontend steps in `docs/frontend/FRONTEND_PLAN.md`; each starts when its backend steps are merged.
 
-- **F-GH1 Cabinet** (M–L, after 5.3–5.5 and 6.2): the repository list with import, link by `owner/name` and unlink in the project form, the relation and unavailable states, «Обновить» with the pause and polling while `QUEUED` or `SYNCING`. Also the login screen note from `docs/frontend/DESIGN.md`, which changes the F2 text. The repository list handles 409 `GITHUB_LOGIN_OUTDATED`: «Войдите заново: логин на GitHub изменился».
+- **F-GH1 Cabinet** (M–L; F-GH1.1–F-GH1.4 after 5.3–5.5, F-GH1.5 after 6.2; substeps in `docs/frontend/FRONTEND_PLAN.md`): the repository list with import, link by `owner/name` and unlink in the project form, the relation and unavailable states, «Обновить» with the pause and polling while `QUEUED` or `SYNCING` (F-GH1.5). Also the login screen note from `docs/frontend/DESIGN.md`, which changes the F2 text. The repository list handles 409 `GITHUB_LOGIN_OUTDATED`: «Войдите заново: логин на GitHub изменился».
 - **F-GH2 Public** (M, after 6.7): the GitHub block on project cards and on the project page with «Источник: GitHub», the relation and fork texts and language shares (ADR-019).
 
 ## Phase 7 - Analytics
