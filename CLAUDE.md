@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.5.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) has started ahead of Phase 4: steps 5.1–5.5 are done, step 5.6 remains.
 
 
 
@@ -872,6 +872,10 @@ Not yet started:
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
+the linked repository in the project list — Phase 5 step 5.6
+
+frontend for GitHub in the cabinet — F-GH1 (FRONTEND_PLAN), after step 5.6
+
 sync and public GitHub data — Phase 6 (ADR-018, ADR-019)
 
 
@@ -880,7 +884,7 @@ Current next goal:
 
 
 
-Phase 6 step 6.1 (DEVELOPMENT_PLAN): the sync tables github_sync_jobs and github_sync_category_status (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+Phase 5 step 5.6 (DEVELOPMENT_PLAN): github (null or full_name and html_url) in the items of GET /projects, with a fixed number of SQL queries; the F-GH1 code starts after it. Then Phase 6 step 6.1: the sync tables github_sync_jobs and github_sync_category_status (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
