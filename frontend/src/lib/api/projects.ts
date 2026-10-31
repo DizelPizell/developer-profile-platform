@@ -1,5 +1,13 @@
-import { apiFetch } from "./client";
+import { apiFetch, type ApiRequestInit } from "./client";
 import { ApiError } from "./errors";
+import {
+  invalidResponse,
+  readProjectGitHub,
+  readProjectSummaryGitHub,
+  type ProjectGitHub,
+  type ProjectSummaryGitHub,
+  type RepositoryLinkRequest,
+} from "./github";
 
 export type ProjectStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type ProjectVisibility = "PUBLIC" | "PRIVATE";
@@ -57,12 +65,17 @@ export type ProjectResponse = {
   contribution: string | null;
   technologies: string[];
   featured_position: number | null;
+  /** The linked repository, or null (ADR-017). */
+  github: ProjectGitHub | null;
 };
 
 export type ProjectSummary = Pick<
   ProjectResponse,
   "id" | "status" | "visibility" | "title" | "summary" | "technologies" | "featured_position"
->;
+> & {
+  /** Only which repository is linked; the rest is in GET /projects/{id}. */
+  github: ProjectSummaryGitHub | null;
+};
 
 export type ProjectListResponse = { items: ProjectSummary[] };
 
@@ -82,20 +95,50 @@ function projectPath(id: string, action = ""): string {
   return `/projects/${encodeURIComponent(id)}${action ? `/${action}` : ""}`;
 }
 
-export function listProjects(init: { signal?: AbortSignal } = {}) {
-  return apiFetch<ProjectListResponse>("/projects", { signal: init.signal });
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/*
+ * Project fields are typed as the API returns them; only `github` is read through
+ * the whitelist (github.ts), because it carries data that came from GitHub.
+ */
+
+async function fetchProject(path: string, init: ApiRequestInit = {}): Promise<ProjectResponse> {
+  const body = await apiFetch<unknown>(path, init);
+  const github = isRecord(body) ? readProjectGitHub(body) : undefined;
+  if (github === undefined) {
+    throw invalidResponse("project");
+  }
+  return { ...(body as ProjectResponse), github };
+}
+
+export async function listProjects(init: { signal?: AbortSignal } = {}) {
+  const body = await apiFetch<unknown>("/projects", { signal: init.signal });
+  if (!isRecord(body) || !Array.isArray(body.items)) {
+    throw invalidResponse("project list");
+  }
+  const items: ProjectSummary[] = [];
+  for (const item of body.items) {
+    const github = isRecord(item) ? readProjectSummaryGitHub(item) : undefined;
+    if (github === undefined) {
+      throw invalidResponse("project list");
+    }
+    items.push({ ...(item as ProjectSummary), github });
+  }
+  return { items } satisfies ProjectListResponse;
 }
 
 export function getProject(id: string, init: { signal?: AbortSignal } = {}) {
-  return apiFetch<ProjectResponse>(projectPath(id), { signal: init.signal });
+  return fetchProject(projectPath(id), { signal: init.signal });
 }
 
 export function createProject(body: ProjectWrite) {
-  return apiFetch<ProjectResponse>("/projects", { method: "POST", json: body });
+  return fetchProject("/projects", { method: "POST", json: body });
 }
 
 export function updateProject(id: string, body: ProjectWrite) {
-  return apiFetch<ProjectResponse>(projectPath(id), { method: "PATCH", json: body });
+  return fetchProject(projectPath(id), { method: "PATCH", json: body });
 }
 
 /** 204 without a body. */
@@ -104,18 +147,44 @@ export function deleteProject(id: string) {
 }
 
 export function publishProject(id: string) {
-  return apiFetch<ProjectResponse>(projectPath(id, "publish"), { method: "POST" });
+  return fetchProject(projectPath(id, "publish"), { method: "POST" });
 }
 
 export function archiveProject(id: string) {
-  return apiFetch<ProjectResponse>(projectPath(id, "archive"), { method: "POST" });
+  return fetchProject(projectPath(id, "archive"), { method: "POST" });
 }
 
 export function setProjectVisibility(id: string, visibility: ProjectVisibility) {
-  return apiFetch<ProjectResponse>(projectPath(id, "visibility"), {
+  return fetchProject(projectPath(id, "visibility"), {
     method: "POST",
     json: { visibility },
   });
+}
+
+/**
+ * Links a repository by "owner/name" and replaces the project's previous link. The
+ * backend reads GitHub in the request (up to 7 requests), so it may take seconds.
+ */
+export function linkRepository(id: string, fullName: string) {
+  const body: RepositoryLinkRequest = { full_name: fullName };
+  return fetchProject(projectPath(id, "repository"), { method: "POST", json: body });
+}
+
+/** Removes the link; the project answer has github: null. Not linked → no change. */
+export function unlinkRepository(id: string) {
+  return fetchProject(projectPath(id, "repository"), { method: "DELETE" });
+}
+
+/**
+ * Imports a repository as a new DRAFT + PRIVATE project linked to it (201). It
+ * lives here because it answers with a project.
+ */
+export async function importRepository(githubRepoId: number) {
+  if (!Number.isSafeInteger(githubRepoId) || githubRepoId < 1) {
+    throw new RangeError("githubRepoId must be a positive safe integer");
+  }
+  const id = encodeURIComponent(String(githubRepoId));
+  return fetchProject(`/integrations/github/repositories/${id}/import`, { method: "POST" });
 }
 
 export function featureProject(id: string) {

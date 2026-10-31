@@ -29,6 +29,7 @@ const PROJECT: ProjectResponse = {
   contribution: null,
   technologies: ["Python", "Go"],
   featured_position: null,
+  github: null,
 };
 
 const PROFILE = {

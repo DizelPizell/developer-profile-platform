@@ -91,7 +91,11 @@ export function ProjectsScreen() {
 
 function toSummary(project: ProjectResponse): ProjectSummary {
   const { id, status, visibility, title, summary, technologies, featured_position } = project;
-  return { id, status, visibility, title, summary, technologies, featured_position };
+  const github = project.github && {
+    full_name: project.github.full_name,
+    html_url: project.github.html_url,
+  };
+  return { id, status, visibility, title, summary, technologies, featured_position, github };
 }
 
 function byPosition(projects: ProjectSummary[]): ProjectSummary[] {

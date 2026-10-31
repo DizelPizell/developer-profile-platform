@@ -7,6 +7,8 @@ import {
   deleteProject,
   featureProject,
   getProject,
+  importRepository,
+  linkRepository,
   listProjects,
   missingProjectFields,
   projectFieldErrors,
@@ -14,6 +16,7 @@ import {
   reorderFeatured,
   setProjectVisibility,
   unfeatureProject,
+  unlinkRepository,
   updateProject,
 } from "./projects";
 
@@ -46,7 +49,27 @@ const project = {
   contribution: null,
   technologies: ["Python"],
   featured_position: null,
+  github: null,
 };
+const github = {
+  github_repo_id: 1296269,
+  full_name: "octocat/Hello-World",
+  html_url: "https://github.com/octocat/Hello-World",
+  description: "My first repository",
+  languages: [{ name: "Python", bytes: 1200 }],
+  pushed_at: "2026-10-30T12:00:00Z",
+  is_fork: true,
+  parent_full_name: "github/Hello-World",
+  is_archived: false,
+  relation: "OWNER",
+  unavailable: false,
+  synced_at: null,
+  sync: { status: "NOT_SYNCED", last_success_at: null, next_manual_sync_at: null },
+};
+const linked = { ...project, github };
+const withoutGithub = Object.fromEntries(
+  Object.entries(project).filter(([key]) => key !== "github"),
+);
 const featured = { items: [{ project_id: ID, position: 1 }] };
 
 function errorResponse(status: number, code: string, details: Record<string, unknown> = {}) {
@@ -113,6 +136,30 @@ describe.each([
     { project_ids: ["b", "a"] },
     featured,
   ],
+  [
+    "linkRepository",
+    () => linkRepository(ID, "octocat/Hello-World"),
+    "POST",
+    `${BASE}/projects/${ID}/repository`,
+    { full_name: "octocat/Hello-World" },
+    linked,
+  ],
+  [
+    "unlinkRepository",
+    () => unlinkRepository(ID),
+    "DELETE",
+    `${BASE}/projects/${ID}/repository`,
+    undefined,
+    project,
+  ],
+  [
+    "importRepository",
+    () => importRepository(1296269),
+    "POST",
+    `${BASE}/integrations/github/repositories/1296269/import`,
+    undefined,
+    linked,
+  ],
 ])("%s", (_name, call, method, url, body, response) => {
   test("sends the method, URL, body and credentials and returns the response", async () => {
     fetchMock.mockResolvedValue(Response.json(response));
@@ -158,13 +205,82 @@ test("deleteProject sends DELETE and resolves on 204", async () => {
 });
 
 test("ids are encoded into the path", async () => {
-  fetchMock.mockResolvedValue(Response.json(project));
+  fetchMock.mockImplementation(async () => Response.json(project));
   await getProject("a/b?c");
   expect(lastCall().url).toBe(`${BASE}/projects/a%2Fb%3Fc`);
+  await linkRepository("a/b?c", "octocat/x");
+  expect(lastCall().url).toBe(`${BASE}/projects/a%2Fb%3Fc/repository`);
+  await unlinkRepository("../x");
+  expect(lastCall().url).toBe(`${BASE}/projects/..%2Fx/repository`);
+});
+
+test.each([0, -1, 1.5, Number.NaN, 2 ** 53])(
+  "importRepository refuses id %s without a request",
+  async (id) => {
+    await expect(importRepository(id)).rejects.toBeInstanceOf(RangeError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  },
+);
+
+describe("github in project responses", () => {
+  test("a linked project keeps only the contract fields of github", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ ...project, github: { ...github, etag: "x", owner_id: 7 } }),
+    );
+    const result = await getProject(ID);
+    expect(result.github).toEqual(github);
+    expect(Object.keys(result.github!)).not.toContain("etag");
+  });
+
+  test.each([
+    ["a missing github", withoutGithub],
+    ["an unknown relation", { ...project, github: { ...github, relation: "MAINTAINER" } }],
+    ["an unknown sync status", { ...project, github: { ...github, sync: { ...github.sync, status: "DONE" } } }],
+    ["a string repository id", { ...project, github: { ...github, github_repo_id: "1296269" } }],
+    ["an unsafe repository id", { ...project, github: { ...github, github_repo_id: 2 ** 53 } }],
+    ["a malformed language", { ...project, github: { ...github, languages: [{ name: "Go" }] } }],
+    ["github as a string", { ...project, github: "octocat/Hello-World" }],
+    ["a body that is not an object", ["x"]],
+  ])("%s is an unexpected body", async (_name, body) => {
+    fetchMock.mockResolvedValue(Response.json(body));
+    await expect(getProject(ID)).rejects.toMatchObject({
+      constructor: ApiError,
+      code: "INVALID_RESPONSE",
+    });
+  });
+
+  test("list items carry github: null or full_name and html_url only", async () => {
+    const plain = { ...project, id: "p1" };
+    const withRepo = {
+      ...project,
+      id: "p2",
+      github: { full_name: "octocat/Hello-World", html_url: github.html_url, relation: "OWNER" },
+    };
+    fetchMock.mockResolvedValue(Response.json({ items: [withRepo, plain] }));
+
+    const { items } = await listProjects();
+
+    expect(items.map((item) => item.github)).toEqual([
+      { full_name: "octocat/Hello-World", html_url: github.html_url },
+      null,
+    ]);
+  });
+
+  test.each([
+    ["an item without github", { items: [withoutGithub] }],
+    ["github without html_url", { items: [{ ...project, github: { full_name: "a/b" } }] }],
+    ["items that are not an array", { items: {} }],
+    ["no items", {}],
+  ])("a list with %s is an unexpected body", async (_name, body) => {
+    fetchMock.mockResolvedValue(Response.json(body));
+    await expect(listProjects()).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
 });
 
 test("getProject and listProjects pass the abort signal", async () => {
-  fetchMock.mockImplementation(async () => Response.json({ items: [] }));
+  fetchMock.mockImplementation(async (url) =>
+    Response.json(String(url).endsWith("/projects") ? { items: [] } : project),
+  );
   const controller = new AbortController();
   await listProjects({ signal: controller.signal });
   await getProject(ID, { signal: controller.signal });

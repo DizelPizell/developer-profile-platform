@@ -21,6 +21,7 @@ type Summary = {
   summary: string | null;
   technologies: string[];
   featured_position: number | null;
+  github: null;
 };
 
 function project(id: string, title: string, fields: Partial<Summary> = {}): Summary {
@@ -32,6 +33,7 @@ function project(id: string, title: string, fields: Partial<Summary> = {}): Summ
     summary: `${title} summary`,
     technologies: ["Python", "FastAPI"],
     featured_position: null,
+    github: null,
     ...fields,
   };
 }
