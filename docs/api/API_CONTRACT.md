@@ -369,7 +369,7 @@ The repository list is not stored in the database; a page GitHub returned is kep
 }
 ```
 
-`status` is the latest sync job's state, `NOT_SYNCED` when there is none. `next_manual_sync_at` is when `POST .../sync` is allowed again (10 minutes after the repository's latest job was created), `null` if allowed now. Job errors are not returned. The client polls `GET /projects/{id}` while the status is `QUEUED` or `SYNCING`; there is no separate status endpoint (ADR-018).
+`status` is the latest sync job's state, `NOT_SYNCED` when there is none. `next_manual_sync_at` is when `POST .../sync` may queue a new job again (10 minutes after the repository's latest job was created, `GITHUB_MANUAL_SYNC_COOLDOWN_SECONDS`), `null` once that time has passed; it is shown while a job is active too. After a link or an import the status is `QUEUED`. A manual sync does not call GitHub. It returns an active job before the pause is checked, at no cost; a new job counts 7 requests against the user's budget. Job errors are not returned. The client polls `GET /projects/{id}` while the status is `QUEUED` or `SYNCING`; there is no separate status endpoint (ADR-018).
 
 ## Analytics
 

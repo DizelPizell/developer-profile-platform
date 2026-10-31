@@ -26,7 +26,7 @@ In V1 the GitHub data shown is the block on project cards (ADR-019): repository 
 A job is a row in `github_sync_jobs` (ADR-009). The partial unique index on active jobs makes every enqueue idempotent: `INSERT ... ON CONFLICT DO NOTHING`, so an existing `QUEUED` or `SYNCING` job is reused.
 
 - **On link and import** (ADR-017): a job is queued in the same transaction as the link.
-- **Manually**: `POST /integrations/github/repositories/{id}/sync`, by a user who links the repository to one of their projects. If no job of this repository was created in the last **10 minutes** (configurable, `GITHUB_MANUAL_SYNC_COOLDOWN`), a job is queued; if a job is active, it is returned; otherwise 429 `GITHUB_SYNC_TOO_SOON` with `Retry-After` and `details.retry_after_seconds`. The pause is per repository, since the data is shared by every project that links it. Ten minutes is short enough for a developer who has just pushed, and limits one repository to six manual syncs an hour.
+- **Manually**: `POST /integrations/github/repositories/{id}/sync`, by a user who links the repository to one of their projects. If no job of this repository was created in the last **10 minutes** (configurable, `GITHUB_MANUAL_SYNC_COOLDOWN_SECONDS`), a job is queued; if a job is active, it is returned; otherwise 429 `GITHUB_SYNC_TOO_SOON` with `Retry-After` and `details.retry_after_seconds`. The pause is per repository, since the data is shared by every project that links it. Ten minutes is short enough for a developer who has just pushed, and limits one repository to six manual syncs an hour.
 - **Periodically**: in its polling loop, at most once a minute, the worker queues a job for every repository that is linked to at least one `PUBLISHED` project and has no job created in the last **24 hours** (configurable). Unavailable repositories are included, so one that becomes public again recovers on its own. No cron or scheduler is added.
 
 ### Rate limits
@@ -82,13 +82,23 @@ Decided in step 6.1, 2026-10-31; columns and indexes in `docs/database/DATABASE_
 - Links made before step 6.1 get no job: their status is `NOT_SYNCED`. A repository linked to a `PUBLISHED` project is queued by the periodic sync (step 6.5); one linked only to drafts waits for a manual sync or a new link. The migration queues nothing, since there is no worker before step 6.3.
 - A successful link or import reads the repository's metadata, so it is recorded as a metadata success in `github_sync_category_status` (`last_success_at` set, `last_error` cleared), as it already clears `unavailable_since` (ADR-017). Without it, a 404 before the link and one after it would count as two in a row. Implemented in step 6.2.
 
+### Queueing and manual syncs
+
+Decided in step 6.2, 2026-10-31.
+
+- Link and import queue the job in `store_link`, the write they share, after the link row is written; the same place records the metadata read ("Sync tables" above). A refused or failed link writes neither.
+- An enqueue inserts with `ON CONFLICT (github_repository_id) WHERE status IN ('QUEUED', 'SYNCING') DO NOTHING` and otherwise reads the active job. The job's times come from the application's clock, as the pause compares them with it.
+- A manual sync checks, in order: the repository is linked by one of the user's projects (404 otherwise); an active job is returned and costs nothing; a job created less than the pause ago is 429 `GITHUB_SYNC_TOO_SOON`, `retry_after_seconds` rounded up; otherwise a job is queued and 7 requests are charged. Over the budget it is 429 `GITHUB_USER_LIMIT_REACHED` and the rollback removes the job. The repository is never refused for being unavailable or for a `NONE` relation: a sync is how either recovers.
+- The charge comes after the insert, so a reused job costs nothing. If the commit fails after it, the user loses those 7 until they leave the window; the budget has no refund.
+- The manual sync locks the repository row (`SELECT ... FOR UPDATE`) before it reads the latest job. A link holds the same lock through its upsert. The partial unique index alone keeps one active job, but a job that finishes before the first request commits would leave the index empty, and a second request could queue another job inside the pause; the lock makes it read the new job first. An advisory lock was rejected (a key derived from a UUID, invisible in the schema), and so was SERIALIZABLE (retries).
+
 ### Status for the client
 
 There is no separate status endpoint. The cabinet project response (`GET /projects/{id}` and every response that returns `ProjectResponse`) carries `github.sync`:
 
 - `status`: `NOT_SYNCED` (no job yet), or the latest job's `QUEUED`, `SYNCING`, `SYNCED`, `FAILED`;
 - `last_success_at`: the older of the two categories' `last_success_at`, or `null`;
-- `next_manual_sync_at`: when a manual sync is allowed again, or `null` if it is allowed now.
+- `next_manual_sync_at`: when a manual sync is allowed again, or `null` if it is allowed now. It is shown while a job is active too, although `POST .../sync` then returns that job; the cabinet does not offer a sync while the status is `QUEUED` or `SYNCING`.
 
 `POST .../sync` answers 202 with the same `sync` object. The frontend polls `GET /projects/{id}` while the status is `QUEUED` or `SYNCING`. Job errors are not returned to the client; the cabinet shows the state and, for an unavailable repository or a lost relation, the texts of ADR-017.
 

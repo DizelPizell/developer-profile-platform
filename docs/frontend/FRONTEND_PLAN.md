@@ -156,7 +156,7 @@ Done in F6: `getPublicProfile` reads `featured` and `other` (both required, whit
 
 **Goal**: the developer sees their public repositories, imports one as a draft project, links a repository to a project by name or from the list, and unlinks it. All error states of the GitHub endpoints are understandable and say what to do.
 
-**Before starting**: backend steps 5.3–5.5 merged (done) and step 5.6 (`github` in `ProjectSummary`) merged. F-GH1.5 waits for backend step 6.2; its full manual check waits for the worker (6.3–6.6).
+**Before starting**: backend steps 5.3–5.5 merged (done) and step 5.6 (`github` in `ProjectSummary`) merged. F-GH1.5 waits for backend step 6.2 (done); its full manual check waits for the worker (6.3–6.6). Until then a link or import leaves the status at `QUEUED`, and `synced_at` stays `null`.
 
 Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIGN.md`. Each substep is its own PR in this order. Facts every substep relies on:
 

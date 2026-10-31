@@ -796,7 +796,10 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: When a manual sync is allowed again; null if allowed now.
+          description: >-
+            When a manual sync may queue a new job again (10 minutes after the
+            repository's latest job was created); null once that has passed.
+            Shown while a job is active too.
     RepositoryLinkRequest:
       type: object
       additionalProperties: false
