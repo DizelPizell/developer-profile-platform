@@ -870,6 +870,8 @@ frontend F-GH1.1: the API client and types for the GitHub endpoints, with whitel
 
 frontend F-GH1.2: the repository page /me/repositories (list, paging, import, the link dialog, the GitHub error states with the countdown) and «Проект создан» in the project form (manual check against the backend pending)
 
+frontend F-GH1.3 (with the former F-GH1.4): the repository block in the project form (link by name, replace, unlink, the GitHub error states with the countdown), the GitHub label on «Мои проекты» and the login note (manual check against the backend pending)
+
 
 
 Not yet started:
@@ -878,7 +880,7 @@ Not yet started:
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
-frontend for GitHub in the cabinet — F-GH1.3 and F-GH1.5 (FRONTEND_PLAN; F-GH1.4 is folded into F-GH1.3)
+frontend sync status in the cabinet — F-GH1.5, after backend step 6.2 (FRONTEND_PLAN)
 
 sync and public GitHub data — Phase 6 (ADR-018, ADR-019)
 
@@ -888,7 +890,7 @@ Current next goal:
 
 
 
-F-GH1.3 (FRONTEND_PLAN): the repository block in the project form, the GitHub label on «Мои проекты», the waiting states in the form block and the login note. Then Phase 6 step 6.1: the sync tables github_sync_jobs and github_sync_category_status (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+Phase 6 step 6.1 (DEVELOPMENT_PLAN): the sync tables github_sync_jobs and github_sync_category_status (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
