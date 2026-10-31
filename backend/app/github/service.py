@@ -39,7 +39,13 @@ from app.github.schemas import (
     ProjectGitHub,
     ProjectSummaryGitHub,
 )
-from app.models.github import GitHubRepository, ProjectRepository
+from app.models.github import (
+    ACTIVE_SYNC_JOB_STATUSES,
+    GitHubRepository,
+    GitHubSyncCategoryStatus,
+    GitHubSyncJob,
+    ProjectRepository,
+)
 from app.models.projects import Project
 
 OWNER = "OWNER"
@@ -347,7 +353,9 @@ def store_link(db: Session, project: Project, checked: CheckedRepository, now: d
 
     Runs in the caller's write transaction, with the project row locked, so links
     of one project are serialized; the database's unique constraints decide races
-    between projects. Nothing is committed here.
+    between projects. The upsert keeps the repository row locked until the commit,
+    which serializes it with a manual sync. Records the metadata read and queues
+    a sync job (ADR-018). Nothing is committed here.
     """
     data = checked.data
     metadata = {
@@ -399,6 +407,59 @@ def store_link(db: Session, project: Project, checked: CheckedRepository, now: d
             )
         )
         raise already_linked(linked) from None
+
+    _record_metadata_read(db, repository_id, now)
+    enqueue_sync(db, repository_id, now)
+
+
+def _record_metadata_read(db: Session, repository_id: uuid.UUID, now: datetime) -> None:
+    """A link or import has just read the metadata: a success like a sync's, so a
+    404 before it and one after it are not two in a row (ADR-018)."""
+    db.execute(
+        pg_insert(GitHubSyncCategoryStatus)
+        .values(github_repository_id=repository_id, category="metadata", last_success_at=now)
+        .on_conflict_do_update(
+            constraint="uq_github_sync_category_status_repository_category",
+            set_={"last_success_at": now, "last_error": None, "last_error_at": None},
+        )
+    )
+
+
+def enqueue_sync(db: Session, repository_id: uuid.UUID, now: datetime) -> tuple[uuid.UUID, bool]:
+    """Queues a sync job of the repository, or finds its active one (ADR-018).
+
+    Returns the job's id and whether it was created. The partial unique index on
+    active jobs makes this idempotent. Times come from the application, as the
+    manual pause compares them with its `now`. Nothing is committed here.
+    """
+    for _ in range(2):
+        created = db.scalar(
+            pg_insert(GitHubSyncJob)
+            .values(
+                github_repository_id=repository_id,
+                status="QUEUED",
+                scheduled_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_nothing(
+                index_elements=[GitHubSyncJob.github_repository_id],
+                index_where=GitHubSyncJob.status.in_(ACTIVE_SYNC_JOB_STATUSES),
+            )
+            .returning(GitHubSyncJob.id)
+        )
+        if created is not None:
+            return created, True
+        active = db.scalar(
+            select(GitHubSyncJob.id).where(
+                GitHubSyncJob.github_repository_id == repository_id,
+                GitHubSyncJob.status.in_(ACTIVE_SYNC_JOB_STATUSES),
+            )
+        )
+        # None only when the worker finished that job in between: insert again.
+        if active is not None:
+            return active, False
+    raise RuntimeError("No active sync job after a conflict on the active job index")
 
 
 def unlink(db: Session, project: Project) -> None:

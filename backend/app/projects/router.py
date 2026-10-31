@@ -218,7 +218,6 @@ def link_repository(
 
     project = service.get_own_project(db, user, project_id, for_update=True)
     github_service.store_link(db, project, checked, now)
-    # Step 6.2: queue a sync job here, in this transaction (ADR-018).
     db.commit()
     return _project_response(db, project)
 
@@ -257,7 +256,6 @@ def import_repository(
     )
 
     project = service.create_imported_project(db, user, checked, now)
-    # Step 6.2: queue a sync job here, in this transaction (ADR-018).
     db.commit()
     return _project_response(db, project)
 
