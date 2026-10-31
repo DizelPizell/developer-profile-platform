@@ -98,6 +98,16 @@ Shared by all users: one row per GitHub repository, whoever links it. `unavailab
 
 One repository per project. A user links a given repository to at most one of their projects: `UNIQUE (owner_id, github_repository_id)` (`uq_project_repositories_owner_repository`); the composite foreign key keeps `owner_id` equal to the project's owner. The contributor list used for `relation` is not stored.
 
+## GitHub sync fields (ADR-009, ADR-018)
+
+`github_sync_jobs`: `id`, `github_repository_id` (FK → github_repositories, `ON DELETE CASCADE`), `status` (VARCHAR(20): QUEUED/SYNCING/SYNCED/FAILED, default QUEUED, `ck_github_sync_jobs_status`), `attempt_count` (INTEGER, default 0, `>= 0`, `ck_github_sync_jobs_attempt_count`), `scheduled_at` (default `now()`), `last_error` (TEXT, nullable), `created_at`, `updated_at`. One row per logical sync request; retries reuse it. `updated_at` is set on every status change, and the watchdog finds a stale `SYNCING` job by it.
+
+Indexes: `uq_github_sync_jobs_active` (unique `github_repository_id` WHERE status IN ('QUEUED', 'SYNCING')) — one active job per repository, and an enqueue is `INSERT ... ON CONFLICT (github_repository_id) WHERE status IN ('QUEUED', 'SYNCING') DO NOTHING`; `ix_github_sync_jobs_claim` (`scheduled_at` WHERE status = 'QUEUED') — the worker's claim with `SKIP LOCKED`; `ix_github_sync_jobs_repository_created` (`github_repository_id`, `created_at`) — the latest job (the status shown), the 10-minute manual pause and the 24-hour schedule.
+
+`github_sync_category_status`: `id`, `github_repository_id` (FK → github_repositories, `ON DELETE CASCADE`), `category` (VARCHAR(20): metadata/languages, `ck_github_sync_category_status_category`), `last_success_at`, `last_error` (TEXT), `last_error_at`, all three nullable; `UNIQUE (github_repository_id, category)` (`uq_github_sync_category_status_repository_category`); `last_error` and `last_error_at` are set together (`ck_github_sync_category_status_error_time`). A row appears with the category's first attempt.
+
+`last_error` in both tables is a fixed label such as `NOT_FOUND`, matching `^[A-Z_]{1,64}$` (`ck_github_sync_jobs_last_error`, `ck_github_sync_category_status_last_error`); GitHub's text is never stored. Both tables cascade from `github_repositories`: a repository that a project links cannot be deleted (`RESTRICT` above), and when an unlinked one is, its sync records go with it. Links made before step 6.1 have no rows: no job means `NOT_SYNCED`. Finished jobs are kept (retention is an open question of ADR-018).
+
 ## Project fields (Phase 3)
 
 `id`, `owner_id` (FK → users, `ON DELETE CASCADE`), `status` (VARCHAR(20): DRAFT/PUBLISHED/ARCHIVED, default DRAFT), `visibility` (VARCHAR(20): PUBLIC/PRIVATE, default PRIVATE), `title` (≤ 100), `summary` (≤ 300), `description` (≤ 5000), `problem` (≤ 2000), `results` (≤ 2000), `role` (≤ 100), `contribution` (≤ 2000), `created_at`, `updated_at`.
@@ -144,9 +154,9 @@ The seven text fields are nullable `TEXT` with CHECK constraints; stored values 
 - project_repository.project_id unique; project_repository.relation is one of OWNER, CONTRIBUTOR, NONE; github_repository_id `ON DELETE RESTRICT`
 - one repository per user's projects: project_repository unique (owner_id, github_repository_id) (`uq_project_repositories_owner_repository`); (project_id, owner_id) FK → project (id, owner_id) `ON DELETE CASCADE`, with project unique (id, owner_id) (`uq_projects_id_owner`) — ADR-017
 - timestamps on mutable entities
-- github_sync_job: at most one row with status in (QUEUED, SYNCING) per github_repository (partial unique index) — see ADR-009-github-sync-worker-execution-model.md
-- github_sync_job columns: `id`, `github_repository_id`, `status` (QUEUED/SYNCING/SYNCED/FAILED), `attempt_count`, `scheduled_at`, `last_error`, `created_at`, `updated_at`
-- github_sync_category_status: unique on (github_repository_id, category) — one row per pair; columns: `id`, `github_repository_id`, `category`, `last_success_at`, `last_error`, `last_error_at`; V1 categories are `metadata` and `languages` (ADR-018)
+- github_sync_job: at most one row with status in (QUEUED, SYNCING) per github_repository (`uq_github_sync_jobs_active`, partial unique index) — see ADR-009-github-sync-worker-execution-model.md; columns and indexes in "GitHub sync fields"
+- github_sync_category_status: unique on (github_repository_id, category) — one row per pair; V1 categories are `metadata` and `languages` (ADR-018)
+- sync errors are labels (`^[A-Z_]{1,64}$`), never GitHub's text; sync rows cascade from github_repository
 - sync status (status, attempt_count, scheduled_at, last_error, timestamps) lives only on github_sync_job, never duplicated on github_repository — see ADR-009-github-sync-worker-execution-model.md; `github_repository.unavailable_since` is a repository fact, not sync status (ADR-017)
 - github_contributor (deferred, not created in V1 — ADR-018): unique on (github_repository_id, github_user_id); `github_user_id` is the GitHub numeric user id; `login` is a regular field; snapshot data, upsert + delete missing — see ADR-011-partial-sync-success.md
 - github_commit (deferred, not created in V1 — ADR-018): unique on (github_repository_id, sha); never automatically deleted; the 100-most-recent limit applies per sync run's fetch, not to total stored rows — see ADR-010-github-evidence-data-model-v1.md
@@ -173,7 +183,7 @@ Consider indexes for:
 - project_showcase profile_id + position (unique, deferrable)
 - github_repository github_repo_id (unique)
 - project_repository project_id (unique), github_repository_id (public profile and periodic sync queries)
-- github_sync_job repository_id + status (for SKIP LOCKED claim query)
+- github_sync_job github_repository_id WHERE status IN (QUEUED, SYNCING) (unique, partial); scheduled_at WHERE status = QUEUED (the SKIP LOCKED claim); github_repository_id + created_at (the latest job, the manual pause, the daily schedule)
 - github_sync_category_status (repository_id, category) unique
 - github_contributor (repository_id, github_user_id) (unique), when contributors return
 - github_commit repository_id + sha (unique), when commits return

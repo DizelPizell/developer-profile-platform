@@ -71,6 +71,17 @@ Timeouts, 5xx answers and malformed responses are retryable failures with ADR-00
 
 The worker checks the app credentials at startup and exits on a 401 or an unauthenticated limit (ADR-016). It never falls back to unauthenticated requests.
 
+### Sync tables
+
+Decided in step 6.1, 2026-10-31; columns and indexes in `docs/database/DATABASE_SCHEMA.md` ("GitHub sync fields").
+
+- `last_error` in `github_sync_jobs` and `github_sync_category_status` is a fixed label such as `NOT_FOUND`; a CHECK allows only `^[A-Z_]{1,64}$`, so GitHub's text cannot be stored (ADR-016 keeps it out of logs for the same reason).
+- The watchdog finds a stale `SYNCING` job by `updated_at`, which every status change sets; there is no separate claim time.
+- Both tables cascade from `github_repositories`. A linked repository cannot be deleted (ADR-017); when an unlinked one is, its sync records go with it.
+- Jobs carry no trigger or requesting user: the pause, the schedule and the per-user budget do not need them.
+- Links made before step 6.1 get no job: their status is `NOT_SYNCED`. A repository linked to a `PUBLISHED` project is queued by the periodic sync (step 6.5); one linked only to drafts waits for a manual sync or a new link. The migration queues nothing, since there is no worker before step 6.3.
+- A successful link or import reads the repository's metadata, so it is recorded as a metadata success in `github_sync_category_status` (`last_success_at` set, `last_error` cleared), as it already clears `unavailable_since` (ADR-017). Without it, a 404 before the link and one after it would count as two in a row. Implemented in step 6.2.
+
 ### Status for the client
 
 There is no separate status endpoint. The cabinet project response (`GET /projects/{id}` and every response that returns `ProjectResponse`) carries `github.sync`:
@@ -125,3 +136,4 @@ Checked in step 5.2 on 2026-10-30, with app credentials and no user token (`back
 - File content for the code viewer (ADR-011's open question) and the return of README and the file tree.
 - Whether periodic syncs should skip repositories linked only to hidden (`PUBLISHED` + `PRIVATE`) projects.
 - Worker health checks and alerting beyond the restart policy (Phase 9).
+- Retention of finished jobs: kept in V1 (about one row a day per repository linked to a published project); deleting old `SYNCED` and `FAILED` rows can come later without a schema change.
