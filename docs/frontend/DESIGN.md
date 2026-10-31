@@ -90,6 +90,7 @@ Rules that follow:
 | `/me/projects` | «Мои проекты» (F5) | Client |
 | `/me/projects/new` | New project (F5) | Client |
 | `/me/projects/[id]` | Edit project (F5) | Client |
+| `/me/repositories` | «Репозитории GitHub» (F-GH1) | Client |
 | `/u/[slug]` | Public profile | Server (SSR) |
 | anything else | 404 | — |
 
@@ -272,7 +273,7 @@ Top panel: «Новый проект» or «Проект», the state badge (onc
 
 - Every field has a counter «N / limit». Text is plain: no markup, line breaks kept in multi-line fields.
 - Technologies are chips. A name is added with Enter or «Добавить» and removed with × («Удалить «{name}»»). The name is trimmed and inner whitespace collapsed, as the API does. A blank name is ignored. A name equal to an existing one ignoring case is not added: `«{name}» уже есть в списке.`. At 20 the input is read-only with «Не больше 20 технологий.». Technologies keep the entered order.
-- Under the form: «Демо, скриншоты и репозиторий GitHub добавим в следующих версиях.»
+- Under the form: «Демо, скриншоты и репозиторий GitHub добавим в следующих версиях.» From F-GH1 the line changes (see "GitHub in the cabinet").
 
 Actions (buttons under the form):
 
@@ -305,6 +306,178 @@ States and errors (list and form):
 | 409 `PROJECT_NOT_FEATURABLE` | «Главным можно сделать только опубликованный и видимый проект. Данные загружены заново.»; the list is reloaded |
 | 409 `FEATURED_LIMIT_REACHED` | «В главных уже 3 проекта. Уберите один, чтобы добавить другой.»; the list is reloaded |
 | 409 `FEATURED_ORDER_MISMATCH` | «Список главных изменился, порядок загружен заново.»; the list is reloaded |
+
+### GitHub in the cabinet (F-GH1)
+
+Mockups: `repositories.png` (the repository list), `github-states.png` (messages and confirmations), the «Репозиторий GitHub» block of `project-form.png`, and the «Импорт из GitHub» button and GitHub label of the updated «Мои проекты» mockup. API: the GitHub section of `docs/api/API_CONTRACT.md` (ADR-016, ADR-017, ADR-018). Where a mockup differs from the contract, the contract wins; the differences are listed for the mockup owner, not built.
+
+The general cabinet rules apply: tokens, typography, buttons in Pixelify Sans in normal case, the header from `GET /profile` with «Источник: GitHub», focus, a second click during a request sends nothing.
+
+Sync is not part of F-GH1.1–F-GH1.4 (FRONTEND_PLAN). Until Phase 6 queues jobs, every linked repository has `sync.status = NOT_SYNCED`, `synced_at = null` and `languages = []`. «Обновить», its pause and polling while `QUEUED` or `SYNCING` come with F-GH1.5. The public «Данные GitHub» data on project cards is F-GH2.
+
+#### Wording
+
+- Every block with GitHub data carries «Источник: GitHub»: the top panel of `/me/repositories`, the form block, and the «GitHub» chip in front of a repository name on a project card.
+- The relation states the fact (ADR-017, ADR-019):
+  - `OWNER` → «Владелец репозитория»;
+  - `CONTRIBUTOR` → «В списке контрибьюторов (по данным GitHub)»;
+  - `NONE` → no label, the explanation from "States of a linked repository" instead.
+- The words «подтверждено», «проверено» and «верифицирован» are not used anywhere: a link confirms only the relation, not the project's text.
+- A fork: «Форк {parent_full_name}», or «Форк» when `parent_full_name` is `null` (the list items carry no parent). An archived repository: «В архиве на GitHub».
+- Before the first successful sync (`synced_at = null`) the block shows an honest placeholder instead of languages: «Языки и другие данные появятся после первой синхронизации с GitHub. Сейчас данные ещё не загружены.» Nothing is guessed or filled in on the client.
+- Languages, when they appear (F-GH1.5, after a sync), are GitHub's byte counts, not skills. They are never levels or bars.
+- No other numbers are shown: no stars, forks, commit counts or totals (CLAUDE.md, ADR-019).
+- `pushed_at` is «Обновлён: {date}», the date only in the user's time zone (`ru-RU`, `30.10.2026`). A `null` value hides the line.
+- A `null` `description` is «У этого репозитория нет описания на GitHub». A long description is cut after two lines.
+- Text from GitHub (`full_name`, `description`, `parent_full_name`) is rendered as text, never as HTML.
+- `full_name` links to `html_url` in a new tab with `rel="noopener noreferrer"`, only when `html_url` starts with `https://github.com/`; otherwise it is plain text.
+
+#### Entry points
+
+- «Импорт из GitHub» (secondary) on «Мои проекты», left of «Новый проект», opens `/me/repositories`. It stays active at 50 projects: linking still works there.
+- In the project form, the link «выберите из своего списка» under the repository input opens `/me/repositories`.
+- The cabinet gets no third tab. `/me/repositories` has no tabs, only «‹ Назад к проектам» (`/me/projects`), like the form.
+
+#### «Репозитории GitHub» — `/me/repositories`
+
+Data:
+
+- `GET /integrations/github/repositories?page=N`.
+- `GET /projects`, for three things: project titles for «Проект: {title}», the projects in the link dialog, and the project count for the 50 limit.
+- `GET /profile`, for the header.
+
+The page number lives in the address (`/me/repositories?page=2`). A missing or invalid value means page 1.
+
+Top panel:
+
+- «Репозитории GitHub» with «Источник: GitHub».
+- «Ваши публичные репозитории. Мы только читаем данные, ничего не меняем на GitHub.»
+- «Привязать можно репозиторий, в котором вы владелец или входите в список контрибьюторов. Список обновляется раз в 5 минут: новый репозиторий появится не сразу.»
+
+The 5 minutes is the backend's page cache (contract). The page has no «Обновить список» button: it would return the same cached page.
+
+A card per item, in API order (most recently pushed first):
+
+- `full_name` (the link rule above), the labels «Форк» and «В архиве на GitHub» when they apply, and «Обновлён: {date}» on the right.
+- `description` or the empty-description text.
+- Without `linked_project_id`:
+  - «Импортировать как проект» (`label`) and «Привязать к проекту…» (secondary);
+  - the hint «Импорт создаёт черновик с названием репозитория. Остальное вы заполняете сами.»
+  - Forks and archived repositories can be imported and linked (ADR-017).
+- With `linked_project_id`:
+  - the badge «Привязан» and «Проект: {title}», a link to `/me/projects/{linked_project_id}`;
+  - the title comes from `GET /projects`, «[Без названия]» when `null`, and «Открыть проект» when the project is not in that list;
+  - no import or link buttons: both would answer 409 `GITHUB_REPOSITORY_ALREADY_LINKED`.
+
+Pagination:
+
+- «‹ Назад», «Страница N», «Вперёд ›».
+- «Назад» is disabled on page 1. «Вперёд» is disabled when `next_page` is `null`.
+- A page change loads only the repository list.
+
+An empty page 1 shows a dashed panel:
+
+- «На вашем аккаунте GitHub нет публичных репозиториев. Приватные мы не показываем. Проект можно создать и без репозитория.»
+- The link «Создать проект вручную» to `/me/projects/new`.
+
+Import:
+
+- At 50 projects (counted from `GET /projects`) the import buttons are disabled with «Можно создать не больше 50 проектов.». The API stays the source of truth (`PROJECT_LIMIT_REACHED`).
+- «Импортировать как проект» sends `POST /integrations/github/repositories/{github_repo_id}/import`.
+  - The import reads GitHub and may take a few seconds. The button reads «Импортируем…», and every action on the page is disabled.
+- 201 moves to `/me/projects/{id}` of the new project. The form shows a success panel at the top:
+  - «Проект создан» and «Из репозитория {full_name} создан черновик «{title}». Заполните «Коротко о проекте», «Роль», «Ваш вклад» и «Технологии», чтобы опубликовать его.»;
+  - the values come from the project response;
+  - the panel is shown once, after the import (a marker in the address that the form removes), and closes on the next save.
+- The mockup's banner on the repository page with «Открыть проект» is not built.
+
+Link from the list:
+
+- «Привязать к проекту…» opens an accessible modal dialog (focus starts on the first project, Escape closes it).
+  - Title: «Привязать к проекту».
+  - A radio list of all the user's projects from `GET /projects`, in API order: `title` (or «[Без названия]») and the state badge from «Мои проекты».
+  - The note «Привязка не меняет статус, видимость и тексты проекта.» and «Если у проекта уже есть репозиторий, новая привязка заменит старую.»
+  - «Привязать» (accent; disabled until a project is chosen) and «Отмена».
+  - With no projects: «[Пока нет проектов]» and only «Отмена».
+- «Привязать» sends `POST /projects/{id}/repository` with `{"full_name": item.full_name}`. Errors are shown inside the dialog, which stays open.
+- On 200:
+  - the dialog closes and the card shows «Привязан · Проект: {title}»;
+  - another card that pointed to the same project loses its badge, since the link replaced it;
+  - the confirmation from `github-states.png` appears above the list: «Репозиторий привязан», «Проект «{title}» привязан к {full_name}. Статус, видимость и тексты проекта не менялись.»;
+  - nothing is reloaded.
+- The mockup's per-project line «Уже привязан к {другой репозиторий}» is not built: `ProjectSummary` in `GET /projects` carries no repository (open question in FRONTEND_PLAN F-GH1).
+
+Action errors (import, link from the list) appear in an alert above the list, scrolled into view. Load errors of the list replace the cards.
+
+#### «Репозиторий GitHub» in the project form — `/me/projects/[id]`
+
+The block sits after «Результат», before the form buttons.
+
+- Its heading is «Репозиторий GitHub» with «Источник: GitHub» and «Необязательно».
+- On `/me/projects/new` it shows only «Репозиторий можно привязать после первого сохранения.»: a link needs a project id.
+
+Not linked (`github` is `null`):
+
+- «Привяжите репозиторий, и в проекте появятся факты из GitHub. Привязать можно репозиторий, в котором вы владелец или входите в список контрибьюторов.»
+- An input with the placeholder «владелец/репозиторий» and «Привязать» (accent).
+- The hint «Только публичные репозитории. Формат: имя владельца, косая черта, имя репозитория. Или выберите из своего списка.» The last words are the link to `/me/repositories`.
+- The value is trimmed. A value that does not match the contract's `owner/name` pattern shows «Формат: владелец/репозиторий.» without a request. The API stays the source of truth (422 `VALIDATION_ERROR`).
+- «Привязать» sends `POST /projects/{id}/repository`. The link reads GitHub and may take a few seconds, so the button reads «Проверяем на GitHub…».
+
+Linked:
+
+- The panel shows `full_name` (link rule), «Обновлён: {date}», `description`, and the labels: relation, fork, archived.
+- Under the labels sits the languages placeholder while `synced_at` is `null`.
+- Under the panel: «Заменить репозиторий» (secondary) and «Отвязать» (red text on a panel).
+  - «Заменить репозиторий» shows the input again with «Отмена». A successful link replaces the previous one (contract).
+  - «Отвязать» asks in an `AlertDialog` (focus starts on «Отмена»): «Отвязать репозиторий?», «Проект и его тексты останутся. Пропадёт только связь с {full_name}. Привязать можно снова.», «Отвязать» (`error` fill) and «Отмена». Confirming sends `DELETE /projects/{id}/repository`.
+
+States of a linked repository (ADR-017). In F-GH1 only a sync can set them (Phase 6), but the contract already returns the fields:
+
+| Field | Shown in the block |
+|---|---|
+| `unavailable: true` | Warning «Репозиторий недоступен: удалён или стал приватным. Публично данные GitHub не показываются.» The rest of the panel shows the stored data. |
+| `relation: "NONE"` | Warning «По данным GitHub вы сейчас не владелец репозитория и не в списке его контрибьюторов. Публично данные GitHub не показываются, пока связь не найдётся снова.» No relation label. |
+
+Behavior:
+
+- Link and unlink work at once and do not depend on «Сохранить». The note under the block says: «Привязка и отвязка работают сразу и не зависят от кнопки «Сохранить». Они не меняют статус, видимость и тексты проекта.»
+- Link and unlink return the whole `ProjectResponse`. The form takes only `github` from it, so unsaved edits in the text fields stay.
+- While a link or unlink runs, all form buttons are disabled, as for every request.
+- The line under the form becomes «Демо и скриншоты добавим в следующих версиях.»
+- Link errors are shown inside the block, under the input.
+
+#### GitHub label on «Мои проекты»
+
+The mockup shows a «GitHub» chip and `full_name` on cards of linked projects. `ProjectSummary` has no repository field, so the label is not built until the contract carries one (open question in FRONTEND_PLAN F-GH1). Loading every project with `GET /projects/{id}` to get it is not an option: up to 50 requests per list.
+
+#### Responses → message → user action
+
+The code in small type above a message in `github-states.png` is a mockup annotation and is not shown to the user. Titles are Press Start 2P, texts Pixelify Sans.
+
+| Code | Can come from | Title and text | User action |
+|---|---|---|---|
+| 401 | any | — | Redirect to `/login` |
+| 409 `GITHUB_LOGIN_OUTDATED` | list | «Логин на GitHub изменился». «Мы запомнили ваш прежний логин и не видим ваши репозитории. Войдите заново, и мы обновим его.» | «Войти через GitHub»: a full-page navigation to the login URL, as on `/login` |
+| 422 `GITHUB_RELATION_NOT_FOUND` | link, import | «Связь с репозиторием не найдена». «Вы не владелец этого репозитория и не входите в список его контрибьюторов по данным GitHub. Если вы делали коммиты с личной почтой, GitHub может вас не показывать.» | None; another repository can be chosen |
+| 409 `GITHUB_REPOSITORY_ALREADY_LINKED` | link, import | «Репозиторий уже привязан». «Этот репозиторий уже привязан к вашему проекту «{title}». Один репозиторий можно привязать только к одному вашему проекту.» `{title}` is found by `details.project_id` in `GET /projects`; when it is not there, «к другому вашему проекту» | «Открыть проект» → `/me/projects/{details.project_id}`. On the list page the card is marked «Привязан» locally |
+| 422 `GITHUB_REPOSITORY_NOT_FOUND` | link | «Репозиторий не найден». «Такого публичного репозитория нет. Проверьте написание: «владелец/репозиторий». Приватные репозитории мы не читаем.» | Fix the name and repeat |
+| 404 `NOT_FOUND` | import (the repository) | «Репозиторий не найден». «GitHub больше не отдаёт этот репозиторий: его могли удалить или сделать приватным. Список обновится в течение 5 минут.» | None |
+| 404 `NOT_FOUND` | link, unlink (the project) | As in the project form: «Проект не найден» | Link «Мои проекты» |
+| 422 `VALIDATION_ERROR` | link (`full_name`); list (`page`) | Link: «Формат: владелец/репозиторий.» under the input. List: not reachable from the page (the page number is checked first); handled as page 1 | Fix the name |
+| 409 `PROJECT_LIMIT_REACHED` | import | «Достигнут лимит проектов». «У вас уже {details.limit} проектов, это максимум. Удалите ненужный проект, чтобы импортировать репозиторий.» | «К моим проектам» → `/me/projects` |
+| 429 `GITHUB_USER_LIMIT_REACHED` | list, link, import | «Слишком много обращений к GitHub». «Вы много раз обращались к GitHub за последний час. Повторите через {N} мин.» | Disabled «Повторить через {N} мин» with a countdown, then «Повторить» |
+| 503 `GITHUB_RATE_LIMITED` | list, link, import | «GitHub ограничил запросы платформы». «Это не ваша вина: лимит общий на всех. Попробуйте через {N} мин.» | Same countdown |
+| 502 `GITHUB_UNAVAILABLE` | list, link, import | «GitHub сейчас недоступен». «Не получилось связаться с GitHub. Повторите чуть позже.» | «Повторить» repeats the same request once per click; there is no automatic retry |
+| 500 `INTERNAL_ERROR` | any | As in the cabinet: «Что-то пошло не так. Попробуйте ещё раз.» and «Код запроса: <request_id>» | Repeat the action |
+| Network error, unreadable 403 `CSRF_ORIGIN_INVALID` | any | As in the cabinet: «Не удалось связаться с сервером.» | Repeat the action |
+
+The countdown for 429 and 503:
+
+- `{N}` comes from `details.retry_after_seconds`, rounded up to whole minutes, at least 1. The `Retry-After` header cannot be read by the browser: CORS exposes only `X-Request-ID` (contract, Principles).
+- While it runs, the action that failed stays disabled: list paging for the list, import and link buttons for an action.
+- When it ends, the button becomes «Повторить». For the list it reloads the page. For an action it closes the message, and the user repeats the action.
+- Without a valid `details.retry_after_seconds` the text ends with «Попробуйте позже.» and «Повторить» is active at once.
 
 ### Sign-in — `/login`
 
@@ -373,7 +546,11 @@ Mockups are added manually to `docs/frontend/mockups/`:
 - `login.png`
 - `not-found.png`
 - `my-projects.png` (F5)
-- `project-form.png` (F5)
+- `project-form.png` (F5; the version with the «Репозиторий GitHub» block is for F-GH1)
+- `repositories.png` (F-GH1)
+- `github-states.png` (F-GH1)
+
+The F-GH1 version of «Мои проекты» (with «Импорт из GitHub» and the GitHub label) is in the working tree as `my-projects.png.png`; the mockup owner decides whether it replaces `my-projects.png`.
 
 The project blocks of the public page follow `public-profile.png`, except the card label: the image shows «Избранное N», the guide says «Главный N».
 
