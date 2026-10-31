@@ -425,16 +425,16 @@ Not linked (`github` is `null`):
 - «Привяжите репозиторий, и в проекте появятся факты из GitHub. Привязать можно репозиторий, в котором вы владелец или входите в список контрибьюторов.»
 - An input with the placeholder «владелец/репозиторий» and «Привязать» (accent).
 - The hint «Только публичные репозитории. Формат: имя владельца, косая черта, имя репозитория. Или выберите из своего списка.» The last words are the link to `/me/repositories`.
-- The value is trimmed. A value that does not match the contract's `owner/name` pattern shows «Формат: владелец/репозиторий.» without a request. The API stays the source of truth (422 `VALIDATION_ERROR`).
+- The value is trimmed. A value that does not match the contract's `owner/name` pattern shows «Формат: владелец/репозиторий.» without a request. The API stays the source of truth: its 422 `VALIDATION_ERROR` shows the same hint. «Привязать» is disabled while the input is empty, and Enter in the input links instead of submitting the form.
 - «Привязать» sends `POST /projects/{id}/repository`. The link reads GitHub and may take a few seconds, so the button reads «Проверяем на GitHub…».
 
 Linked:
 
 - The panel shows `full_name` (link rule), «Обновлён: {date}», `description`, and the labels: relation, fork, archived.
-- Under the labels sits the languages placeholder while `synced_at` is `null`.
+- Under the labels sits the languages placeholder while `synced_at` is `null`. With `synced_at` set nothing replaces it until F-GH1.5 shows the languages.
 - Under the panel: «Заменить репозиторий» (secondary) and «Отвязать» (red text on a panel).
   - «Заменить репозиторий» shows the input again with «Отмена». A successful link replaces the previous one (contract).
-  - «Отвязать» asks in an `AlertDialog` (focus starts on «Отмена»): «Отвязать репозиторий?», «Проект и его тексты останутся. Пропадёт только связь с {full_name}. Привязать можно снова.», «Отвязать» (`error` fill) and «Отмена». Confirming sends `DELETE /projects/{id}/repository`.
+  - «Отвязать» asks in an `AlertDialog` (focus starts on «Отмена»): «Отвязать репозиторий?», «Проект и его тексты останутся. Пропадёт только связь с {full_name}. Привязать можно снова.», «Отвязать» (`error` fill) and «Отмена». Confirming closes the dialog and sends `DELETE /projects/{id}/repository`; the button reads «Отвязываем…» meanwhile, and an error is shown under the buttons with the cabinet texts (unlink does not read GitHub).
 
 States of a linked repository (ADR-017). In F-GH1 only a sync can set them (Phase 6), but the contract already returns the fields:
 
@@ -449,7 +449,8 @@ Behavior:
 - Link and unlink return the whole `ProjectResponse`. The form takes only `github` from it, so unsaved edits in the text fields stay.
 - While a link or unlink runs, all form buttons are disabled, as for every request.
 - The line under the form becomes «Демо и скриншоты добавим в следующих версиях.»
-- Link errors are shown inside the block, under the input.
+- Link errors are shown inside the block, under the input. For `GITHUB_REPOSITORY_ALREADY_LINKED` the form reads `GET /projects` once, only on that error, to name the other project (decided with the owner in F-GH1.3).
+- After a link the focus moves to the linked panel; after an unlink, to the input (their triggers are gone).
 
 #### GitHub label on «Мои проекты»
 
@@ -493,7 +494,7 @@ Blocks (mockup `login.png`):
 - «Профиль разработчика с проектами и данными из GitHub. Войдите, чтобы создать свой.»;
 - the error block, when there is one;
 - the button «Войти через GitHub» (Pixelify Sans, normal case, large);
-- the note «Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и публичные репозитории, которые вы привяжете к проектам. Доступа к приватным репозиториям нет.» The mockup omits the email; the backend stores a public email (ADR-012), so the text names it. The repositories are named because Phase 5 reads them with the app's credentials, without any access granted by the user (ADR-016). The text in the code is the F2 version until step F-GH1 (DEVELOPMENT_PLAN).
+- the note «Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и публичные репозитории, которые вы привяжете к проектам. Доступа к приватным репозиториям нет.» The mockup omits the email; the backend stores a public email (ADR-012), so the text names it. The repositories are named because Phase 5 reads them with the app's credentials, without any access granted by the user (ADR-016). The code has used this text since F-GH1.3.
 
 The mockup's link «Посмотреть пример профиля» is left out until a public page (F4) and an example profile exist.
 

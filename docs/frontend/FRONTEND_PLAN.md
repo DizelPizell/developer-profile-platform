@@ -267,7 +267,7 @@ Done in F-GH1.2:
 - Additions to `DESIGN.md` made in this step: «На этой странице репозиториев нет.» for an empty later page, «Репозиторий: {full_name}» in the dialog, «Проверяем на GitHub…» on the dialog's button, and the focus moving to the confirmation after a link.
 - Checked with Vitest + RTL (fetch mocked, fake timers for the countdown; 443 tests), 18 mutations (all fail tests), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual repositories check"; it has not been run yet.
 
-### F-GH1.3 — The repository block in the project form, waiting states and the login note (M)
+### F-GH1.3 — The repository block in the project form, waiting states and the login note (M) [done]
 
 **What**:
 - The «Репозиторий GitHub» block per `DESIGN.md`:
@@ -328,6 +328,21 @@ The `unavailable` and `NONE` warnings cannot be produced before Phase 6. They ar
 - Mixing an immediate action (link) into a form with a separate «Сохранить» can surprise users. The note under the block and the confirmation text are the mitigation, and taking only `github` from the response keeps edits safe.
 - A link waits on GitHub for up to several seconds (up to 7 requests). The button text shows the wait, and every button is disabled meanwhile.
 - The countdown is a client timer. It reads the clock on every tick, so it stays right after a laptop sleeps; the API stays the source of truth, and a too-early retry just shows the message again.
+
+Done in F-GH1.3:
+- `src/app/me/projects/repository-block.tsx`: the block in the form (`project-editor.tsx` passes the stored project and takes back only `github`). `src/app/me/github-texts.tsx` gained the relation labels, the warnings, the placeholder and «Форк {parent}». The label on «Мои проекты» lives in `projects-screen.tsx`. The login note uses the `DESIGN.md` text.
+- Decided with the developer:
+  - the login note is part of this step, in its own commit;
+  - `GITHUB_REPOSITORY_ALREADY_LINKED` in the form reads `GET /projects` once, only on that error, to name the other project; if that read fails, the text says «к другому вашему проекту».
+- Other decisions:
+  - The block keeps its own request state and tells the form through `onPendingChange`, so a link or unlink disables the form's buttons and fields, and a save disables the block. The form keeps one `saved` project; a link or unlink replaces only its `github`, so `changedFields` and «Сохранить» stay as they were.
+  - The block sits inside the `<form>`: its buttons are `type="button"`, and Enter in the input is cancelled and links.
+  - A 422 `VALIDATION_ERROR` from the API shows the same format hint as the client check, not an alert. The project's 404 on link or unlink uses the form's «Проект не найден», as other form actions do.
+  - The countdown and «Повторить» come from the F-GH1.2 component. «Повторить» after a 502 sends the name that failed, not the input's current text; after a countdown it closes the message.
+  - Unlink errors use the cabinet alert (`RequestErrorAlert`): unlink does not read GitHub.
+  - Focus: after a link it moves to the linked panel, after an unlink to the input, after «Заменить репозиторий» to the input; the unlink confirmation is an `AlertDialog` with the focus on «Отмена», like project deletion.
+  - With `synced_at` set the placeholder is hidden and nothing replaces it until F-GH1.5.
+- Checked with Vitest + RTL (fetch mocked, fake timers; 481 tests), 16 mutations (all fail tests; the Enter mutation first survived because jsdom does not submit a form on Enter, so the test now checks that the key is cancelled), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual project repository check"; it has not been run yet.
 
 ### F-GH1.4 — Waiting and failure states [folded]
 
