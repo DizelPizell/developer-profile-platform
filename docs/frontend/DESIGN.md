@@ -396,16 +396,17 @@ Link from the list:
 - «Привязать к проекту…» opens an accessible modal dialog (focus starts on the first project, Escape closes it).
   - Title: «Привязать к проекту».
   - A radio list of all the user's projects from `GET /projects`, in API order: `title` (or «[Без названия]») and the state badge from «Мои проекты».
-  - The note «Привязка не меняет статус, видимость и тексты проекта.» and «Если у проекта уже есть репозиторий, новая привязка заменит старую.»
+  - Under a project whose `github` is not `null`: «Уже привязан к {github.full_name}. Новая привязка заменит старую.» (`label` text).
+  - The note «Привязка не меняет статус, видимость и тексты проекта.»
   - «Привязать» (accent; disabled until a project is chosen) and «Отмена».
   - With no projects: «[Пока нет проектов]» and only «Отмена».
 - «Привязать» sends `POST /projects/{id}/repository` with `{"full_name": item.full_name}`. Errors are shown inside the dialog, which stays open.
 - On 200:
   - the dialog closes and the card shows «Привязан · Проект: {title}»;
   - another card that pointed to the same project loses its badge, since the link replaced it;
+  - the project's `github` in the loaded project list takes `full_name` and `html_url` from the response;
   - the confirmation from `github-states.png` appears above the list: «Репозиторий привязан», «Проект «{title}» привязан к {full_name}. Статус, видимость и тексты проекта не менялись.»;
   - nothing is reloaded.
-- The mockup's per-project line «Уже привязан к {другой репозиторий}» is not built: `ProjectSummary` in `GET /projects` carries no repository (open question in FRONTEND_PLAN F-GH1).
 
 Action errors (import, link from the list) appear in an alert above the list, scrolled into view. Load errors of the list replace the cards.
 
@@ -449,7 +450,7 @@ Behavior:
 
 #### GitHub label on «Мои проекты»
 
-The mockup shows a «GitHub» chip and `full_name` on cards of linked projects. `ProjectSummary` has no repository field, so the label is not built until the contract carries one (open question in FRONTEND_PLAN F-GH1). Loading every project with `GET /projects/{id}` to get it is not an option: up to 50 requests per list.
+A card of a project whose `github` (in `GET /projects`, backend step 5.6) is not `null` shows a line under the technologies: the «GitHub» chip (`label` text on `bg`), which is the source mark, and `full_name` (the link rule above). The label says only which repository is linked: no relation, languages or sync state, and it is shown in every project state. `github: null` hides the line. The project list is not reloaded for the label; link and unlink elsewhere change it on the next load of «Мои проекты».
 
 #### Responses → message → user action
 

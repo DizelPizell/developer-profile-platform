@@ -156,7 +156,7 @@ Done in F6: `getPublicProfile` reads `featured` and `other` (both required, whit
 
 **Goal**: the developer sees their public repositories, imports one as a draft project, links a repository to a project by name or from the list, and unlinks it. All error states of the GitHub endpoints are understandable and say what to do.
 
-**Before starting**: backend steps 5.3–5.5 merged (done). F-GH1.5 waits for backend step 6.2; its full manual check waits for the worker (6.3–6.6).
+**Before starting**: backend steps 5.3–5.5 merged (done) and step 5.6 (`github` in `ProjectSummary`) merged. F-GH1.5 waits for backend step 6.2; its full manual check waits for the worker (6.3–6.6).
 
 Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIGN.md`. Each substep is its own PR in this order. Facts every substep relies on:
 
@@ -169,7 +169,7 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
 ### F-GH1.1 — API client and types (S)
 
 **What**:
-- Types for `GitHubRepositoryListResponse`, `ProjectGitHub` and `GitHubSync`, and `github` in the project type.
+- Types for `GitHubRepositoryListResponse`, `ProjectGitHub`, `GitHubSync` and `ProjectSummaryGitHub`; `github` in the project type and in the project list item.
 - The calls `listRepositories(page)`, `importRepository(githubRepoId)`, `linkRepository(projectId, fullName)` and `unlinkRepository(projectId)`.
 - The `owner/name` check that mirrors the contract's pattern.
 - Error helpers:
@@ -187,6 +187,7 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
   - unlink reads its 200 `ProjectResponse` with `github: null`.
 - The parsing:
   - a `github: null` and a full `ProjectGitHub`;
+  - a list item with `github: null` and with `{full_name, html_url}`; an extra field in it is dropped;
   - an unknown field dropped;
   - an unexpected `relation` or `sync.status` value as an unexpected body.
 - The error helpers: present, missing and invalid `retry_after_seconds` (negative, string); the `owner/name` check on the contract's edge cases (39-character owner, `.`, `..`, a leading hyphen).
@@ -207,7 +208,7 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
   - «‹ Назад к проектам».
 - «Импорт из GitHub» on «Мои проекты».
 - Import: the 50-project check from `GET /projects`, then a move to the form with the «Проект создан» panel.
-- The «Привязать к проекту…» dialog with the radio list, then the local update of the cards.
+- The «Привязать к проекту…» dialog with the radio list and «Уже привязан к {full_name}. Новая привязка заменит старую.» under a project that has a repository (from `github` in `GET /projects`), then the local update of the cards and of the project list.
 - The `ALREADY_LINKED`, `RELATION_NOT_FOUND`, import 404 and `PROJECT_LIMIT_REACHED` messages. The waiting states are F-GH1.4; until then they use the generic error text.
 
 **Tests** (Vitest + RTL, API mocked):
@@ -224,6 +225,7 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
   - a second click during the request sends nothing.
 - Link dialog:
   - «Привязать» is disabled until a project is chosen;
+  - a project with `github` shows «Уже привязан к {full_name}», one without shows nothing;
   - the body is `{"full_name"}`;
   - on 200 the badge moves, and another card linked to the same project loses it;
   - errors stay inside the dialog;
@@ -234,7 +236,7 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
 1. Sign in and open «Мои проекты» → «Импорт из GitHub». The list matches the public repositories on github.com, most recently pushed first, with fork and archive labels.
 2. Import a repository. The browser moves to the form with «Проект создан»; the project is a draft titled after the repository; the list now shows the repository as «Привязан».
 3. Import the same repository again from a second tab with the old list. The message is «Репозиторий уже привязан», and «Открыть проект» leads to it.
-4. Link a repository to an existing project through the dialog. The badge moves; the project's status and texts are unchanged.
+4. Link a repository to an existing project through the dialog. The badge moves; the project's status and texts are unchanged. Open the dialog for another repository: that project now shows «Уже привязан к {full_name}».
 5. Create a new public repository on GitHub. It is not in the list at once, and appears within 5 minutes after a reload.
 6. With 50 projects (a test database), the import buttons are disabled.
 7. Narrow screen (375 px): cards and the dialog fit without horizontal scroll.
@@ -254,6 +256,7 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
   - «Отвязать» with its confirmation;
   - the `unavailable` and `relation: "NONE"` warnings;
   - the hint on `/me/projects/new`.
+- The GitHub label on «Мои проекты»: the «GitHub» chip and `full_name` on cards of linked projects, from `github` in `GET /projects`.
 - The form takes only `github` from link and unlink responses, so unsaved edits are kept.
 - The line under the form becomes «Демо и скриншоты добавим в следующих версиях.»
 - The login screen note switches to the `DESIGN.md` text that names the public repositories (planned since F2).
@@ -271,6 +274,7 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
   - an unsaved title edit survives a successful link and an unlink.
 - Unlink sends nothing without confirmation, and on 200 the block returns to the input.
 - The `GITHUB_REPOSITORY_NOT_FOUND`, `RELATION_NOT_FOUND`, `ALREADY_LINKED` and project 404 messages render in the block.
+- The label on «Мои проекты»: shown with `full_name` for a linked project, absent for `github: null`; `full_name` links only to a `https://github.com/` URL; markup in it is shown as text.
 - The login note test is updated to the new text.
 
 **Manual check** (real GitHub, local backend):
@@ -282,7 +286,8 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
 6. Edit the title without saving, then link and unlink. The edit is still in the field.
 7. «Заменить репозиторий» with another repository. The block shows the new one; the repository page shows the old one as unlinked.
 8. Link a repository that another project already uses. The message is «Репозиторий уже привязан» with a link to that project.
-9. The login screen shows the new note.
+9. «Мои проекты» shows the GitHub label on the linked projects and none on the others; after an unlink the label is gone.
+10. The login screen shows the new note.
 
 The `unavailable` and `NONE` warnings cannot be produced before Phase 6. They are checked in tests only and manually in F-GH1.5.
 
@@ -328,13 +333,12 @@ The `unavailable` and `NONE` warnings cannot be produced before Phase 6. They ar
 
 Its texts and the polling interval are added to `DESIGN.md` when step 6.2 is merged. Not detailed further until then.
 
+### Decided
+
+- **The repository of a project in `GET /projects`** (2026-10-31, the owner). `ProjectSummary` gets a nullable `github: {full_name, html_url}`: no relation, languages or sync state. Backend step 5.6 implements it before the F-GH1 code. The «GitHub» label on «Мои проекты» and the line «Уже привязан к …» in the link dialog rely on it. Rejected: loading each project with `GET /projects/{id}` (up to 50 requests) and dropping both elements from the mockups.
+
 ### Open questions
 
-- **The repository of a project in `GET /projects`.** `ProjectSummary` carries no repository. So the «GitHub» label on «Мои проекты» and the line «Уже привязан к {репозиторий}» in the link dialog (both in the mockups) cannot be built from the contract. Options for the owner:
-  - (a) add a nullable `github: {"full_name": "string"}` to `ProjectSummary`. One join in the list query; the contract and OpenAPI change.
-  - (b) leave the contract as it is and drop both elements from the mockups.
-  - Loading each project with `GET /projects/{id}` is ruled out (up to 50 requests).
-  - Until decided, F-GH1 builds neither element; the dialog shows the general note «новая привязка заменит старую».
 - **Opening the repository page for a specific project.** The form's «выберите из своего списка» opens `/me/repositories` without preselecting the project in the link dialog. A preselect (`?project={id}`) would save a step; it is left out of F-GH1 unless the owner asks for it.
 
 ## F7+ — Demos, GitHub data, IDE view
