@@ -166,7 +166,7 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
 - No sync job is queued yet (Phase 6). Every linked repository is `NOT_SYNCED` with `synced_at = null` and `languages = []`.
 - The public «Данные GitHub» data on project cards is F-GH2, not F-GH1.
 
-### F-GH1.1 — API client and types (S)
+### F-GH1.1 — API client and types (S) [done]
 
 **What**:
 - Types for `GitHubRepositoryListResponse`, `ProjectGitHub`, `GitHubSync` and `ProjectSummaryGitHub`; `github` in the project type and in the project list item.
@@ -197,6 +197,12 @@ Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIG
 **Risks**:
 - The ids are numbers. If GitHub ids ever pass 2⁵³, they would lose precision; this is far off, but noted in the type.
 - An unexpected `relation` value is treated as an unexpected body. That is strict, but safer than showing a guess.
+
+Done in F-GH1.1:
+- `src/lib/api/github.ts`: the types, the whitelist readers, `listRepositories(page)` (pages 1..100 checked before a request), `isRepositoryFullName`, and the error helpers. `githubErrorCode` returns one of the typed codes, or `OTHER` for an unknown code or an unreadable error body; `retryAfterSeconds`, `linkedProjectId` and `projectLimit` read `details` only.
+- `linkRepository`, `unlinkRepository` and `importRepository` live in `projects.ts`, because they answer with a project. `importRepository` refuses an id that is not a positive safe integer without a request.
+- Decided with the developer: only the GitHub parts are read through the whitelist: the repository list, `github` in every project response and in `GET /projects` items. The other project fields stay typed as before. A missing `github` is an unexpected body, so the existing screen mocks gained `github: null`.
+- Checked with Vitest (fetch mocked) and a lint, typecheck, test and build run in a clean clone. No screen, so no manual check.
 
 ### F-GH1.2 — The repository page with import and the link dialog (M)
 
