@@ -15,7 +15,7 @@ from app.github.dependencies import (
     get_user_request_budget,
 )
 from app.github.page_cache import RepositoryPageCache
-from app.github.schemas import GitHubRepositoryListResponse
+from app.github.schemas import GitHubRepositoryListResponse, GitHubSync
 from app.models.identity import User
 
 router = APIRouter(prefix="/integrations/github", tags=["github"])
@@ -46,3 +46,19 @@ def list_repositories(
         cache=cache,
         now=now,
     )
+
+
+@router.post("/repositories/{repository_id}/sync", status_code=202)
+def sync_repository(
+    repository_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    budget: UserRequestBudget = Depends(get_user_request_budget),
+    now: datetime = Depends(get_now),
+) -> GitHubSync:
+    """Queues a sync job of a linked repository, or returns the active one
+    (ADR-018). GitHub is not called: the worker reads it."""
+    github_repo_id = service.parse_github_repo_id(repository_id)
+    repository = service.request_sync(db, user.id, github_repo_id, budget=budget, now=now)
+    db.commit()
+    return service.repository_sync(db, repository, now)

@@ -15,6 +15,7 @@ from app.github.budget import (
     IMPORT_COST,
     LINK_COST,
     LIST_PAGE_COST,
+    MANUAL_SYNC_COST,
     GitHubUserLimitReached,
     UserRequestBudget,
 )
@@ -103,9 +104,19 @@ def _repository_not_found() -> AppError:
     return AppError("GITHUB_REPOSITORY_NOT_FOUND", "GitHub repository not found or not public", 422)
 
 
-def _imported_repository_not_found() -> AppError:
-    # The repository is the resource named in the import's path (ADR-017).
+def _path_repository_not_found() -> AppError:
+    # The repository is the resource named in the path of import and sync (ADR-017).
     return AppError("NOT_FOUND", "Not Found", 404)
+
+
+def _sync_too_soon(seconds: int) -> AppError:
+    return AppError(
+        "GITHUB_SYNC_TOO_SOON",
+        "This repository was synced moments ago, try again later",
+        429,
+        {"retry_after_seconds": seconds},
+        headers=_retry_after(seconds),
+    )
 
 
 def _relation_not_found() -> AppError:
@@ -308,13 +319,13 @@ def check_repository(
 
 
 def parse_github_repo_id(value: str) -> int:
-    """The import path's id: a positive decimal integer in canonical form (no sign,
+    """The id in the path of import and sync: a positive decimal integer in canonical form (no sign,
     no leading zeros) that fits a bigint; anything else is 404."""
     if not (value.isascii() and value.isdigit()) or value[0] == "0" or len(value) > 19:
-        raise _imported_repository_not_found()
+        raise _path_repository_not_found()
     github_repo_id = int(value)
     if github_repo_id > MAX_BIGINT:
-        raise _imported_repository_not_found()
+        raise _path_repository_not_found()
     return github_repo_id
 
 
@@ -333,7 +344,7 @@ def check_import(
     checked = _check(
         lambda: client.get_repository_by_id(github_repo_id),
         IMPORT_COST,
-        _imported_repository_not_found,
+        _path_repository_not_found,
         user_id,
         github_user_id,
         client=client,
@@ -462,6 +473,54 @@ def enqueue_sync(db: Session, repository_id: uuid.UUID, now: datetime) -> tuple[
         if active is not None:
             return active, False
     raise RuntimeError("No active sync job after a conflict on the active job index")
+
+
+def request_sync(
+    db: Session,
+    owner_id: uuid.UUID,
+    github_repo_id: int,
+    *,
+    budget: UserRequestBudget,
+    now: datetime,
+) -> uuid.UUID:
+    """A manual sync of a repository one of the user's projects links (ADR-018).
+
+    Returns the repository's id. The repository row is locked first, so manual
+    syncs of it and links to it are serialized: the pause cannot be checked by
+    two requests at once. An active job is returned as it is and costs nothing;
+    otherwise a job created less than the pause ago is 429 GITHUB_SYNC_TOO_SOON.
+    A new job counts its maximum against the user's budget, because the worker
+    makes the requests later; over the budget the caller's rollback removes the
+    job. Nothing is committed here.
+    """
+    repository_id = db.scalar(
+        select(GitHubRepository.id)
+        .join(ProjectRepository, ProjectRepository.github_repository_id == GitHubRepository.id)
+        .where(
+            ProjectRepository.owner_id == owner_id,
+            GitHubRepository.github_repo_id == github_repo_id,
+        )
+        .with_for_update(of=GitHubRepository)
+    )
+    if repository_id is None:
+        raise _path_repository_not_found()
+
+    latest = _latest_job(db, repository_id)
+    if latest is not None:
+        status, created_at = latest
+        if status in ACTIVE_SYNC_JOB_STATUSES:
+            return repository_id
+        allowed_at = created_at + manual_sync_cooldown()
+        if allowed_at > now:
+            raise _sync_too_soon(max(1, math.ceil((allowed_at - now).total_seconds())))
+
+    _, created = enqueue_sync(db, repository_id, now)
+    if created:
+        try:
+            budget.charge(owner_id, MANUAL_SYNC_COST, now)
+        except GitHubUserLimitReached as exc:
+            raise _user_limit_reached(exc) from None
+    return repository_id
 
 
 def unlink(db: Session, project: Project) -> None:
