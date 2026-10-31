@@ -33,6 +33,7 @@ import {
   ProjectStateBadge,
   UNTITLED,
 } from "./project-texts";
+import { RepositoryBlock } from "./repository-block";
 import { TechnologiesInput } from "./technologies-input";
 
 type Values = Record<ProjectTextField, string> & { technologies: string[] };
@@ -107,6 +108,8 @@ export function ProjectEditor({
   const [saved, setSaved] = useState(initialProject);
   const [values, setValues] = useState(() => toValues(initialProject));
   const [pending, setPending] = useState<Action | null>(null);
+  // A link or unlink in the repository block; it disables the form's buttons too.
+  const [githubPending, setGithubPending] = useState(false);
   // Blocks a second request before the disabled state reaches the DOM.
   const inFlight = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProjectField, string>>>({});
@@ -132,7 +135,7 @@ export function ProjectEditor({
 
   const update = changedFields(values, saved);
   const dirty = Object.keys(update).length > 0;
-  const busy = pending !== null;
+  const busy = pending !== null || githubPending;
   const status = saved?.status ?? null;
   const canPublish = saved !== null && status !== "PUBLISHED" && !dirty;
   const canArchive = status === "PUBLISHED";
@@ -334,10 +337,17 @@ export function ProjectEditor({
           {field("results", true)}
         </div>
 
+        <RepositoryBlock
+          project={saved}
+          busy={pending !== null}
+          onPendingChange={setGithubPending}
+          // Only github is taken from the answer: unsaved edits and «Сохранить» stay as they are.
+          onGitHub={(github) => setSaved((current) => current && { ...current, github })}
+          onNotFound={onNotFound}
+        />
+
         <div className="flex flex-col gap-4 border-t-4 border-outline pt-6">
-          <p className="text-text-muted">
-            Демо, скриншоты и репозиторий GitHub добавим в следующих версиях.
-          </p>
+          <p className="text-text-muted">Демо и скриншоты добавим в следующих версиях.</p>
           <div className="flex flex-wrap items-center gap-4">
             <Button type="submit" size="lg" disabled={!dirty || busy}>
               Сохранить
