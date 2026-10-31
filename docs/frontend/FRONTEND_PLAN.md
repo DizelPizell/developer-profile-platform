@@ -204,7 +204,7 @@ Done in F-GH1.1:
 - Decided with the developer: only the GitHub parts are read through the whitelist: the repository list, `github` in every project response and in `GET /projects` items. The other project fields stay typed as before. A missing `github` is an unexpected body, so the existing screen mocks gained `github: null`.
 - Checked with Vitest (fetch mocked) and a lint, typecheck, test and build run in a clean clone. No screen, so no manual check.
 
-### F-GH1.2 — The repository page with import and the link dialog (M)
+### F-GH1.2 — The repository page with import and the link dialog (M) [done]
 
 **What**:
 - `/me/repositories` per `DESIGN.md`:
@@ -215,7 +215,7 @@ Done in F-GH1.1:
 - «Импорт из GitHub» on «Мои проекты».
 - Import: the 50-project check from `GET /projects`, then a move to the form with the «Проект создан» panel.
 - The «Привязать к проекту…» dialog with the radio list and «Уже привязан к {full_name}. Новая привязка заменит старую.» under a project that has a repository (from `github` in `GET /projects`), then the local update of the cards and of the project list.
-- The `ALREADY_LINKED`, `RELATION_NOT_FOUND`, import 404 and `PROJECT_LIMIT_REACHED` messages. The waiting states are F-GH1.4; until then they use the generic error text.
+- The `ALREADY_LINKED`, `RELATION_NOT_FOUND`, import 404 and `PROJECT_LIMIT_REACHED` messages. The waiting states were planned for F-GH1.4; the F-GH1.2 task brought them here for the list page and the dialog (see "Done in F-GH1.2").
 
 **Tests** (Vitest + RTL, API mocked):
 - Cards:
@@ -251,6 +251,21 @@ Done in F-GH1.1:
 - The page needs three requests (profile, projects, repositories), and the list call may wait on GitHub for seconds. The cards show «Загрузка…» until the list arrives. The projects call does not block the header.
 - The 5-minute cache confuses users who just created a repository. The page text says so; there is no way to bypass it in V1.
 - Each uncached list page costs one request of the user's 60 per hour. Paging back and forth is served from the backend cache.
+
+Done in F-GH1.2:
+- `src/app/me/repositories/`: the page (`page.tsx`, `?page=` read on the server by `page-param.ts`), the screen and the link dialog. `src/app/me/github-error.tsx`: the shared message component with the `DESIGN.md` table and the countdown hook; `src/app/me/github-texts.tsx`: the name link rule, the date, the labels. `src/components/ui/dialog.tsx`: Radix `Dialog`, restyled like `AlertDialog`. «Импорт из GitHub» on «Мои проекты»; «Проект создан» in the project form.
+- Decided with the developer:
+  - the project picker is a modal dialog, as `DESIGN.md` says: focus starts on the first project, Escape closes it, and both wait while a link is in flight;
+  - after a link only `GET /projects` is read again (titles and «Уже привязан к …»); the repository cards change locally from the link answer, and the list is not reloaded. `DESIGN.md` is updated.
+- Other decisions:
+  - The page number comes from the server page's `searchParams`, so the route is dynamic; a page change is a `router.push` that reloads only the list. An invalid `?page=` is page 1 and the address is left as it is.
+  - Import marker: the move to the form is `/me/projects/{id}?imported=1`. The form keeps the panel text in its state from the first render and removes the marker at once with `window.history.replaceState`, which does not navigate, so the panel survives, and a reload or a later visit shows none. The panel closes on the next successful save and needs `github` in the project (no repository, no panel).
+  - The waiting states were part of the F-GH1.2 task, so they are built here for the list and the dialog: `GITHUB_LOGIN_OUTDATED` with «Войти через GitHub», the 429/503 countdown and `GITHUB_UNAVAILABLE` «Повторить», in one component that F-GH1.3 reuses for the form block. The message text keeps the minutes from `details.retry_after_seconds`; the disabled button counts them down. When the countdown ends, «Повторить» reloads a failed list and closes the message of a failed action, as `DESIGN.md` says. The timer reads the clock on every tick and is cleared on unmount.
+  - An import countdown disables import and link on every card, since the limit is the user's or the platform's, not one repository's. The dialog has its own countdown; closing it drops the wait, and a too-early link just gets the message again.
+  - `GITHUB_REPOSITORY_ALREADY_LINKED` from import or from the dialog marks the card «Привязан» locally, and moves the badge off the card that project linked before.
+  - A failed `GET /projects` replaces the cards with the load error and «Повторить»: titles, the dialog and the limit all need it. Pagination is shown only with a loaded list.
+- Additions to `DESIGN.md` made in this step: «На этой странице репозиториев нет.» for an empty later page, «Репозиторий: {full_name}» in the dialog, «Проверяем на GitHub…» on the dialog's button, and the focus moving to the confirmation after a link.
+- Checked with Vitest + RTL (fetch mocked, fake timers for the countdown; 443 tests), 18 mutations (all fail tests), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual repositories check"; it has not been run yet.
 
 ### F-GH1.3 — The repository block in the project form and the login note (M)
 
@@ -303,6 +318,8 @@ The `unavailable` and `NONE` warnings cannot be produced before Phase 6. They ar
 
 ### F-GH1.4 — Waiting and failure states (S–M)
 
+F-GH1.2 built the shared component, the countdown, the login-outdated and «Повторить» states for the list page and the link dialog, with their tests and manual steps (see "Done in F-GH1.2"). What is left here is the same for the form block of F-GH1.3, if F-GH1.3 does not cover it already (see Open questions).
+
 **What**:
 - 409 `GITHUB_LOGIN_OUTDATED` on the list: the message and «Войти через GitHub».
 - 429 `GITHUB_USER_LIMIT_REACHED` and 503 `GITHUB_RATE_LIMITED`: the countdown from `details.retry_after_seconds`, and the failed action disabled while it runs.
@@ -344,6 +361,8 @@ Its texts and the polling interval are added to `DESIGN.md` when step 6.2 is mer
 - **The repository of a project in `GET /projects`** (2026-10-31, the owner). `ProjectSummary` gets a nullable `github: {full_name, html_url}`: no relation, languages or sync state. Backend step 5.6 implements it before the F-GH1 code. The «GitHub» label on «Мои проекты» and the line «Уже привязан к …» in the link dialog rely on it. Rejected: loading each project with `GET /projects/{id}` (up to 50 requests) and dropping both elements from the mockups.
 
 ### Open questions
+
+- **What is left of F-GH1.4.** After F-GH1.2 only the form block of F-GH1.3 needs the waiting states, and that block will use the same component. F-GH1.4 can be folded into F-GH1.3 (its tests and manual steps added there) or kept as a short follow-up step. The owner decides before F-GH1.3 starts.
 
 - **Opening the repository page for a specific project.** The form's «выберите из своего списка» opens `/me/repositories` without preselecting the project in the link dialog. A preselect (`?project={id}`) would save a step; it is left out of F-GH1 unless the owner asks for it.
 

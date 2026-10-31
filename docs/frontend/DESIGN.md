@@ -346,7 +346,7 @@ Data:
 - `GET /projects`, for three things: project titles for «Проект: {title}», the projects in the link dialog, and the project count for the 50 limit.
 - `GET /profile`, for the header.
 
-The page number lives in the address (`/me/repositories?page=2`). A missing or invalid value means page 1.
+The page number lives in the address (`/me/repositories?page=2`). A missing or invalid value (not a plain 1..100) means page 1; the address is left as it is.
 
 Top panel:
 
@@ -375,6 +375,8 @@ Pagination:
 - «Назад» is disabled on page 1. «Вперёд» is disabled when `next_page` is `null`.
 - A page change loads only the repository list.
 
+A later empty page (typed into the address) shows «На этой странице репозиториев нет.» with the pagination, so «Назад» leads back.
+
 An empty page 1 shows a dashed panel:
 
 - «На вашем аккаунте GitHub нет публичных репозиториев. Приватные мы не показываем. Проект можно создать и без репозитория.»
@@ -394,19 +396,20 @@ Import:
 Link from the list:
 
 - «Привязать к проекту…» opens an accessible modal dialog (focus starts on the first project, Escape closes it).
-  - Title: «Привязать к проекту».
+  - Title: «Привязать к проекту», then «Репозиторий: {full_name}», since a modal hides the card it was opened from.
   - A radio list of all the user's projects from `GET /projects`, in API order: `title` (or «[Без названия]») and the state badge from «Мои проекты».
   - Under a project whose `github` is not `null`: «Уже привязан к {github.full_name}. Новая привязка заменит старую.» (`label` text).
   - The note «Привязка не меняет статус, видимость и тексты проекта.»
   - «Привязать» (accent; disabled until a project is chosen) and «Отмена».
   - With no projects: «[Пока нет проектов]» and only «Отмена».
-- «Привязать» sends `POST /projects/{id}/repository` with `{"full_name": item.full_name}`. Errors are shown inside the dialog, which stays open.
+- «Привязать» sends `POST /projects/{id}/repository` with `{"full_name": item.full_name}`. The button reads «Проверяем на GitHub…», and Escape and «Отмена» wait for the answer. Errors are shown inside the dialog, which stays open.
 - On 200:
   - the dialog closes and the card shows «Привязан · Проект: {title}»;
   - another card that pointed to the same project loses its badge, since the link replaced it;
   - the project's `github` in the loaded project list takes `full_name` and `html_url` from the response;
   - the confirmation from `github-states.png` appears above the list: «Репозиторий привязан», «Проект «{title}» привязан к {full_name}. Статус, видимость и тексты проекта не менялись.»;
-  - nothing is reloaded.
+  - the confirmation takes the focus, since the card's «Привязать к проекту…» is gone;
+  - `GET /projects` is read again for the titles and the «Уже привязан к …» lines (decided with the owner in F-GH1.2); the repository list is not reloaded, its cards change locally. If that read fails, the locally updated project list stays.
 
 Action errors (import, link from the list) appear in an alert above the list, scrolled into view. Load errors of the list replace the cards.
 
