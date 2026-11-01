@@ -108,8 +108,22 @@ Decided in step 6.3, 2026-11-01; the code is `backend/app/github/worker.py`.
 - **Startup.** `GET /rate_limit` (it does not spend the limit) with the app credentials: a 401 or a core limit of 60 or less stops the worker with an error, and so does an unavailable GitHub; the restart policy (step 6.6) starts it again. The answer seeds the rate-limit state, so a worker started in a busy hour keeps to the reserve from its first claim.
 - **Loop.** Due jobs run back to back; when none is due the worker waits the poll interval. SIGTERM and SIGINT end the loop after the current job, so the Compose service (step 6.6) needs a stop grace period longer than one job (about 70 seconds). Any other failed iteration, such as the database being down, is logged and retried after a poll.
 - **Settings**: `GITHUB_WORKER_POLL_SECONDS` (5), `GITHUB_WORKER_MAX_ATTEMPTS` (5), `GITHUB_WORKER_RETRY_BASE_SECONDS` (30), `GITHUB_WORKER_RETRY_MAX_SECONDS` (1800, not below the base), `GITHUB_WORKER_STALE_SECONDS` (600), `GITHUB_WORKER_RESERVE` (500).
-- **No processor yet.** Step 6.3 has no processor that reads GitHub and no process entry point: a worker deployed with a placeholder would mark jobs `SYNCED` without data. Both come in step 6.4. Jobs queued since step 6.2 stay `QUEUED` until then and are run in a first burst, within the reserve.
+- **Processor and entry point** came in step 6.4 ("Processor" below), not in step 6.3: a worker deployed with a placeholder would have marked jobs `SYNCED` without data. Jobs queued since step 6.2 run in a first burst, within the reserve.
 - **Logs**: job and repository ids, attempt, status, label and times; never a response body, a header or the credentials (the client logs only the operation, the status and the remaining budget).
+
+### Processor
+
+Decided in step 6.4, 2026-11-01; the code is `backend/app/github/sync.py`.
+
+- **Requests.** Metadata by GitHub's repository id (`GET /repositories/{id}`), so a renamed or transferred repository is found under its new name; then languages under the name just read; then, only when a linked developer is not the owner, up to 5 contributor pages, read once for all links and stopped when every such developer is found. 2 requests usually, 7 at most: the 7 a manual sync charges.
+- **Writes.** Metadata and languages each get their own short transaction after their request, with their success in `github_sync_category_status`. Metadata sets the columns a link sets (`owner_github_id`, `owner_login`, `name`, `full_name`, `html_url`, `description`, `is_fork`, `parent_full_name`, `is_archived`, `pushed_at`), clears `unavailable_since`, and so also refreshes a renamed repository's names. Languages replace the stored object whole. No transaction is open while GitHub answers.
+- **A failed category** keeps its data and its last success; its label and time go to `github_sync_category_status` in their own transaction, and the error goes to the worker, which retries the job. A rate limit and a 401 record no label. When metadata fails, languages and the relation are not requested. Languages failing after metadata succeeded is a partial success: metadata is stored, the job is retried, and `synced_at` (the older category) stays as it was.
+- **Relation.** After both categories, every link to the repository, whoever made it, gets `OWNER` (owner id equals the developer's GitHub id), `CONTRIBUTOR` (in the pages read) or `NONE`, with `relation_checked_at`. A transfer changes the owner and so the relations. If the pages cannot be read for any reason but a 401, the links of developers who are not the owner keep their relation and check time, a warning is logged, and the job still succeeds. A link replaced during the sync is a new row and is left alone. A repository with no links is still synced, without contributor pages.
+- **Language names** with a control character are a malformed answer (a JSONB key cannot hold NUL).
+- **Entry point**: `python -m app.github.worker` sets up logging at INFO, the worker's own client, rate-limit state and pause, and one database session per iteration; it exits with 0 after SIGTERM or SIGINT and with 1 when GitHub rejects the credentials or cannot be reached at startup. Run as `__main__`, the file delegates to the imported module, so the processor and the worker share one copy of each class.
+- **Running it** before the Compose service of step 6.6: `docker compose run --rm --no-deps backend python -m app.github.worker` (backend README).
+- **404** is retried with `NOT_FOUND` like any failure until step 6.5 adds the two-404 rule.
+- **Conditional requests** (ETags) are not used in V1: two requests a day per repository linked to a published project do not need them. The open question below stays for later.
 
 ### Status for the client
 
@@ -161,7 +175,7 @@ Checked in step 5.2 on 2026-10-30, with app credentials and no user token (`back
 
 ## Open questions
 
-- Conditional requests in syncs: storing an ETag per repository and category would let an unchanged repository cost no budget, since a 304 did not spend the limit in step 5.2. Not in V1 until decided, at the latest with step 6.4 (step 6.3 makes no data requests).
+- Conditional requests in syncs: storing an ETag per repository and category would let an unchanged repository cost no budget, since a 304 did not spend the limit in step 5.2. Not used in V1 (decided in step 6.4, "Processor"); open for after V1.
 - File content for the code viewer (ADR-011's open question) and the return of README and the file tree.
 - Whether periodic syncs should skip repositories linked only to hidden (`PUBLISHED` + `PRIVATE`) projects.
 - Worker health checks and alerting beyond the restart policy (Phase 9).

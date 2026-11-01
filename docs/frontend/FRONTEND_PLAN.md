@@ -156,14 +156,14 @@ Done in F6: `getPublicProfile` reads `featured` and `other` (both required, whit
 
 **Goal**: the developer sees their public repositories, imports one as a draft project, links a repository to a project by name or from the list, and unlinks it. All error states of the GitHub endpoints are understandable and say what to do.
 
-**Before starting**: backend steps 5.3–5.5 merged (done) and step 5.6 (`github` in `ProjectSummary`) merged. F-GH1.5 waits for backend step 6.2 (done); its full manual check waits for the worker (6.3–6.6). Until then a link or import leaves the status at `QUEUED`, and `synced_at` stays `null`.
+**Before starting**: backend steps 5.3–5.5 merged (done) and step 5.6 (`github` in `ProjectSummary`) merged. F-GH1.5 waits for backend step 6.4 (done): its manual check runs the worker by hand (backend README) until the Compose service of 6.6.
 
 Screens, texts and the code → message table: "GitHub in the cabinet" in `DESIGN.md`. Each substep is its own PR in this order. Facts every substep relies on:
 
 - The backend keeps a page of the repository list for 5 minutes. A repository created on GitHub appears only after that.
 - Link and unlink act at once and do not depend on «Сохранить».
 - Import creates a `DRAFT` + `PRIVATE` project and leads to its form.
-- No sync job is queued yet (Phase 6). Every linked repository is `NOT_SYNCED` with `synced_at = null` and `languages = []`.
+- Since backend step 6.2 a link or import queues a sync job (`QUEUED`); since 6.4 the worker, run by hand until 6.6, takes it to `SYNCED` or `FAILED` and fills `languages` and `synced_at`. Links made before 6.2 stay `NOT_SYNCED` until a manual sync.
 - The public «Данные GitHub» data on project cards is F-GH2, not F-GH1.
 
 ### F-GH1.1 — API client and types (S) [done]
@@ -348,7 +348,7 @@ Done in F-GH1.3:
 
 Folded on 2026-10-31 (the owner): the list page and the link dialog got these states in F-GH1.2, and the form block gets them in F-GH1.3 with the same component (`src/app/me/github-error.tsx`). Its tests and manual steps moved there.
 
-### F-GH1.5 — Sync status and «Обновить» (S–M; after backend 6.2)
+### F-GH1.5 — Sync status and «Обновить» (S–M; after backend 6.4)
 
 **What**:
 - `sync.status` in the form block.
