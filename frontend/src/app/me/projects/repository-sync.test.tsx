@@ -517,6 +517,17 @@ describe("polling (fake timers)", () => {
     expect(calls(GET)).toHaveLength(3);
   });
 
+  test("a tab shown after the form is closed reads nothing", async () => {
+    const view = await renderPolling(QUEUED, [Response.json(QUEUED)]);
+    setHidden(true);
+    await advance(5_000);
+    view.unmount();
+
+    setHidden(false);
+    await advance(0);
+    expect(calls(GET)).toHaveLength(1);
+  });
+
   test("three failed reads in a row stop it; a success in between resets the count", async () => {
     await renderPolling(QUEUED, [
       apiError(500, "INTERNAL_ERROR"),
