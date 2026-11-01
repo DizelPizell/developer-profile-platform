@@ -313,7 +313,7 @@ Mockups: `repositories.png` (the repository list), `github-states.png` (messages
 
 The general cabinet rules apply: tokens, typography, buttons in Pixelify Sans in normal case, the header from `GET /profile` with «Источник: GitHub», focus, a second click during a request sends nothing.
 
-Sync is not part of F-GH1.1–F-GH1.3 (FRONTEND_PLAN; F-GH1.4 is folded into F-GH1.3). Until Phase 6 queues jobs, every linked repository has `sync.status = NOT_SYNCED`, `synced_at = null` and `languages = []`. «Обновить», its pause and polling while `QUEUED` or `SYNCING` come with F-GH1.5. The public «Данные GitHub» data on project cards is F-GH2.
+Sync is not part of F-GH1.1–F-GH1.3 (FRONTEND_PLAN; F-GH1.4 is folded into F-GH1.3). The sync status, the languages, «Обновить данные» with its pause and polling while `QUEUED` or `SYNCING` are F-GH1.5 ("Sync status, languages and «Обновить данные»" below). The public «Данные GitHub» data on project cards is F-GH2.
 
 #### Wording
 
@@ -325,7 +325,7 @@ Sync is not part of F-GH1.1–F-GH1.3 (FRONTEND_PLAN; F-GH1.4 is folded into F-G
 - The words «подтверждено», «проверено» and «верифицирован» are not used anywhere: a link confirms only the relation, not the project's text.
 - A fork: «Форк {parent_full_name}», or «Форк» when `parent_full_name` is `null` (the list items carry no parent). An archived repository: «В архиве на GitHub».
 - Before the first successful sync (`synced_at = null`) the block shows an honest placeholder instead of languages: «Языки и другие данные появятся после первой синхронизации с GitHub. Сейчас данные ещё не загружены.» Nothing is guessed or filled in on the client.
-- Languages, when they appear (F-GH1.5, after a sync), are GitHub's byte counts, not skills. They are never levels or bars.
+- Languages, once a sync has read them, are shares of GitHub's byte counts labelled «Доля кода в байтах, по данным GitHub» (ADR-019; F-GH1.5 below). They are not skills and are never levels, scales or bars.
 - No other numbers are shown: no stars, forks, commit counts or totals (CLAUDE.md, ADR-019).
 - `pushed_at` is «Обновлён: {date}», the date only in the user's time zone (`ru-RU`, `30.10.2026`). A `null` value hides the line.
 - A `null` `description` is «У этого репозитория нет описания на GitHub». A long description is cut after two lines.
@@ -431,7 +431,7 @@ Not linked (`github` is `null`):
 Linked:
 
 - The panel shows `full_name` (link rule), «Обновлён: {date}», `description`, and the labels: relation, fork, archived.
-- Under the labels sits the languages placeholder while `synced_at` is `null`. With `synced_at` set nothing replaces it until F-GH1.5 shows the languages.
+- Under the labels sit the sync message, the languages (or the placeholder while `synced_at` is `null`) and the data date: "Sync status, languages and «Обновить данные»" below.
 - Under the panel: «Заменить репозиторий» (secondary) and «Отвязать» (red text on a panel).
   - «Заменить репозиторий» shows the input again with «Отмена». A successful link replaces the previous one (contract).
   - «Отвязать» asks in an `AlertDialog` (focus starts on «Отмена»): «Отвязать репозиторий?», «Проект и его тексты останутся. Пропадёт только связь с {full_name}. Привязать можно снова.», «Отвязать» (`error` fill) and «Отмена». Confirming closes the dialog and sends `DELETE /projects/{id}/repository`; the button reads «Отвязываем…» meanwhile, and an error is shown under the buttons with the cabinet texts (unlink does not read GitHub).
@@ -452,6 +452,62 @@ Behavior:
 - Link errors are shown inside the block, under the input. For `GITHUB_REPOSITORY_ALREADY_LINKED` the form reads `GET /projects` once, only on that error, to name the other project (decided with the owner in F-GH1.3).
 - After a link the focus moves to the linked panel; after an unlink, to the input (their triggers are gone).
 
+#### Sync status, languages and «Обновить данные» (F-GH1.5)
+
+Mockup: `repository-sync.png` (11 states and a rules card). API: `sync`, `synced_at` and `languages` of `ProjectGitHub`, and `POST /integrations/github/repositories/{github_repo_id}/sync` (contract, GitHub; ADR-018, ADR-019). Decided with the owner on 2026-11-01. The mockup draws each state in one frame; the panel keeps its border from `project-form.png`, and the new elements take the mockup's order.
+
+Order, top to bottom. Inside the panel: `full_name` and «Обновлён: {date}», the description, the labels, the sync message, the languages or a placeholder, «Данные GitHub от {date}», the `unavailable` and `NONE` warnings. Under the panel: «Обновить данные» on its own row, «Заменить репозиторий» and «Отвязать», the pause hint while a pause runs, the note on link and unlink.
+
+The sync message, at most one, by `sync.status` and `synced_at`. Its tones are those of the GitHub messages (`label` or `error` border on `bg`); it sits in a live region (`role="status"`), so a change is announced. The job's error is never shown: the API does not return it (ADR-018).
+
+| State | Message |
+|---|---|
+| `QUEUED` or `SYNCING` (one message: a failed attempt returns to `QUEUED`) | «Получаем данные с GitHub…» with three squares that step through brightness (static with `prefers-reduced-motion`); a `text-muted` border on `panel` |
+| `NOT_SYNCED` (links made before backend step 6.2) | «Ещё не синхронизирован с GitHub.»; the same box without the squares |
+| `SYNCED` | None: the data date says it |
+| `FAILED`, `synced_at` set | «Не удалось обновить данные с GitHub. Показаны данные от {date}.» (`error`) |
+| `FAILED`, `synced_at` `null` | «Не удалось получить данные с GitHub. Попробуйте обновить позже.» (`error`) |
+| Polling stopped after its 24 reads | «Синхронизация идёт дольше обычного. Проверьте позже.» and «Проверить снова» (`label`: the job may still finish) |
+| Three failed reads in a row | «Не удалось узнать статус синхронизации.» and «Проверить снова» (`error`) |
+
+Languages (ADR-019):
+
+- Shown once `synced_at` is set, under the caption «Доля кода в байтах, по данным GitHub».
+- A share is a language's bytes over the sum of all the repository's languages, as a whole percent (`Math.round`); a share under 0.5 % reads «<1 %». Shares are not adjusted to add up to 100.
+- The first 6 languages in the API's order (bytes descending) are chips «Python 62 %» (status badge style, `text` on `panel`, a non-breaking space before «%»). The rest, when there are any, make one chip «Другие — N %» from their summed bytes, with the same rounding, in `text-muted` on `frame`.
+- No bars, scales, levels or byte totals.
+- A sum of 0 bytes (the contract allows it) shows the names without shares.
+- An empty list with `synced_at` set: «GitHub не нашёл в репозитории кода на известных ему языках.» in the dashed box of the placeholder.
+- With `synced_at` `null` the existing placeholder stays, whatever the status.
+- Language names from GitHub are text; a long name wraps.
+- The shares are computed in `src/lib/github-languages.ts`, which the public cards of F-GH2 reuse.
+
+The data date:
+
+- «Данные GitHub от 01.11.2026, 12:30» from `synced_at`: the date and time in the user's time zone (`ru-RU`). It is shown whenever `synced_at` is set, also with `FAILED`, so old data reads as old (ADR-019). «Обновлён: {date}» stays the date of the last push (`pushed_at`).
+- `sync.last_success_at` holds the same time; the panel reads `synced_at`.
+
+«Обновить данные» (accent):
+
+- Sends `POST /integrations/github/repositories/{github_repo_id}/sync`. Meanwhile it reads «Ставим в очередь…», and every block and form button is disabled, as for a link.
+- Disabled, with its usual text, while the status is `QUEUED` or `SYNCING`, while any form or block request runs, and while a countdown of a message runs.
+- The pause: when the status is not `QUEUED` or `SYNCING` and `next_manual_sync_at` is later than the browser's clock, the button is disabled and reads «Обновить через {N} мин» (`N` rounded up, at least 1, recounted every second like the message countdown), and «Данные одного репозитория можно обновлять раз в 10 минут.» is shown under «Заменить репозиторий» and «Отвязать». When the pause ends the button becomes active without a request.
+- The pause belongs to the repository and is shared by everyone who linked it, so its texts never say «вы». A link or an import starts it: right after them the button waits up to 10 minutes.
+- It works for an unavailable repository and a `NONE` relation too: a sync is how they recover (ADR-018).
+- 202 `GitHubSync`: the block takes it as `github.sync` when the panel still shows the same `github_repo_id`, and polls while it is `QUEUED` or `SYNCING`. The focus moves to the panel, since the button becomes disabled.
+- Errors are shown under the button, as the table below says. A 404 `NOT_FOUND` means none of the user's projects links the repository any longer (unlinked or replaced elsewhere): the form reads `GET /projects/{id}` once and takes only `github`, without a message; a 404 of that read is «Проект не найден».
+
+Polling (ADR-018):
+
+- While `sync.status` is `QUEUED` or `SYNCING`, the form reads `GET /projects/{id}` every 5 seconds and takes only `github`, as for a link, so unsaved edits stay. The first read comes 5 seconds after the status became active: when the form opens, after a link or import, after «Обновить данные».
+- It stops at any other status, when the repository is unlinked or replaced, and when the form unmounts.
+- A hidden tab sends nothing; when the tab is shown again, one read goes out at once.
+- At most 24 reads in a row (2 minutes of a visible tab). Three failed reads in a row (network or a 5xx) also stop it. «Проверить снова» sends one read at once and starts a new series if the status is still active.
+- 401 goes to `/login`; a 404 is «Проект не найден». Other failed reads show nothing until the third.
+- A form or block request cancels a read in flight. An answer is taken only for the same `github_repo_id` and when no form or block request has started since it was sent, so a late answer cannot bring back an unlinked repository.
+
+«Мои проекты» and `/me/repositories` show no sync state: `ProjectSummary.github` and the repository list carry none (contract).
+
 #### GitHub label on «Мои проекты»
 
 A card of a project whose `github` (in `GET /projects`, backend step 5.6) is not `null` shows a line under the technologies: the «GitHub» chip (`label` text on `bg`), which is the source mark, and `full_name` (the link rule above). The label says only which repository is linked: no relation, languages or sync state, and it is shown in every project state. `github: null` hides the line. The project list is not reloaded for the label; link and unlink elsewhere change it on the next load of «Мои проекты».
@@ -462,25 +518,27 @@ The code in small type above a message in `github-states.png` is a mockup annota
 
 | Code | Can come from | Title and text | User action |
 |---|---|---|---|
-| 401 | any | — | Redirect to `/login` |
+| 401 | any, also a polling read | — | Redirect to `/login` |
 | 409 `GITHUB_LOGIN_OUTDATED` | list | «Логин на GitHub изменился». «Мы запомнили ваш прежний логин и не видим ваши репозитории. Войдите заново, и мы обновим его.» | «Войти через GitHub»: a full-page navigation to the login URL, as on `/login` |
 | 422 `GITHUB_RELATION_NOT_FOUND` | link, import | «Связь с репозиторием не найдена». «Вы не владелец этого репозитория и не входите в список его контрибьюторов по данным GitHub. Если вы делали коммиты с личной почтой, GitHub может вас не показывать.» | None; another repository can be chosen |
 | 409 `GITHUB_REPOSITORY_ALREADY_LINKED` | link, import | «Репозиторий уже привязан». «Этот репозиторий уже привязан к вашему проекту «{title}». Один репозиторий можно привязать только к одному вашему проекту.» `{title}` is found by `details.project_id` in `GET /projects`; when it is not there, «к другому вашему проекту» | «Открыть проект» → `/me/projects/{details.project_id}`. On the list page the card is marked «Привязан» locally |
 | 422 `GITHUB_REPOSITORY_NOT_FOUND` | link | «Репозиторий не найден». «Такого публичного репозитория нет. Проверьте написание: «владелец/репозиторий». Приватные репозитории мы не читаем.» | Fix the name and repeat |
 | 404 `NOT_FOUND` | import (the repository) | «Репозиторий не найден». «GitHub больше не отдаёт этот репозиторий: его могли удалить или сделать приватным. Список обновится в течение 5 минут.» | None |
-| 404 `NOT_FOUND` | link, unlink (the project) | As in the project form: «Проект не найден» | Link «Мои проекты» |
+| 404 `NOT_FOUND` | link, unlink, a polling read (the project) | As in the project form: «Проект не найден» | Link «Мои проекты» |
+| 404 `NOT_FOUND` | sync (the repository is no longer linked) | None: the form reads the project once and takes only `github` | — |
 | 422 `VALIDATION_ERROR` | link (`full_name`); list (`page`) | Link: «Формат: владелец/репозиторий.» under the input. List: not reachable from the page (the page number is checked first); handled as page 1 | Fix the name |
 | 409 `PROJECT_LIMIT_REACHED` | import | «Достигнут лимит проектов». «У вас уже {details.limit} проектов, это максимум. Удалите ненужный проект, чтобы импортировать репозиторий.» | «К моим проектам» → `/me/projects` |
-| 429 `GITHUB_USER_LIMIT_REACHED` | list, link, import | «Слишком много обращений к GitHub». «Вы много раз обращались к GitHub за последний час. Повторите через {N} мин.» | Disabled «Повторить через {N} мин» with a countdown, then «Повторить» |
+| 429 `GITHUB_SYNC_TOO_SOON` | sync | «Данные недавно обновлялись». «Этот репозиторий недавно синхронизировался. Обновить можно через {N} мин.» | Same countdown |
+| 429 `GITHUB_USER_LIMIT_REACHED` | list, link, import, sync | «Слишком много обращений к GitHub». «Вы много раз обращались к GitHub за последний час. Повторите через {N} мин.» | Disabled «Повторить через {N} мин» with a countdown, then «Повторить» |
 | 503 `GITHUB_RATE_LIMITED` | list, link, import | «GitHub ограничил запросы платформы». «Это не ваша вина: лимит общий на всех. Попробуйте через {N} мин.» | Same countdown |
 | 502 `GITHUB_UNAVAILABLE` | list, link, import | «GitHub сейчас недоступен». «Не получилось связаться с GitHub. Повторите чуть позже.» | «Повторить» repeats the same request once per click; there is no automatic retry |
 | 500 `INTERNAL_ERROR` | any | As in the cabinet: «Что-то пошло не так. Попробуйте ещё раз.» and «Код запроса: <request_id>» | Repeat the action |
 | Network error, unreadable 403 `CSRF_ORIGIN_INVALID` | any | As in the cabinet: «Не удалось связаться с сервером.» | Repeat the action |
 
-The countdown for 429 and 503:
+The countdown for 429 and 503 (a sync can get only the two 429s: it does not call GitHub):
 
 - `{N}` comes from `details.retry_after_seconds`, rounded up to whole minutes, at least 1. The `Retry-After` header cannot be read by the browser: CORS exposes only `X-Request-ID` (contract, Principles).
-- While it runs, the action that failed stays disabled: list paging for the list, import and link buttons for an action.
+- While it runs, the action that failed stays disabled: list paging for the list, import and link buttons for an action, «Обновить данные» (with its usual text) for a sync.
 - When it ends, the button becomes «Повторить». For the list it reloads the page. For an action it closes the message, and the user repeats the action.
 - Without a valid `details.retry_after_seconds` the text ends with «Попробуйте позже.» and «Повторить» is active at once.
 
@@ -553,7 +611,8 @@ Mockups are added manually to `docs/frontend/mockups/`:
 - `my-projects.png` (F5)
 - `project-form.png` (F5; the version with the «Репозиторий GitHub» block is for F-GH1)
 - `repositories.png` (F-GH1)
-- `github-states.png` (F-GH1)
+- `github-states.png` (F-GH1; the 429 `GITHUB_SYNC_TOO_SOON` card of F-GH1.5 is not in it yet, so the table above is the reference)
+- `repository-sync.png` (F-GH1.5: the sync states of the form block and the rules card)
 
 The F-GH1 version of «Мои проекты» (with «Импорт из GitHub» and the GitHub label) is in the working tree as `my-projects.png.png`; the mockup owner decides whether it replaces `my-projects.png`.
 

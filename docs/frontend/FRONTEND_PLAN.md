@@ -322,7 +322,7 @@ Done in F-GH1.2:
 11. Waiting: with `GITHUB_USER_REQUESTS_PER_HOUR=7` in the root `.env` (the minimum; `docker compose up -d backend`), link by name until «Слишком много обращений к GitHub» appears → «Привязать» is disabled and the minutes count down. Put the value back and restart (the budget lives in the backend's memory).
 12. 502: disconnect the computer from the internet (the browser still reaches `localhost`) and link → «GitHub сейчас недоступен»; reconnect and press «Повторить» → the same name is sent again.
 
-The `unavailable` and `NONE` warnings cannot be produced before Phase 6. They are checked in tests only and manually in F-GH1.5. 503 `GITHUB_RATE_LIMITED` and the end of a long countdown are checked in tests only.
+The `unavailable` and `NONE` warnings cannot be produced before Phase 6. They are checked in tests only; F-GH1.5 keeps them so (`unavailable` needs the two-404 rule of backend step 6.5). 503 `GITHUB_RATE_LIMITED` and the end of a long countdown are checked in tests only.
 
 **Risks**:
 - Mixing an immediate action (link) into a form with a separate «Сохранить» can surprise users. The note under the block and the confirmation text are the mitigation, and taking only `github` from the response keeps edits safe.
@@ -348,15 +348,88 @@ Done in F-GH1.3:
 
 Folded on 2026-10-31 (the owner): the list page and the link dialog got these states in F-GH1.2, and the form block gets them in F-GH1.3 with the same component (`src/app/me/github-error.tsx`). Its tests and manual steps moved there.
 
-### F-GH1.5 — Sync status and «Обновить» (S–M; after backend 6.4)
+### F-GH1.5 — Sync status, languages and «Обновить данные» (M; after backend 6.4)
+
+Screens, texts and rules: "Sync status, languages and «Обновить данные»" in `DESIGN.md`; mockup `repository-sync.png`. One PR, one commit per item below.
 
 **What**:
-- `sync.status` in the form block.
-- «Обновить» with `POST /integrations/github/repositories/{id}/sync` and the 10-minute pause from `next_manual_sync_at` and `GITHUB_SYNC_TOO_SOON`.
-- Polling `GET /projects/{id}` while `QUEUED` or `SYNCING` (ADR-018).
-- The languages list once `synced_at` is set.
+1. API client (`github.ts`):
+   - `syncRepository(githubRepoId): Promise<GitHubSync>` for `POST /integrations/github/repositories/{id}/sync`. It refuses an id that is not a positive safe integer without a request, as `importRepository` does, and reads the 202 body with the existing `GitHubSync` whitelist (a wrong shape is `INVALID_RESPONSE`). It lives in `github.ts`, because it answers with a sync state, not a project.
+   - `GITHUB_SYNC_TOO_SOON` in `GITHUB_ERROR_CODES`; `retryAfterSeconds` reads it too.
+2. Languages: `src/lib/github-languages.ts` turns `languages` into at most 6 chips and «Другие» with whole-percent shares, «<1 %», and no shares for a sum of 0 bytes. The panel shows the chips with their caption once `synced_at` is set, the empty-list text, and the data date «Данные GitHub от {date, time}».
+3. The sync message and «Обновить данные»:
+   - the message by status (one message for `QUEUED` and `SYNCING`) in a live region;
+   - the button with «Ставим в очередь…», disabled while a job is active or a request runs, the pause «Обновить через N мин» from `next_manual_sync_at` with its hint;
+   - 202 replaces `github.sync`; `TOO_SOON` and `USER_LIMIT` with the countdown; a sync 404 reads the project once.
+   - `useRetryCountdown` gains a start from a moment (`next_manual_sync_at`); the start from an error stays and uses it. `GitHubErrorAlert` learns the `sync` request.
+   - The block's sync request uses `onPendingChange` like a link, so the form's buttons are disabled meanwhile.
+4. Polling, in its own file next to the block (`repository-sync.tsx`, as `repository-block.tsx` already has 446 lines):
+   - `GET /projects/{id}` every 5 seconds while `QUEUED` or `SYNCING`, only `github` taken;
+   - only while the tab is visible, with one read when it is shown again;
+   - at most 24 reads in a row; three failed reads in a row stop it; «Проверить снова»;
+   - cancelled by any form or block request, and a late answer is dropped unless its `github_repo_id` matches and no request started since it was sent;
+   - 401 → `/login`, 404 → «Проект не найден»; cleared on unmount.
+5. Docs: the README's "Manual project sync check" and this step marked done.
 
-Its texts and the polling interval are added to `DESIGN.md` when step 6.2 is merged. Not detailed further until then.
+Not changed: «Мои проекты» and `/me/repositories` (no sync state in their contract data).
+
+**Tests** (Vitest + RTL, fetch mocked, fake timers; about 55 new, about 535 in all):
+- Client: method, path, `credentials: "include"`, the 202 body read and an extra field dropped, an unknown status as `INVALID_RESPONSE`, a bad id without a request; `retryAfterSeconds` for `TOO_SOON`.
+- Shares: rounding, «<1 %» under 0.5 %, a sum of 0, exactly 6 and 7 languages, «Другие» summed, an empty list.
+- Panel: every row of the message table, with and without `synced_at`; the date shown with `FAILED`; the placeholder only while `synced_at` is `null`; the warnings together with a message; GitHub text as text.
+- Button:
+  - disabled while `QUEUED` or `SYNCING`, during a request and during a countdown;
+  - the pause text and hint, and the button active when it ends, without a request;
+  - 202 starts polling and moves the focus to the panel;
+  - a double click sends one request;
+  - `TOO_SOON` and `USER_LIMIT` with the countdown, with and without a valid `retry_after_seconds`;
+  - a sync 404 reads the project once;
+  - 401; 500 with «Код запроса»; a network error.
+- Polling:
+  - starts on mount with an active status, after a link and after a 202;
+  - the 5-second interval; stops at `SYNCED`, `FAILED` and `NOT_SYNCED`;
+  - 24 reads, then the message; «Проверить снова» sends one read and a new series;
+  - a hidden tab sends nothing, and a shown tab sends one read at once;
+  - three failed reads in a row;
+  - 401; 404;
+  - cleared on unmount.
+- Edits and races: unsaved edits stay after a polling answer; a link or unlink cancels a read in flight; a late answer after an unlink is dropped; a save keeps the `github` of its own answer.
+- Mutations, about 15, among them:
+  - pause: the comparison with `next_manual_sync_at` (`<` ↔ `<=`);
+  - polling: no stop at `FAILED`, polling a hidden tab, no cancel on a link, an answer taken without the `github_repo_id` check;
+  - button: active while `SYNCING`;
+  - shares: `Math.round` → `Math.floor`, no «Другие», no «<1 %»;
+  - errors: `TOO_SOON` without a countdown.
+
+**Manual check** (real GitHub, local backend, the worker run by hand per the backend README; it goes to the README as "Manual project sync check"):
+1. With the worker stopped, link a repository → «Получаем данные с GitHub…», «Обновить данные» disabled, a `GET /projects/<id>` every 5 seconds in Network.
+2. After 2 minutes polling stops with «Синхронизация идёт дольше обычного…».
+3. Start the worker, press «Проверить снова» → within 5–10 seconds «Данные GitHub от <date, time>», the language chips with shares, «Обновить через N мин» and the pause hint.
+4. Change the title without saving and wait for the end of a sync → the edit is still in the field, «Сохранить» is active.
+5. The pause: `GITHUB_MANUAL_SYNC_COOLDOWN_SECONDS=60` in the root `.env`, `docker compose up -d backend` → the button becomes active after a minute without a request; pressing it → «Ставим в очередь…», then «Получаем…», then the new date. Put the value back.
+6. `TOO_SOON`: with the pause of step 5, press «Обновить данные» in a second tab of the same project, then in the first before it reloads → «Данные недавно обновлялись» with the countdown.
+7. `FAILED`: run the worker with `-e GITHUB_WORKER_MAX_ATTEMPTS=1`, disconnect the computer from the internet after it has started, press «Обновить данные» → «Не удалось обновить данные с GitHub. Показаны данные от …». Reconnect and run the worker as usual.
+8. Your request limit: `GITHUB_USER_REQUESTS_PER_HOUR=7` and the pause of step 5; a link, then «Обновить данные» after the pause → «Слишком много обращений к GitHub». Put the values back.
+9. Hide the tab during `QUEUED` → no reads; show it → one read at once.
+10. Link your own empty public repository → «GitHub не нашёл в репозитории кода на известных ему языках.»
+11. Narrow screen (375 px): the chips wrap, no horizontal scroll.
+
+Checked by tests only: the `unavailable` warning (two 404s in a row, backend step 6.5), `NONE` from a sync, three failed reads in a row, a late polling answer after an unlink, and a sync 404.
+
+**Risks**:
+- The pause is counted by the browser's clock; the `Date` header is not readable through CORS. A fast clock enables the button early and gets `TOO_SOON` with the server's wait; a slow one waits longer by the difference.
+- Until the Compose service of backend step 6.6, a job stays `QUEUED` while nobody runs the worker; the limit of 24 reads keeps the form from polling forever.
+- The pause and the status belong to the repository: another user's link to the same repository starts a pause here. The texts avoid «вы».
+- A polling answer races with link, unlink and save; the cancel and the `github_repo_id` check are the mitigation, and tests cover the late answer.
+- «10 минут» in the hint is the backend's default (`GITHUB_MANUAL_SYNC_COOLDOWN_SECONDS`); changing the setting needs the text changed too.
+
+Decided with the owner (2026-11-01):
+- Languages as chips with whole-percent shares of bytes: the first 6, then «Другие — N %», «<1 %» under 0.5 %; computed in `src/lib/github-languages.ts`.
+- One message for `QUEUED` and `SYNCING`.
+- Polling every 5 seconds, only while the tab is visible, at most 2 minutes (24 reads).
+- The data date with the time.
+- The button is «Обновить данные»; during a pause it is disabled with a countdown and a hint.
+- The mockup `repository-sync.png` (11 states and a rules card) was drawn before the code. The mockup decides the layout; `DESIGN.md` and the contract win where it differs.
 
 ### Decided
 
