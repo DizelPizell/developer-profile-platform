@@ -8,12 +8,14 @@ uncommitted is rolled back. The outcome is written in another short
 transaction, fenced by the claimed attempt: if the watchdog took the job back
 in between, the outcome is dropped instead of overwriting the next attempt.
 
-The processor that reads GitHub comes in step 6.4; here it is a function.
+The processor that reads GitHub is app.github.sync. Run the process with
+`python -m app.github.worker`.
 """
 
 import logging
 import re
 import signal
+import sys
 import threading
 import uuid
 from collections.abc import Callable
@@ -21,9 +23,11 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+import httpx
 from sqlalchemy import case, select, update
 from sqlalchemy.orm import Session
 
+from app.database import SessionLocal
 from app.github.client import (
     GitHubApiClient,
     GitHubCredentialsRejected,
@@ -31,6 +35,8 @@ from app.github.client import (
     GitHubNotFound,
     GitHubRateLimited,
     GitHubUnavailable,
+    RateLimitPause,
+    RateLimitState,
 )
 from app.github.dependencies import get_now
 from app.models.github import SYNC_ERROR_PATTERN, GitHubSyncJob
@@ -350,3 +356,47 @@ def install_stop_handlers(stop: threading.Event) -> None:
 
     signal.signal(signal.SIGTERM, handle)
     signal.signal(signal.SIGINT, handle)
+
+
+def main() -> int:
+    """The worker process (ADR-018): its own client, rate-limit state and pause,
+    database sessions per iteration, and a stop on SIGTERM or SIGINT. Returns
+    the exit code: 0 after a stop, 1 when GitHub refuses the credentials or
+    cannot be reached at startup, so the restart policy tries again later."""
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
+    # The processor imports this module; imported here, there is no cycle.
+    from app.github.sync import make_processor
+
+    stop = threading.Event()
+    install_stop_handlers(stop)
+    with httpx.Client() as http_client:
+        client = GitHubApiClient(
+            http_client,
+            settings.github_client_id,
+            settings.github_client_secret.get_secret_value(),
+            rate_limits=RateLimitState(),
+            pause=RateLimitPause(),
+        )
+        worker = SyncWorker(client, make_processor(client, get_now))
+        try:
+            worker.run_forever(SessionLocal, stop)
+        except CredentialsError as exc:
+            logger.error("GitHub sync worker: %s; exiting", exc)
+            return 1
+        except GitHubError as exc:
+            logger.error(
+                "GitHub sync worker: startup check failed, %s; exiting", type(exc).__name__
+            )
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    # Run as __main__, this file is a second copy of the module, and the
+    # processor would raise the other copy's SyncFailed. The imported module
+    # runs instead, so every class has one identity.
+    from app.github.worker import main as _main
+
+    sys.exit(_main())

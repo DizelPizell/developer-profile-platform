@@ -893,3 +893,80 @@ class TestTwoWorkers:
 
             recover_stale_jobs(db, T0)
             assert _state(db, job_id)["status"] == "QUEUED"
+
+
+# ---------------------------------------------------------------------------
+# The process entry point
+# ---------------------------------------------------------------------------
+
+
+class MainRun:
+    """main() with the loop, the signal handlers and the logging setup recorded."""
+
+    def __init__(self, monkeypatch, outcome: BaseException | None = None) -> None:
+        self.calls: list[tuple] = []
+        self.handlers: list[threading.Event] = []
+        self.logging: list[dict] = []
+
+        def run_forever(worker, sessions, stop, **kwargs):
+            self.calls.append((worker, sessions, stop))
+            if outcome is not None:
+                raise outcome
+
+        monkeypatch.setattr(SyncWorker, "run_forever", run_forever)
+        monkeypatch.setattr(worker_module, "install_stop_handlers", self.handlers.append)
+        monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: self.logging.append(kwargs))
+
+    def __call__(self) -> int:
+        return worker_module.main()
+
+
+def test_main_runs_the_worker_with_its_own_state(monkeypatch):
+    from app.database import SessionLocal
+    from app.github.client import backend_pause, rate_limit_state
+
+    run = MainRun(monkeypatch)
+
+    assert run() == 0
+
+    ((worker, sessions, stop),) = run.calls
+    assert sessions is SessionLocal
+    assert run.handlers == [stop]
+    assert worker.client.rate_limits is not rate_limit_state
+    assert worker.client.pause is not backend_pause
+    assert run.logging[0]["level"] == logging.INFO
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [CredentialsError("GitHub rejected the app credentials"), GitHubUnavailable("timeout")],
+)
+def test_main_exits_with_1_when_github_refuses_or_is_unreachable(monkeypatch, worker_log, outcome):
+    run = MainRun(monkeypatch, outcome)
+
+    assert run() == 1
+
+    errors = [r for r in _worker_records(worker_log) if r.levelno == logging.ERROR]
+    assert len(errors) == 1 and errors[0].exc_info is None
+    assert settings.github_client_secret.get_secret_value() not in errors[0].getMessage()
+
+
+# runpy warns that the module is already imported: that is the case under test.
+@pytest.mark.filterwarnings("ignore:.*found in sys.modules:RuntimeWarning")
+def test_running_the_module_runs_the_imported_main(monkeypatch):
+    """python -m app.github.worker must not run a second copy of the module."""
+    import runpy
+
+    monkeypatch.setattr(worker_module, "main", lambda: 3)
+
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_module("app.github.worker", run_name="__main__")
+
+    assert exc.value.code == 3
+
+
+def test_the_processor_shares_the_workers_classes():
+    from app.github import sync
+
+    assert sync.github_error_label is worker_module.github_error_label
+    assert sync.ClaimedJob is ClaimedJob
