@@ -163,10 +163,7 @@ def _recompute_relations(
         # By the link's id: a link replaced meanwhile is a new row and is left alone.
         db.execute(
             update(ProjectRepository)
-            .where(
-                ProjectRepository.id == link_id,
-                ProjectRepository.github_repository_id == repository_id,
-            )
+            .where(ProjectRepository.id == link_id)
             .values(relation=relation, relation_checked_at=checked_at)
         )
     db.commit()
