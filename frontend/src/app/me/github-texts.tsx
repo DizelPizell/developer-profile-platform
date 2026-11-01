@@ -1,6 +1,7 @@
 import { cn } from "cn";
 
-import type { GitHubRelation } from "@/lib/api";
+import type { GitHubLanguage, GitHubRelation } from "@/lib/api";
+import { languageShares, shareText } from "@/lib/github-languages";
 
 import { BADGE } from "./projects/project-texts";
 
@@ -27,6 +28,10 @@ export const NO_RELATION_WARNING =
 /** Shown instead of languages until the first successful sync (synced_at null). */
 export const NOT_SYNCED_TEXT =
   "Языки и другие данные появятся после первой синхронизации с GitHub. Сейчас данные ещё не загружены.";
+
+/** Languages are shares of bytes, labelled as such (ADR-019); never skills or levels. */
+export const LANGUAGES_CAPTION = "Доля кода в байтах, по данным GitHub";
+export const NO_LANGUAGES_TEXT = "GitHub не нашёл в репозитории кода на известных ему языках.";
 
 /** Links only to GitHub itself; any other URL from the API stays plain text. */
 export function isGitHubUrl(url: string): boolean {
@@ -61,6 +66,29 @@ export function pushedAtText(pushedAt: string | null): string | null {
   return Number.isNaN(date.getTime()) ? null : `Обновлён: ${DATE_FORMAT.format(date)}`;
 }
 
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** «01.11.2026, 12:30» in the user's time zone; null for a value that is not a date. */
+export function dateTimeText(value: string): string | null {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : DATE_TIME_FORMAT.format(date);
+}
+
+/**
+ * «Данные GitHub от 01.11.2026, 12:30» from synced_at, so old data reads as old
+ * (ADR-019); null hides the line.
+ */
+export function syncedAtText(syncedAt: string | null): string | null {
+  const text = syncedAt === null ? null : dateTimeText(syncedAt);
+  return text === null ? null : `Данные GitHub от ${text}`;
+}
+
 export function SourceBadge() {
   return <span className={cn(BADGE, "bg-bg text-label")}>{SOURCE_GITHUB}</span>;
 }
@@ -84,5 +112,42 @@ export function RepositoryLabels({
       )}
       {archived && <span className={cn(BADGE, "bg-bg text-text-muted")}>В архиве на GitHub</span>}
     </>
+  );
+}
+
+/** The dashed box of a placeholder: no data yet, or no languages. */
+export function DataPlaceholder({ children }: { children: string }) {
+  return (
+    <p className="border-4 border-dashed border-frame px-4 py-3 text-sm text-text-muted">
+      {children}
+    </p>
+  );
+}
+
+/**
+ * The first 6 languages as chips «Python 62 %», the rest as one «Другие — N %».
+ * Names come from GitHub and are rendered as text.
+ */
+export function RepositoryLanguages({ languages }: { languages: GitHubLanguage[] }) {
+  if (languages.length === 0) {
+    return <DataPlaceholder>{NO_LANGUAGES_TEXT}</DataPlaceholder>;
+  }
+  const { shown, others } = languageShares(languages);
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-text-muted">{LANGUAGES_CAPTION}</p>
+      <ul aria-label="Языки" className="flex flex-wrap gap-2">
+        {shown.map(({ name, percent }, index) => (
+          <li key={index} className={cn(BADGE, "break-all bg-panel text-text")}>
+            {percent === null ? name : `${name} ${shareText(percent)}`}
+          </li>
+        ))}
+        {others && (
+          <li className={cn(BADGE, "bg-frame text-text-muted")}>
+            {others.percent === null ? "Другие" : `Другие — ${shareText(others.percent)}`}
+          </li>
+        )}
+      </ul>
+    </div>
   );
 }

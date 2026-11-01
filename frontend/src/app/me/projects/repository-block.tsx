@@ -32,14 +32,17 @@ import {
 
 import { GitHubErrorAlert, useRetryCountdown } from "../github-error";
 import {
+  DataPlaceholder,
   NO_DESCRIPTION,
   NO_RELATION_WARNING,
   NOT_SYNCED_TEXT,
   pushedAtText,
   RELATION_LABEL,
   RepositoryLabels,
+  RepositoryLanguages,
   RepositoryName,
   SourceBadge,
+  syncedAtText,
   UNAVAILABLE_WARNING,
 } from "../github-texts";
 import { BADGE } from "./project-texts";
@@ -402,6 +405,7 @@ function LinkedRepository({
   panel: RefObject<HTMLDivElement | null>;
 }) {
   const pushedAt = pushedAtText(github.pushed_at);
+  const syncedAt = syncedAtText(github.synced_at);
   const relation = RELATION_LABEL[github.relation];
   return (
     <div
@@ -430,11 +434,12 @@ function LinkedRepository({
           />
         </div>
       )}
-      {github.synced_at === null && (
-        <p className="border-4 border-dashed border-frame px-4 py-3 text-sm text-text-muted">
-          {NOT_SYNCED_TEXT}
-        </p>
+      {github.synced_at === null ? (
+        <DataPlaceholder>{NOT_SYNCED_TEXT}</DataPlaceholder>
+      ) : (
+        <RepositoryLanguages languages={github.languages} />
       )}
+      {syncedAt && <p className="text-sm text-text-muted">{syncedAt}</p>}
       {github.unavailable && <Warning>{UNAVAILABLE_WARNING}</Warning>}
       {github.relation === "NONE" && <Warning>{NO_RELATION_WARNING}</Warning>}
     </div>

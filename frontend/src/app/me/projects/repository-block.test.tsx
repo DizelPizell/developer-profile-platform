@@ -52,6 +52,16 @@ const PROJECT: ProjectResponse = {
 
 const LINKED: ProjectResponse = { ...PROJECT, github: GITHUB };
 
+// Midday UTC: the same date in every time zone the tests may run in.
+const SYNCED_AT = "2026-11-01T12:30:00Z";
+
+/** «Данные GitHub от 01.11.2026, HH:MM», the time read without Intl in the local zone. */
+function syncedAtLine(iso: string) {
+  const date = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `Данные GitHub от 01.11.2026, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 const PROFILE = {
   slug: "ann",
   status: "PRIVATE",
@@ -221,9 +231,88 @@ describe("the block's states", () => {
     expect(within(linked).getByText("My first repository")).toBeTruthy();
   });
 
-  test("a synced repository has no placeholder", async () => {
-    await renderEdit({ ...PROJECT, github: { ...GITHUB, synced_at: "2026-10-30T12:00:00Z" } });
-    expect(within(panel()).queryByText(/появятся после первой синхронизации/)).toBeNull();
+  test("a synced repository shows the language shares and the data date, not the placeholder", async () => {
+    await renderEdit({
+      ...PROJECT,
+      github: {
+        ...GITHUB,
+        synced_at: SYNCED_AT,
+        languages: [
+          { name: "Python", bytes: 6200 },
+          { name: "TypeScript", bytes: 2400 },
+          { name: "Go", bytes: 600 },
+          { name: "Shell", bytes: 300 },
+          { name: "HTML", bytes: 200 },
+          { name: "CSS", bytes: 104 },
+          { name: "Dockerfile", bytes: 150 },
+          { name: "Makefile", bytes: 46 },
+        ],
+      },
+    });
+    const linked = panel();
+    expect(within(linked).queryByText(/появятся после первой синхронизации/)).toBeNull();
+    expect(within(linked).getByText("Доля кода в байтах, по данным GitHub")).toBeTruthy();
+    const chips = within(within(linked).getByRole("list", { name: "Языки" })).getAllByRole("listitem");
+    expect(chips.map((chip) => chip.textContent)).toEqual([
+      "Python 62 %",
+      "TypeScript 24 %",
+      "Go 6 %",
+      "Shell 3 %",
+      "HTML 2 %",
+      "CSS 1 %",
+      "Другие — 2 %",
+    ]);
+    expect(within(linked).getByText(syncedAtLine(SYNCED_AT))).toBeTruthy();
+  });
+
+  test("a share under 0.5 % reads «<1 %»; a sum of 0 bytes shows names only", async () => {
+    const { unmount } = await renderEdit({
+      ...PROJECT,
+      github: {
+        ...GITHUB,
+        synced_at: SYNCED_AT,
+        languages: [
+          { name: "Python", bytes: 999 },
+          { name: "Shell", bytes: 1 },
+        ],
+      },
+    });
+    expect(within(panel()).getByText("Shell <1 %")).toBeTruthy();
+    unmount();
+
+    await renderEdit({
+      ...PROJECT,
+      github: { ...GITHUB, synced_at: SYNCED_AT, languages: [{ name: "Python", bytes: 0 }] },
+    });
+    expect(within(panel()).getByRole("listitem").textContent).toBe("Python");
+  });
+
+  test("a synced repository without languages says so", async () => {
+    await renderEdit({ ...PROJECT, github: { ...GITHUB, synced_at: SYNCED_AT } });
+    const linked = panel();
+    expect(
+      within(linked).getByText("GitHub не нашёл в репозитории кода на известных ему языках."),
+    ).toBeTruthy();
+    expect(within(linked).queryByRole("list", { name: "Языки" })).toBeNull();
+    expect(within(linked).queryByText("Доля кода в байтах, по данным GitHub")).toBeNull();
+    expect(within(linked).getByText(syncedAtLine(SYNCED_AT))).toBeTruthy();
+  });
+
+  test("before the first sync there is no date and no languages", async () => {
+    await renderEdit(LINKED);
+    const linked = panel();
+    expect(within(linked).getByText(/появятся после первой синхронизации/)).toBeTruthy();
+    expect(within(linked).queryByText(/Данные GitHub от/)).toBeNull();
+    expect(within(linked).queryByRole("list", { name: "Языки" })).toBeNull();
+  });
+
+  test("language names are text", async () => {
+    await renderEdit({
+      ...PROJECT,
+      github: { ...GITHUB, synced_at: SYNCED_AT, languages: [{ name: "<b>Vue</b>", bytes: 10 }] },
+    });
+    expect(within(panel()).getByText("<b>Vue</b> 100 %")).toBeTruthy();
+    expect(panel().querySelector("b")).toBeNull();
   });
 
   test("a non-GitHub URL is plain text, markup is text", async () => {
