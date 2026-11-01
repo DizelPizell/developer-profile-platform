@@ -84,3 +84,60 @@ def test_manual_sync_cooldown_default_and_minimum(monkeypatch):
     assert _settings(github_manual_sync_cooldown_seconds=1).github_manual_sync_cooldown_seconds == 1
     with pytest.raises(ValidationError):
         _settings(github_manual_sync_cooldown_seconds=0)
+
+
+_WORKER_ENV = (
+    "GITHUB_WORKER_POLL_SECONDS",
+    "GITHUB_WORKER_MAX_ATTEMPTS",
+    "GITHUB_WORKER_RETRY_BASE_SECONDS",
+    "GITHUB_WORKER_RETRY_MAX_SECONDS",
+    "GITHUB_WORKER_STALE_SECONDS",
+    "GITHUB_WORKER_RESERVE",
+)
+
+
+def test_worker_defaults(monkeypatch):
+    """ADR-009's starting values and ADR-018's reserve."""
+    for name in _WORKER_ENV:
+        monkeypatch.delenv(name, raising=False)
+
+    s = _settings()
+
+    assert (
+        s.github_worker_poll_seconds,
+        s.github_worker_max_attempts,
+        s.github_worker_retry_base_seconds,
+        s.github_worker_retry_max_seconds,
+        s.github_worker_stale_seconds,
+        s.github_worker_reserve,
+    ) == (5, 5, 30, 1800, 600, 500)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"github_worker_poll_seconds": 0},
+        {"github_worker_max_attempts": 0},
+        {"github_worker_retry_base_seconds": 0},
+        {"github_worker_stale_seconds": 0},
+        {"github_worker_reserve": -1},
+        {"github_worker_retry_base_seconds": 60, "github_worker_retry_max_seconds": 59},
+    ],
+)
+def test_worker_settings_rejected(overrides):
+    with pytest.raises(ValidationError):
+        _settings(**overrides)
+
+
+def test_worker_settings_minimums():
+    s = _settings(
+        github_worker_poll_seconds=0.1,
+        github_worker_max_attempts=1,
+        github_worker_retry_base_seconds=60,
+        github_worker_retry_max_seconds=60,
+        github_worker_stale_seconds=1,
+        github_worker_reserve=0,
+    )
+
+    assert (s.github_worker_max_attempts, s.github_worker_retry_max_seconds) == (1, 60)
+    assert s.github_worker_reserve == 0

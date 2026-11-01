@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import Field, HttpUrl, SecretStr
+from pydantic import Field, HttpUrl, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,23 @@ class Settings(BaseSettings):
     # The pause between manual syncs of one repository, counted from its latest
     # job (ADR-018).
     github_manual_sync_cooldown_seconds: int = Field(default=600, ge=1)
+    # The sync worker (ADR-009, ADR-018).
+    github_worker_poll_seconds: float = Field(default=5, gt=0)
+    github_worker_max_attempts: int = Field(default=5, ge=1)
+    github_worker_retry_base_seconds: int = Field(default=30, ge=1)
+    github_worker_retry_max_seconds: int = Field(default=1800, ge=1)
+    # A SYNCING job not updated for this long is taken back by the watchdog.
+    github_worker_stale_seconds: int = Field(default=600, ge=1)
+    # The worker claims no job while GitHub's remaining budget is at or below this.
+    github_worker_reserve: int = Field(default=500, ge=0)
+
+    @model_validator(mode="after")
+    def _retry_max_not_below_base(self) -> "Settings":
+        if self.github_worker_retry_max_seconds < self.github_worker_retry_base_seconds:
+            raise ValueError(
+                "GITHUB_WORKER_RETRY_MAX_SECONDS is below GITHUB_WORKER_RETRY_BASE_SECONDS"
+            )
+        return self
 
     @property
     def secure_cookies(self) -> bool:

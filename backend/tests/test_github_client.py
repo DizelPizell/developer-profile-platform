@@ -796,3 +796,74 @@ def test_client_does_not_import_the_database_layer():
         check=True,
     )
     assert result.stdout.strip() == "False"
+
+
+# The worker's startup check (ADR-016, ADR-018).
+
+
+def _rate_limit_body(**core) -> dict:
+    values = {"limit": 5000, "remaining": 4321, "reset": _epoch(NOW + timedelta(minutes=40))}
+    values["used"] = values["limit"] - values["remaining"]
+    values.update(core)
+    return {"resources": {"core": values, "search": {"limit": 30}}, "rate": values}
+
+
+def test_get_rate_limit_reads_the_core_limit_into_the_state():
+    state = RateLimitState()
+    # No x-ratelimit headers: the body alone is enough.
+    client, recorder = _client(lambda r: httpx.Response(200, json=_rate_limit_body()), state)
+
+    rate = client.get_rate_limit()
+
+    assert recorder.requests[0].url == "https://api.github.com/rate_limit"
+    assert rate == RateLimit(
+        limit=5000,
+        remaining=4321,
+        reset_at=NOW + timedelta(minutes=40),
+        used=679,
+        resource="core",
+    )
+    assert state.latest == rate
+
+
+def test_get_rate_limit_without_used():
+    body = _rate_limit_body()
+    del body["resources"]["core"]["used"]
+    client, _ = _client(lambda r: httpx.Response(200, json=body))
+
+    assert client.get_rate_limit().used is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        {},
+        {"resources": []},
+        {"resources": {"search": {"limit": 30}}},
+        {"resources": {"core": None}},
+        _rate_limit_body(limit="5000"),
+        _rate_limit_body(limit=True),
+        _rate_limit_body(remaining=-1),
+        _rate_limit_body(remaining=None),
+        _rate_limit_body(reset=None),
+        _rate_limit_body(reset=10**30),
+        _rate_limit_body(used="x"),
+    ],
+)
+def test_malformed_rate_limit_is_unavailable(body):
+    state = RateLimitState()
+    client, _ = _client(lambda r: httpx.Response(200, json=body), state)
+
+    with pytest.raises(GitHubUnavailable) as exc:
+        client.get_rate_limit()
+
+    assert exc.value.reason == "malformed_response"
+    assert state.latest is None
+
+
+def test_get_rate_limit_401_is_credentials_rejected():
+    client, _ = _client(_json(401, {"message": BODY_MARKER}))
+
+    with pytest.raises(GitHubCredentialsRejected):
+        client.get_rate_limit()

@@ -208,21 +208,22 @@ def _header_int(headers: httpx.Headers, name: str) -> int | None:
     return int(value)
 
 
+def _from_epoch(seconds: int) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(seconds, UTC).replace(tzinfo=None)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 def parse_rate_limit(headers: httpx.Headers) -> RateLimit | None:
     remaining = _header_int(headers, "x-ratelimit-remaining")
     reset = _header_int(headers, "x-ratelimit-reset")
     if remaining is None and reset is None:
         return None
-    reset_at = None
-    if reset is not None:
-        try:
-            reset_at = datetime.fromtimestamp(reset, UTC).replace(tzinfo=None)
-        except (OverflowError, OSError, ValueError):
-            reset_at = None
     return RateLimit(
         limit=_header_int(headers, "x-ratelimit-limit"),
         remaining=remaining,
-        reset_at=reset_at,
+        reset_at=_from_epoch(reset) if reset is not None else None,
         used=_header_int(headers, "x-ratelimit-used"),
         resource=headers.get("x-ratelimit-resource"),
     )
@@ -283,6 +284,12 @@ def _body(response: httpx.Response) -> object:
 
 def _positive_int(value: object, status: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= MAX_BIGINT:
+        raise _malformed(status)
+    return value
+
+
+def _count(value: object, status: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= MAX_BIGINT:
         raise _malformed(status)
     return value
 
@@ -396,6 +403,29 @@ class GitHubApiClient:
 
     def __repr__(self) -> str:
         return f"GitHubApiClient(base_url={GITHUB_API!r})"
+
+    def get_rate_limit(self) -> RateLimit:
+        """The core limit from /rate_limit, which does not spend it. The worker's
+        startup check reads it: app credentials get 5,000, none get 60 (ADR-016)."""
+        response = self._get("rate_limit", "/rate_limit")
+        data = _body(response)
+        resources = data.get("resources") if isinstance(data, dict) else None
+        core = resources.get("core") if isinstance(resources, dict) else None
+        if not isinstance(core, dict):
+            raise _malformed(response.status_code)
+        status = response.status_code
+        reset_at = _from_epoch(_count(core.get("reset"), status))
+        if reset_at is None:
+            raise _malformed(status)
+        rate = RateLimit(
+            limit=_count(core.get("limit"), status),
+            remaining=_count(core.get("remaining"), status),
+            reset_at=reset_at,
+            used=_count(core["used"], status) if "used" in core else None,
+            resource="core",
+        )
+        self._rate_limits.update(rate)
+        return rate
 
     def get_repository(self, owner: str, name: str) -> GitHubRepositoryData:
         _check_repository_name(owner, name)
