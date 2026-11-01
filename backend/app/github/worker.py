@@ -95,6 +95,19 @@ def check_credentials(client: GitHubApiClient) -> None:
     )
 
 
+def github_error_label(exc: GitHubError) -> str | None:
+    """The last_error label of a GitHub error (ADR-018), or None for a rate limit
+    and rejected credentials, which are not failures of the job."""
+    if isinstance(exc, (GitHubRateLimited, GitHubCredentialsRejected)):
+        return None
+    if isinstance(exc, GitHubNotFound):
+        return NOT_FOUND
+    if isinstance(exc, GitHubUnavailable):
+        return GITHUB_UNAVAILABLE
+    # A redirect the processor did not follow, or a status not in ADR-018.
+    return UNEXPECTED_STATUS
+
+
 def retry_delay(attempt: int) -> timedelta:
     """ADR-009's backoff: the base delay after the first attempt, doubled after
     each next one, up to the maximum."""
@@ -302,13 +315,8 @@ class SyncWorker:
             raise CredentialsError("GitHub rejected the app credentials") from None
         except SyncFailed as exc:
             error, final = exc.error, exc.final
-        except GitHubNotFound:
-            error = NOT_FOUND
-        except GitHubUnavailable:
-            error = GITHUB_UNAVAILABLE
-        except GitHubError:
-            # A redirect the processor did not follow, or a status not in ADR-018.
-            error = UNEXPECTED_STATUS
+        except GitHubError as exc:
+            error = github_error_label(exc)
         except Exception:
             # A bug, not GitHub: the only case logged with a traceback. The
             # client's errors are fixed text and are logged by name only.

@@ -361,17 +361,10 @@ def linked_project_id(db: Session, owner_id: uuid.UUID, github_repo_id: int) -> 
     return _linked_projects(db, owner_id, [github_repo_id]).get(github_repo_id)
 
 
-def store_link(db: Session, project: Project, checked: CheckedRepository, now: datetime) -> None:
-    """Upserts the shared repository row and replaces the project's link.
-
-    Runs in the caller's write transaction, with the project row locked, so links
-    of one project are serialized; the database's unique constraints decide races
-    between projects. The upsert keeps the repository row locked until the commit,
-    which serializes it with a manual sync. Records the metadata read and queues
-    a sync job (ADR-018). Nothing is committed here.
-    """
-    data = checked.data
-    metadata = {
+def repository_metadata(data: GitHubRepositoryData) -> dict:
+    """The github_repositories columns a metadata read sets (ADR-017); languages
+    and unavailable_since are written separately."""
+    return {
         "owner_github_id": data.owner_github_id,
         "owner_login": data.owner_login,
         "name": data.name,
@@ -383,6 +376,19 @@ def store_link(db: Session, project: Project, checked: CheckedRepository, now: d
         "is_archived": data.is_archived,
         "pushed_at": data.pushed_at,
     }
+
+
+def store_link(db: Session, project: Project, checked: CheckedRepository, now: datetime) -> None:
+    """Upserts the shared repository row and replaces the project's link.
+
+    Runs in the caller's write transaction, with the project row locked, so links
+    of one project are serialized; the database's unique constraints decide races
+    between projects. The upsert keeps the repository row locked until the commit,
+    which serializes it with a manual sync. Records the metadata read and queues
+    a sync job (ADR-018). Nothing is committed here.
+    """
+    data = checked.data
+    metadata = repository_metadata(data)
     # Languages are left to the sync (ADR-018); a successful read of the metadata
     # clears unavailable_since.
     repository_id = db.execute(
@@ -421,19 +427,43 @@ def store_link(db: Session, project: Project, checked: CheckedRepository, now: d
         )
         raise already_linked(linked) from None
 
-    _record_metadata_read(db, repository_id, now)
+    # The link has just read the metadata: a success like a sync's, so a 404
+    # before it and one after it are not two in a row (ADR-018).
+    record_category_success(db, repository_id, "metadata", now)
     enqueue_sync(db, repository_id, now)
 
 
-def _record_metadata_read(db: Session, repository_id: uuid.UUID, now: datetime) -> None:
-    """A link or import has just read the metadata: a success like a sync's, so a
-    404 before it and one after it are not two in a row (ADR-018)."""
+def record_category_success(
+    db: Session, repository_id: uuid.UUID, category: str, now: datetime
+) -> None:
+    """A category was read and stored: its time is set and its error cleared
+    (ADR-011, ADR-018). Nothing is committed here."""
     db.execute(
         pg_insert(GitHubSyncCategoryStatus)
-        .values(github_repository_id=repository_id, category="metadata", last_success_at=now)
+        .values(github_repository_id=repository_id, category=category, last_success_at=now)
         .on_conflict_do_update(
             constraint="uq_github_sync_category_status_repository_category",
             set_={"last_success_at": now, "last_error": None, "last_error_at": None},
+        )
+    )
+
+
+def record_category_error(
+    db: Session, repository_id: uuid.UUID, category: str, error: str, now: datetime
+) -> None:
+    """A category could not be read: its label and time are set, its last success
+    and its stored data stay (ADR-010, ADR-011). Nothing is committed here."""
+    db.execute(
+        pg_insert(GitHubSyncCategoryStatus)
+        .values(
+            github_repository_id=repository_id,
+            category=category,
+            last_error=error,
+            last_error_at=now,
+        )
+        .on_conflict_do_update(
+            constraint="uq_github_sync_category_status_repository_category",
+            set_={"last_error": error, "last_error_at": now},
         )
     )
 
