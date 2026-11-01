@@ -7,12 +7,16 @@ delete at the end.
 """
 
 import logging
+import signal
+import threading
 import uuid
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 
 import httpx
 import pytest
 from sqlalchemy import select, text, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.github import worker as worker_module
@@ -35,6 +39,7 @@ from app.github.worker import (
     SyncWorker,
     check_credentials,
     claim_job,
+    install_stop_handlers,
     recover_stale_jobs,
     retry_delay,
 )
@@ -550,6 +555,118 @@ def test_the_startup_check_fails_when_github_is_unavailable():
 
     with pytest.raises(GitHubUnavailable):
         check_credentials(worker.client)
+
+
+# ---------------------------------------------------------------------------
+# The loop
+# ---------------------------------------------------------------------------
+
+
+class Loop:
+    """run_forever on db_session, with waits recorded instead of slept."""
+
+    def __init__(self, db: Session, process, *, handler=None, max_waits: int = 1) -> None:
+        self.stop = threading.Event()
+        self.waits: list[float] = []
+        self.max_waits = max_waits
+        self.worker = _worker(process, handler=handler or _rate_limit_answer(5000))
+        self.sessions = lambda: nullcontext(db)
+
+    def wait(self, seconds: float) -> None:
+        self.waits.append(seconds)
+        if len(self.waits) >= self.max_waits:
+            self.stop.set()
+
+    def run(self) -> None:
+        self.worker.run_forever(self.sessions, self.stop, wait=self.wait)
+
+
+def test_the_loop_runs_due_jobs_back_to_back_until_stopped(db_session):
+    jobs = [_job(db_session, scheduled_at=T0 - timedelta(minutes=n)) for n in (3, 2, 1)]
+    loop = Loop(db_session, _ok)
+
+    def process(db, job):
+        if job.id == jobs[1]:
+            loop.stop.set()
+
+    loop.worker.process = Recorder(process)
+    loop.run()
+
+    assert [job.id for job in loop.worker.process.jobs] == jobs[:2]
+    assert loop.waits == []
+    assert _state(db_session, jobs[2])["status"] == "QUEUED"
+
+
+def test_the_loop_waits_a_poll_when_nothing_is_due(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "github_worker_poll_seconds", 0.5)
+    loop = Loop(db_session, _ok, max_waits=2)
+
+    loop.run()
+
+    assert loop.waits == [0.5, 0.5]
+
+
+def test_the_loop_does_not_start_without_credentials(db_session):
+    job_id = _job(db_session)
+    loop = Loop(db_session, _ok, handler=_rate_limit_answer(5000, status=401))
+
+    with pytest.raises(CredentialsError):
+        loop.run()
+
+    assert _state(db_session, job_id)["attempt_count"] == 0
+
+
+def test_the_loop_stops_when_credentials_are_rejected_mid_run(db_session):
+    _job(db_session)
+    loop = Loop(db_session, _raises(GitHubCredentialsRejected(401)), max_waits=10)
+
+    with pytest.raises(CredentialsError):
+        loop.run()
+
+
+def test_the_loop_survives_a_failed_iteration(db_session, worker_log):
+    job_id = _job(db_session)
+    loop = Loop(db_session, _ok, max_waits=2)
+    calls = []
+
+    def sessions():
+        calls.append(1)
+        if len(calls) == 1:
+            raise OperationalError("SELECT 1", {}, Exception("connection refused"))
+        return nullcontext(db_session)
+
+    loop.sessions = sessions
+    loop.run()
+
+    assert _state(db_session, job_id)["status"] == "SYNCED"
+    failed = [r for r in _worker_records(worker_log) if "iteration failed" in r.getMessage()]
+    assert len(failed) == 1 and failed[0].exc_info is not None
+
+
+def test_a_stop_before_the_first_poll_claims_nothing(db_session):
+    job_id = _job(db_session)
+    loop = Loop(db_session, _ok)
+    loop.stop.set()
+
+    loop.run()
+
+    assert _state(db_session, job_id)["status"] == "QUEUED"
+
+
+def test_sigterm_and_sigint_request_a_stop(monkeypatch):
+    handlers = {}
+    monkeypatch.setattr(
+        signal, "signal", lambda signum, handler: handlers.setdefault(signum, handler)
+    )
+    stop = threading.Event()
+
+    install_stop_handlers(stop)
+
+    assert set(handlers) == {signal.SIGTERM, signal.SIGINT}
+    for signum, handler in handlers.items():
+        stop.clear()
+        handler(signum, None)
+        assert stop.is_set()
 
 
 # ---------------------------------------------------------------------------

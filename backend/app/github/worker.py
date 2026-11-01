@@ -13,8 +13,11 @@ The processor that reads GitHub comes in step 6.4; here it is a function.
 
 import logging
 import re
+import signal
+import threading
 import uuid
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -72,6 +75,7 @@ class CredentialsError(Exception):
 
 
 Processor = Callable[[Session, ClaimedJob], None]
+SessionFactory = Callable[[], AbstractContextManager[Session]]
 
 
 def check_credentials(client: GitHubApiClient) -> None:
@@ -221,6 +225,34 @@ class SyncWorker:
             return f"remaining {latest.remaining} within the reserve until {latest.reset_at}"
         return None
 
+    def run_forever(
+        self,
+        sessions: SessionFactory,
+        stop: threading.Event,
+        *,
+        wait: Callable[[float], object] | None = None,
+    ) -> None:
+        """The process's loop: the startup check, then jobs one after another,
+        with a poll interval when none is due. A stop request ends it after
+        the current job. Rejected credentials end it with CredentialsError;
+        any other failure of an iteration (the database, say) is logged and
+        retried after a poll."""
+        wait = wait or stop.wait
+        check_credentials(self.client)
+        logger.info("GitHub sync worker: started")
+        while not stop.is_set():
+            try:
+                with sessions() as db:
+                    ran = self.run_once(db)
+            except CredentialsError:
+                raise
+            except Exception:
+                logger.exception("GitHub sync worker: an iteration failed")
+                ran = False
+            if not ran:
+                wait(settings.github_worker_poll_seconds)
+        logger.info("GitHub sync worker: stopped")
+
     def run_once(self, db: Session) -> bool:
         """The watchdog, then at most one job. Returns whether a job was run."""
         now = self.now()
@@ -299,3 +331,14 @@ class SyncWorker:
             logger.warning(
                 "Sync job %s: %s at attempt %s, retry at %s", job.id, error, job.attempt, retry_at
             )
+
+
+def install_stop_handlers(stop: threading.Event) -> None:
+    """SIGTERM (docker stop) and SIGINT end the loop after the current job.
+    The handler only sets the event: logging inside it could deadlock."""
+
+    def handle(signum: int, frame: object) -> None:
+        stop.set()
+
+    signal.signal(signal.SIGTERM, handle)
+    signal.signal(signal.SIGINT, handle)
