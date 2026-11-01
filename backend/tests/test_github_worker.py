@@ -10,7 +10,8 @@ import logging
 import signal
 import threading
 import uuid
-from contextlib import nullcontext
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 
 import httpx
@@ -765,9 +766,40 @@ def test_an_attempt_taken_back_does_not_write_its_outcome(db_session, worker_log
     assert any("taken back by the watchdog" in r.getMessage() for r in worker_log.records)
 
 
+def test_an_attempt_taken_back_and_not_yet_claimed_again_keeps_the_watchdogs_state(
+    db_session, worker_log
+):
+    job_id = _job(db_session)
+    clock = Clock()
+
+    def lost(db, job):
+        clock.now = T0 + STALE + timedelta(seconds=1)
+        assert recover_stale_jobs(db, clock.now) == 1
+
+    _worker(lost, clock).run_once(db_session)
+
+    state = _state(db_session, job_id)
+    assert (state["status"], state["attempt_count"]) == ("QUEUED", 1)
+    assert (state["last_error"], state["scheduled_at"]) == ("WORKER_LOST", clock.now)
+    assert any("taken back by the watchdog" in r.getMessage() for r in worker_log.records)
+
+
 # ---------------------------------------------------------------------------
 # Two workers: their own sessions on committed rows
 # ---------------------------------------------------------------------------
+
+
+@contextmanager
+def _session_that_does_not_wait(db_engine) -> Iterator[Session]:
+    """Without SKIP LOCKED the worker would wait for the lock: fail the test instead.
+
+    The session is bound to one connection, so the setting holds after each
+    commit; a pooled session could get another connection without it."""
+    with db_engine.connect() as connection:
+        connection.execute(text("SET lock_timeout = '2s'"))
+        connection.commit()
+        with Session(bind=connection) as db:
+            yield db
 
 
 class TestTwoWorkers:
@@ -808,7 +840,7 @@ class TestTwoWorkers:
             db_engine, repository_id, {"status": "QUEUED", "scheduled_at": datetime(2001, 1, 1)}
         )
         process = Recorder()
-        with Session(db_engine) as holder, Session(db_engine) as db:
+        with Session(db_engine) as holder, _session_that_does_not_wait(db_engine) as db:
             holder.execute(
                 select(GitHubSyncJob.id).where(GitHubSyncJob.id == job_id).with_for_update()
             )
@@ -851,7 +883,7 @@ class TestTwoWorkers:
             repository_id,
             {"status": "SYNCING", "attempt_count": 1, "scheduled_at": datetime(2001, 1, 1)},
         )
-        with Session(db_engine) as holder, Session(db_engine) as db:
+        with Session(db_engine) as holder, _session_that_does_not_wait(db_engine) as db:
             holder.execute(
                 select(GitHubSyncJob.id).where(GitHubSyncJob.id == job_id).with_for_update()
             )
