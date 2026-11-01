@@ -27,6 +27,7 @@ export {
   projectLimit,
   REPOSITORY_PAGE_MAX,
   retryAfterSeconds,
+  syncRepository,
   type GitHubErrorCode,
   type GitHubLanguage,
   type GitHubRelation,

@@ -9,6 +9,7 @@ import {
   listRepositories,
   projectLimit,
   retryAfterSeconds,
+  syncRepository,
 } from "./github";
 import { importRepository, linkRepository } from "./projects";
 
@@ -126,12 +127,66 @@ describe("listRepositories", () => {
   });
 });
 
+describe("syncRepository", () => {
+  const sync = {
+    status: "QUEUED",
+    last_success_at: "2026-11-01T09:30:00Z",
+    next_manual_sync_at: "2026-11-01T12:10:00Z",
+  };
+
+  test("sends POST without a body, with credentials, and returns the sync state", async () => {
+    fetchMock.mockResolvedValue(Response.json(sync, { status: 202 }));
+
+    await expect(syncRepository(1296269)).resolves.toEqual(sync);
+
+    const sent = lastCall();
+    expect(sent.url).toBe(`${BASE}/integrations/github/repositories/1296269/sync`);
+    expect(sent.method).toBe("POST");
+    expect(sent.credentials).toBe("include");
+    expect(sent.init?.body).toBeUndefined();
+  });
+
+  test("unknown fields are dropped and nulls are kept", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json(
+        { status: "SYNCING", last_success_at: null, next_manual_sync_at: null, job_id: "x" },
+        { status: 202 },
+      ),
+    );
+
+    await expect(syncRepository(1)).resolves.toEqual({
+      status: "SYNCING",
+      last_success_at: null,
+      next_manual_sync_at: null,
+    });
+  });
+
+  test.each([
+    ["an unknown status", { ...sync, status: "RUNNING" }],
+    ["a missing time", { status: "QUEUED", last_success_at: null }],
+    ["a numeric time", { ...sync, next_manual_sync_at: 600 }],
+    ["a body that is an array", [sync]],
+  ])("%s is an unexpected body", async (_name, body) => {
+    fetchMock.mockResolvedValue(Response.json(body, { status: 202 }));
+    await expect(syncRepository(1)).rejects.toMatchObject({
+      constructor: ApiError,
+      code: "INVALID_RESPONSE",
+    });
+  });
+
+  test.each([0, -1, 1.5, Number.NaN, 2 ** 53])("id %s is refused without a request", async (id) => {
+    await expect(syncRepository(id)).rejects.toBeInstanceOf(RangeError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("error codes", () => {
   // Each endpoint the code can come from (API_CONTRACT.md, GitHub).
   const calls = {
     list: () => listRepositories(1),
     link: () => linkRepository(PROJECT_ID, "octocat/Hello-World"),
     import: () => importRepository(1296269),
+    sync: () => syncRepository(1296269),
   };
   test.each([
     [409, "GITHUB_LOGIN_OUTDATED", "list"],
@@ -140,7 +195,9 @@ describe("error codes", () => {
     [422, "GITHUB_REPOSITORY_NOT_FOUND", "link"],
     [409, "GITHUB_REPOSITORY_ALREADY_LINKED", "link"],
     [409, "GITHUB_REPOSITORY_ALREADY_LINKED", "import"],
+    [429, "GITHUB_SYNC_TOO_SOON", "sync"],
     [429, "GITHUB_USER_LIMIT_REACHED", "list"],
+    [429, "GITHUB_USER_LIMIT_REACHED", "sync"],
     [503, "GITHUB_RATE_LIMITED", "import"],
     [502, "GITHUB_UNAVAILABLE", "link"],
     [409, "PROJECT_LIMIT_REACHED", "import"],
@@ -157,7 +214,7 @@ describe("error codes", () => {
   });
 
   test("every listed code is covered above", () => {
-    expect(GITHUB_ERROR_CODES).toHaveLength(11);
+    expect(GITHUB_ERROR_CODES).toHaveLength(12);
   });
 
   test("an unknown code is OTHER", async () => {
@@ -194,7 +251,7 @@ function apiError(code: string, details: Record<string, unknown>, status = 429) 
 }
 
 describe("retryAfterSeconds", () => {
-  test.each(["GITHUB_USER_LIMIT_REACHED", "GITHUB_RATE_LIMITED"])(
+  test.each(["GITHUB_SYNC_TOO_SOON", "GITHUB_USER_LIMIT_REACHED", "GITHUB_RATE_LIMITED"])(
     "is read from details of %s, not from the header",
     async (code) => {
       const response = errorResponse(code === "GITHUB_RATE_LIMITED" ? 503 : 429, code, {
@@ -222,7 +279,7 @@ describe("retryAfterSeconds", () => {
   });
 
   test("is null for other codes", () => {
-    expect(retryAfterSeconds(apiError("GITHUB_SYNC_TOO_SOON", { retry_after_seconds: 60 }))).toBeNull();
+    expect(retryAfterSeconds(apiError("NOT_FOUND", { retry_after_seconds: 60 }, 404))).toBeNull();
     expect(retryAfterSeconds(apiError("GITHUB_UNAVAILABLE", { retry_after_seconds: 60 }))).toBeNull();
     expect(retryAfterSeconds(new NetworkError(new TypeError("x")))).toBeNull();
   });

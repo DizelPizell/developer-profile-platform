@@ -257,6 +257,26 @@ export async function listRepositories(
   return result;
 }
 
+/**
+ * Queues a sync of a repository one of the user's projects links (202). It does not
+ * call GitHub: an active job is returned as it is, and a new one is allowed 10
+ * minutes after the repository's latest job (429 GITHUB_SYNC_TOO_SOON).
+ */
+export async function syncRepository(githubRepoId: number): Promise<GitHubSync> {
+  if (!isRepoId(githubRepoId)) {
+    throw new RangeError("githubRepoId must be a positive safe integer");
+  }
+  const id = encodeURIComponent(String(githubRepoId));
+  const body = await apiFetch<unknown>(`/integrations/github/repositories/${id}/sync`, {
+    method: "POST",
+  });
+  const sync = toSync(body);
+  if (!sync) {
+    throw invalidResponse("sync");
+  }
+  return sync;
+}
+
 const OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 const NAME_PATTERN = /^[A-Za-z0-9._-]{1,100}$/;
 
@@ -279,6 +299,7 @@ export const GITHUB_ERROR_CODES = [
   "GITHUB_RELATION_NOT_FOUND",
   "GITHUB_REPOSITORY_NOT_FOUND",
   "GITHUB_REPOSITORY_ALREADY_LINKED",
+  "GITHUB_SYNC_TOO_SOON",
   "GITHUB_USER_LIMIT_REACHED",
   "GITHUB_RATE_LIMITED",
   "GITHUB_UNAVAILABLE",
@@ -301,14 +322,21 @@ export function githubErrorCode(error: unknown): GitHubErrorCode | "OTHER" {
   return "OTHER";
 }
 
+const WAIT_CODES: readonly GitHubErrorCode[] = [
+  "GITHUB_SYNC_TOO_SOON",
+  "GITHUB_USER_LIMIT_REACHED",
+  "GITHUB_RATE_LIMITED",
+];
+
 /**
- * Seconds to wait from details.retry_after_seconds of a 429 GITHUB_USER_LIMIT_REACHED
- * or 503 GITHUB_RATE_LIMITED. The Retry-After header is not used: CORS exposes only
- * X-Request-ID to the browser. Null when missing or not a non-negative integer.
+ * Seconds to wait from details.retry_after_seconds of a 429 GITHUB_SYNC_TOO_SOON,
+ * 429 GITHUB_USER_LIMIT_REACHED or 503 GITHUB_RATE_LIMITED. The Retry-After header
+ * is not used: CORS exposes only X-Request-ID to the browser. Null when missing or
+ * not a non-negative integer.
  */
 export function retryAfterSeconds(error: unknown): number | null {
   const code = githubErrorCode(error);
-  if (code !== "GITHUB_USER_LIMIT_REACHED" && code !== "GITHUB_RATE_LIMITED") {
+  if (code === "OTHER" || !WAIT_CODES.includes(code)) {
     return null;
   }
   const value = (error as ApiError).details.retry_after_seconds;
