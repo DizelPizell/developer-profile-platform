@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import httpx
 import pytest
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.github import service as github_service
@@ -19,6 +19,7 @@ from app.github.client import (
     GitHubMoved,
     GitHubNotFound,
     GitHubRateLimited,
+    GitHubRepositoryData,
     GitHubUnavailable,
     GitHubUnexpected,
     RateLimitPause,
@@ -33,6 +34,7 @@ from app.models.github import (
     ProjectRepository,
 )
 from app.models.identity import User
+from app.models.projects import Project
 from tests.test_github_constraints import _link, _project, _repository
 
 T0 = datetime(2026, 11, 1, 12, 0)
@@ -278,12 +280,15 @@ def test_a_second_sync_writes_the_same(env):
 
 
 def test_no_transaction_is_open_while_github_answers(env):
+    _add_link(env, OTHER_ID, "NONE")
+    env.github.contributors = [[OTHER_ID]]
     seen = []
     env.github.during = lambda: seen.append(env.db.in_transaction())
 
     env.sync()
 
-    assert seen == [False, False]
+    assert env.github.requests == ["metadata", "languages", "contributors"]
+    assert seen == [False, False, False]
 
 
 def test_a_deleted_repository_is_not_requested(env):
@@ -424,6 +429,8 @@ def test_partial_success_retries_the_job_and_keeps_synced_at(env):
     _run(env)
 
     assert _job(env, job_id) == ("QUEUED", 1, "GITHUB_UNAVAILABLE")
+    # Committed before the worker's rollback.
+    assert env.categories()["languages"] == (EARLIER, "GITHUB_UNAVAILABLE", T0)
     github = github_service.project_github(env.db, env.project.id, T0)
     # The data is as old as its oldest category.
     assert github.synced_at.replace(tzinfo=None) == EARLIER
@@ -591,6 +598,9 @@ def test_rejected_credentials_on_contributors_stop_the_worker(env):
         env.sync()
 
     assert _relations(env)[contributor] == ("CONTRIBUTOR", EARLIER)
+    # Both categories were stored before the pages were requested.
+    assert env.row().languages == {"Python": 1200, "Shell": 30}
+    assert set(env.categories()) == {"metadata", "languages"}
 
 
 def test_no_relation_is_recomputed_when_a_category_fails(env):
@@ -604,37 +614,60 @@ def test_no_relation_is_recomputed_when_a_category_fails(env):
     assert _relations(env) == {env.link.id: ("OWNER", EARLIER)}
 
 
-def test_a_link_replaced_during_the_sync_is_left_alone(env):
+def _checked(github_repo_id: int, name: str) -> github_service.CheckedRepository:
+    data = GitHubRepositoryData(
+        github_repo_id=github_repo_id,
+        owner_github_id=OWNER_ID,
+        owner_login=OWNER,
+        name=name,
+        full_name=f"{OWNER}/{name}",
+        html_url=f"https://github.com/{OWNER}/{name}",
+        description=None,
+        is_fork=False,
+        is_archived=False,
+        pushed_at=None,
+        parent_full_name=None,
+    )
+    return github_service.CheckedRepository(data, "CONTRIBUTOR")
+
+
+@pytest.mark.parametrize(
+    ("github_repo_id", "name"), [(REPO_ID, "new-name"), (5555, "elsewhere")], ids=["same", "other"]
+)
+def test_a_link_replaced_during_the_sync_is_left_alone(env, github_repo_id, name):
     contributor = _add_link(env, OTHER_ID, "CONTRIBUTOR")
     project_id = env.db.scalar(
         select(ProjectRepository.project_id).where(ProjectRepository.id == contributor)
     )
     env.github.contributors = [[1]]
+    relinked_at = T0 - timedelta(minutes=1)
 
     def relink():
+        # The link endpoint replacing the project's repository while the pages are read.
         if env.github.requests[-1] != "contributors":
             return
-        env.db.execute(delete(ProjectRepository).where(ProjectRepository.id == contributor))
-        env.db.execute(
-            insert(ProjectRepository).values(
-                project_id=project_id,
-                owner_id=env.db.scalar(select(User.id).where(User.github_user_id == OTHER_ID)),
-                github_repository_id=env.repository.id,
-                relation="CONTRIBUTOR",
-                relation_checked_at=T0 - timedelta(minutes=1),
-            )
-        )
+        project = env.db.scalar(select(Project).where(Project.id == project_id).with_for_update())
+        github_service.store_link(env.db, project, _checked(github_repo_id, name), relinked_at)
         env.db.commit()
 
     env.github.during = relink
     env.sync()
 
-    relations = _relations(env)
-    assert contributor not in relations
-    assert sorted(relations.values()) == [
-        ("CONTRIBUTOR", T0 - timedelta(minutes=1)),
-        ("OWNER", T0),
-    ]
+    links = env.db.execute(
+        select(
+            ProjectRepository.id,
+            GitHubRepository.github_repo_id,
+            ProjectRepository.relation,
+            ProjectRepository.relation_checked_at,
+        )
+        .join(GitHubRepository, GitHubRepository.id == ProjectRepository.github_repository_id)
+        .where(ProjectRepository.project_id == project_id)
+    ).all()
+    assert len(links) == 1
+    new_id, *rest = links[0]
+    assert new_id != contributor
+    assert tuple(rest) == (github_repo_id, "CONTRIBUTOR", relinked_at)
+    assert _relations(env)[env.link.id] == ("OWNER", T0)
 
 
 def test_links_of_other_repositories_are_untouched(env):
