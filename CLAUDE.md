@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.2.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.3.
 
 
 
@@ -876,6 +876,8 @@ backend Phase 6 step 6.1: the sync tables github_sync_jobs and github_sync_categ
 
 backend Phase 6 step 6.2: a sync job queued with each link and import (their metadata read recorded as a metadata success), POST /integrations/github/repositories/{id}/sync with the 10-minute pause per repository and 7 requests charged to the user, and github.sync in ProjectResponse (ADR-018); jobs stay QUEUED until the worker (6.3)
 
+backend Phase 6 step 6.3: the worker core — claim with SKIP LOCKED, the outcome fenced by the attempt, retries with backoff, the watchdog, rate limits without an attempt, the reserve of 500, the startup credential check, the loop with graceful stop; one worker process; no GitHub processor or entry point yet, so jobs still stay QUEUED (ADR-009, ADR-018)
+
 
 
 Not yet started:
@@ -886,7 +888,7 @@ demo, screenshots, file storage (MinIO/S3) and the public project page — Phase
 
 frontend sync status in the cabinet — F-GH1.5 (FRONTEND_PLAN; its full manual check waits for the worker)
 
-sync and public GitHub data — Phase 6 steps 6.3–6.7 (ADR-018, ADR-019)
+sync and public GitHub data — Phase 6 steps 6.4–6.7 (ADR-018, ADR-019)
 
 
 
@@ -894,7 +896,7 @@ Current next goal:
 
 
 
-F-GH1.5 (FRONTEND_PLAN): the sync status and «Обновить» with the pause in the project form; then Phase 6 step 6.3 (DEVELOPMENT_PLAN): the worker core (ADR-009, ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+F-GH1.5 (FRONTEND_PLAN): the sync status and «Обновить» with the pause in the project form; then Phase 6 step 6.4 (DEVELOPMENT_PLAN): the processor for metadata and languages and the worker's entry point (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
