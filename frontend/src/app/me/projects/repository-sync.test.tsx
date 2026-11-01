@@ -380,3 +380,265 @@ describe("«Обновить данные»", () => {
     expect(await within(block()).findByText("Не удалось связаться с сервером.")).toBeTruthy();
   });
 });
+
+describe("polling (fake timers)", () => {
+  const QUEUED = withGitHub({ synced_at: null, languages: [] }, SYNC_STATE.QUEUED);
+  const SYNCING = withGitHub({ synced_at: null, languages: [] }, { status: "SYNCING" });
+  const DONE = withGitHub({}, { status: "SYNCED", next_manual_sync_at: "2026-11-01T12:10:00Z" });
+  const LINK = `POST /projects/${ID}/repository`;
+  const UNLINK = `DELETE /projects/${ID}/repository`;
+  const SAVE = `PATCH /projects/${ID}`;
+  let hidden = false;
+
+  function fakeAllTimers() {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+    });
+    vi.setSystemTime(NOW);
+  }
+
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  function setHidden(value: boolean) {
+    hidden = value;
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  }
+
+  beforeEach(() => {
+    hidden = false;
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+  });
+
+  afterEach(() => {
+    delete (document as { hidden?: boolean }).hidden;
+  });
+
+  /**
+   * Opens the form with the project under fake timers; later reads get the replies
+   * in order. findByRole would wait on a faked setTimeout, so the loading promises
+   * are flushed by hand while the clock stands still.
+   */
+  async function renderPolling(project: ProjectResponse, reads: Reply[], extra: Record<string, Reply[]> = {}) {
+    fakeAllTimers();
+    routes({
+      "GET /profile": [Response.json(PROFILE)],
+      [GET]: [Response.json(project), ...reads],
+      ...extra,
+    });
+    const view = render(<ProjectEditScreen projectId={ID} />);
+    for (let i = 0; i < 20 && !screen.queryByRole("form", { name: "Проект" }); i++) {
+      await advance(0);
+    }
+    expect(screen.getByRole("form", { name: "Проект" })).toBeTruthy();
+    return view;
+  }
+
+  test("reads every 5 seconds while the job runs, takes github, then stops", async () => {
+    await renderPolling(QUEUED, [Response.json(SYNCING), Response.json(DONE)]);
+    expect(calls(GET)).toHaveLength(1);
+
+    await advance(4_999);
+    expect(calls(GET)).toHaveLength(1);
+    await advance(1);
+    expect(calls(GET)).toHaveLength(2);
+    expect(status().textContent).toBe("Получаем данные с GitHub…");
+
+    await advance(5_000);
+    expect(calls(GET)).toHaveLength(3);
+    expect(status().textContent).toBe("");
+    expect(within(panel()).getByRole("list", { name: "Языки" })).toBeTruthy();
+    expect(syncButton().textContent).toBe("Обновить через 10 мин");
+
+    await advance(60_000);
+    expect(calls(GET)).toHaveLength(3);
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  test("an answer changes only github: unsaved edits and «Сохранить» stay", async () => {
+    await renderPolling(QUEUED, [Response.json({ ...DONE, title: "Server title" })]);
+    fireEvent.change(title(), { target: { value: "Unsaved title" } });
+
+    await advance(5_000);
+
+    expect(status().textContent).toBe("");
+    expect(title().value).toBe("Unsaved title");
+    expect(button("Сохранить").disabled).toBe(false);
+  });
+
+  test.each(["FAILED", "NOT_SYNCED"] as const)("stops at %s", async (state) => {
+    await renderPolling(QUEUED, [Response.json(withGitHub({}, { status: state }))]);
+    await advance(5_000);
+    await advance(30_000);
+    expect(calls(GET)).toHaveLength(2);
+  });
+
+  test("an unlink elsewhere ends polling with the input", async () => {
+    await renderPolling(QUEUED, [Response.json({ ...PROJECT, github: null })]);
+    await advance(5_000);
+    expect(screen.getByRole("textbox", { name: "Репозиторий GitHub" })).toBeTruthy();
+    await advance(30_000);
+    expect(calls(GET)).toHaveLength(2);
+  });
+
+  test("after 24 reads it stops; «Проверить снова» reads at once and starts a new series", async () => {
+    await renderPolling(QUEUED, [Response.json(QUEUED)]);
+
+    await advance(24 * 5_000);
+    expect(calls(GET)).toHaveLength(25);
+    expect(status().textContent).toContain("Синхронизация идёт дольше обычного. Проверьте позже.");
+    await advance(60_000);
+    expect(calls(GET)).toHaveLength(25);
+
+    fireEvent.click(button("Проверить снова", status()));
+    await advance(0);
+    expect(calls(GET)).toHaveLength(26);
+    expect(status().textContent).toBe("Получаем данные с GitHub…");
+    await advance(5_000);
+    expect(calls(GET)).toHaveLength(27);
+  });
+
+  test("a hidden tab sends nothing; a shown tab reads at once", async () => {
+    await renderPolling(QUEUED, [Response.json(QUEUED)]);
+    setHidden(true);
+
+    await advance(60_000);
+    expect(calls(GET)).toHaveLength(1);
+
+    setHidden(false);
+    await advance(0);
+    expect(calls(GET)).toHaveLength(2);
+    await advance(5_000);
+    expect(calls(GET)).toHaveLength(3);
+  });
+
+  test("three failed reads in a row stop it; a success in between resets the count", async () => {
+    await renderPolling(QUEUED, [
+      apiError(500, "INTERNAL_ERROR"),
+      apiError(502, "BAD_GATEWAY"),
+      Response.json(QUEUED),
+      apiError(500, "INTERNAL_ERROR"),
+      apiError(500, "INTERNAL_ERROR"),
+      apiError(500, "INTERNAL_ERROR"),
+    ]);
+
+    await advance(5 * 5_000);
+    expect(calls(GET)).toHaveLength(6);
+    expect(status().textContent).toBe("Получаем данные с GitHub…");
+
+    await advance(5_000);
+    expect(calls(GET)).toHaveLength(7);
+    expect(status().textContent).toContain("Не удалось узнать статус синхронизации.");
+    expect(within(block()).queryByRole("alert")).toBeNull();
+    await advance(60_000);
+    expect(calls(GET)).toHaveLength(7);
+  });
+
+  test("a network failure counts as a failed read", async () => {
+    await renderPolling(QUEUED, []);
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    await advance(3 * 5_000);
+    expect(status().textContent).toContain("Не удалось узнать статус синхронизации.");
+  });
+
+  test("401 leaves for /login and stops", async () => {
+    await renderPolling(QUEUED, [apiError(401, "UNAUTHORIZED")]);
+    await advance(5_000);
+    expect(replace).toHaveBeenCalledWith("/login");
+    await advance(30_000);
+    expect(calls(GET)).toHaveLength(2);
+  });
+
+  test("404 shows «Проект не найден»", async () => {
+    await renderPolling(QUEUED, [apiError(404, "NOT_FOUND")]);
+    await advance(5_000);
+    expect(screen.getByRole("heading", { name: "Проект не найден" })).toBeTruthy();
+  });
+
+  test("the timer is cleared when the form unmounts", async () => {
+    const view = await renderPolling(QUEUED, [Response.json(QUEUED)]);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(30_000);
+    expect(calls(GET)).toHaveLength(1);
+  });
+
+  test("starts after a link that queued a job", async () => {
+    const linked = deferred();
+    await renderPolling({ ...PROJECT, github: null }, [Response.json(DONE)], {
+      [LINK]: [() => linked.promise],
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Репозиторий GitHub" }), {
+      target: { value: "octocat/Hello-World" },
+    });
+    fireEvent.click(button("Привязать"));
+    await act(async () => {
+      linked.resolve(Response.json(QUEUED));
+    });
+    expect(status().textContent).toBe("Получаем данные с GitHub…");
+    expect(calls(GET)).toHaveLength(1);
+
+    await advance(5_000);
+    expect(calls(GET)).toHaveLength(2);
+    expect(status().textContent).toBe("");
+  });
+
+  test("starts after «Обновить данные»", async () => {
+    await renderPolling(PROJECT, [Response.json(DONE)], {
+      [SYNC]: [Response.json(SYNC_STATE.QUEUED, { status: 202 })],
+    });
+    fireEvent.click(syncButton());
+    await advance(0);
+    expect(status().textContent).toBe("Получаем данные с GitHub…");
+
+    await advance(5_000);
+    expect(calls(GET)).toHaveLength(2);
+    expect(status().textContent).toBe("");
+  });
+
+  test("an unlink cancels the read in flight, and its late answer is dropped", async () => {
+    const late = deferred();
+    await renderPolling(QUEUED, [() => late.promise], {
+      [UNLINK]: [Response.json({ ...PROJECT, github: null })],
+    });
+    await advance(5_000);
+    expect(calls(GET)).toHaveLength(2);
+
+    fireEvent.click(button("Отвязать"));
+    fireEvent.click(button("Отвязать", screen.getByRole("alertdialog")));
+    await advance(0);
+    expect(screen.getByRole("textbox", { name: "Репозиторий GitHub" })).toBeTruthy();
+    expect((calls(GET)[1][1]?.signal as AbortSignal).aborted).toBe(true);
+
+    await act(async () => {
+      late.resolve(Response.json(QUEUED));
+    });
+    expect(screen.queryByRole("group", { name: "Привязанный репозиторий" })).toBeNull();
+    await advance(30_000);
+    expect(calls(GET)).toHaveLength(2);
+  });
+
+  test("a save keeps the github of its own answer over a late read", async () => {
+    const late = deferred();
+    await renderPolling(QUEUED, [() => late.promise], {
+      [SAVE]: [Response.json({ ...DONE, title: "New title" })],
+    });
+    await advance(5_000);
+    fireEvent.change(title(), { target: { value: "New title" } });
+    fireEvent.click(button("Сохранить"));
+    await advance(0);
+    expect(status().textContent).toBe("");
+
+    await act(async () => {
+      late.resolve(Response.json(QUEUED));
+    });
+    expect(status().textContent).toBe("");
+    expect(within(panel()).getByRole("list", { name: "Языки" })).toBeTruthy();
+  });
+});

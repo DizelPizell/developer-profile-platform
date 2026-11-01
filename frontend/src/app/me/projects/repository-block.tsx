@@ -48,7 +48,7 @@ import {
   UNAVAILABLE_WARNING,
 } from "../github-texts";
 import { BADGE } from "./project-texts";
-import { isSyncActive, SyncMessage } from "./repository-sync";
+import { isSyncActive, SyncMessage, useSyncPolling, type PollStop } from "./repository-sync";
 
 const FORMAT_ERROR = "Формат: владелец/репозиторий.";
 
@@ -109,6 +109,15 @@ export function RepositoryBlock({
       panel.current?.focus();
     }
     focusNext.current = null;
+  });
+
+  const { stop: pollStop, checkAgain } = useSyncPolling({
+    projectId: project?.id ?? null,
+    github: project?.github ?? null,
+    busy: busy || pending !== null,
+    onGitHub,
+    onUnauthorized: () => router.replace("/login"),
+    onNotFound,
   });
 
   useEffect(() => {
@@ -331,7 +340,15 @@ export function RepositoryBlock({
         </p>
       )}
 
-      {github !== null && <LinkedRepository github={github} panel={panel} />}
+      {github !== null && (
+        <LinkedRepository
+          github={github}
+          panel={panel}
+          pollStop={pollStop}
+          busy={disabled}
+          onCheckAgain={checkAgain}
+        />
+      )}
 
       {github !== null && (
         <div className="flex flex-col items-start gap-3">
@@ -503,9 +520,15 @@ function RepositorySection({ children }: { children: ReactNode }) {
 function LinkedRepository({
   github,
   panel,
+  pollStop,
+  busy,
+  onCheckAgain,
 }: {
   github: ProjectGitHub;
   panel: RefObject<HTMLDivElement | null>;
+  pollStop: PollStop | null;
+  busy: boolean;
+  onCheckAgain: () => void;
 }) {
   const pushedAt = pushedAtText(github.pushed_at);
   const syncedAt = syncedAtText(github.synced_at);
@@ -537,7 +560,7 @@ function LinkedRepository({
           />
         </div>
       )}
-      <SyncMessage github={github} />
+      <SyncMessage github={github} stop={pollStop} busy={busy} onCheckAgain={onCheckAgain} />
       {github.synced_at === null ? (
         <DataPlaceholder>{NOT_SYNCED_TEXT}</DataPlaceholder>
       ) : (
