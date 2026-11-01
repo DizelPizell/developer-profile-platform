@@ -21,7 +21,7 @@ import {
 import { UNTITLED } from "./projects/project-texts";
 
 /** The request that failed: it picks the 404 text and what «Повторить» means. */
-export type GitHubRequest = "list" | "import" | "link";
+export type GitHubRequest = "list" | "import" | "link" | "sync";
 
 /** «через {N} мин»: whole minutes, rounded up, at least 1 (DESIGN.md). */
 export function retryMinutes(seconds: number): number {
@@ -29,11 +29,12 @@ export function retryMinutes(seconds: number): number {
 }
 
 /**
- * The wait after a 429 GITHUB_USER_LIMIT_REACHED or a 503 GITHUB_RATE_LIMITED.
- * start(error) begins it from details.retry_after_seconds and does nothing for
- * other errors or a missing value. left is the seconds still to wait, 0 when
- * none. The timer reads the clock on every tick, so it stays right after the
- * tab sleeps, and it is cleared on unmount.
+ * A wait counted down to a moment. start(error) begins it from
+ * details.retry_after_seconds of a 429 or 503 and does nothing for other errors
+ * or a missing value; startAt(ms) begins it at a moment, such as
+ * next_manual_sync_at, and does nothing for a moment that has passed or is null.
+ * left is the seconds still to wait, 0 when none. The timer reads the clock on
+ * every tick, so it stays right after the tab sleeps, and it is cleared on unmount.
  */
 export function useRetryCountdown() {
   const [until, setUntil] = useState<number | null>(null);
@@ -53,17 +54,24 @@ export function useRetryCountdown() {
     return () => clearInterval(timer);
   }, [until]);
 
-  const start = useCallback((error: unknown) => {
-    const seconds = retryAfterSeconds(error);
+  const startAt = useCallback((moment: number | null) => {
     const current = Date.now();
     setNow(current);
-    setUntil(seconds ? current + seconds * 1000 : null);
+    setUntil(moment !== null && moment > current ? moment : null);
   }, []);
+
+  const start = useCallback(
+    (error: unknown) => {
+      const seconds = retryAfterSeconds(error);
+      startAt(seconds ? Date.now() + seconds * 1000 : null);
+    },
+    [startAt],
+  );
 
   const stop = useCallback(() => setUntil(null), []);
 
   const left = until === null ? 0 : Math.max(0, Math.ceil((until - now) / 1000));
-  return { left, start, stop };
+  return { left, start, startAt, stop };
 }
 
 type Action =
@@ -165,6 +173,14 @@ function githubMessage(
         title: "Достигнут лимит проектов",
         text: `У вас уже ${projectLimit(error) ?? PROJECTS_MAX} проектов, это максимум. Удалите ненужный проект, чтобы импортировать репозиторий.`,
         action: { kind: "link", href: "/me/projects", label: "К моим проектам" },
+      };
+    case "GITHUB_SYNC_TOO_SOON":
+      // The pause belongs to the repository, shared by everyone who linked it: no «вы».
+      return {
+        tone: "label",
+        title: "Данные недавно обновлялись",
+        text: waitText(error, "Этот репозиторий недавно синхронизировался.", "Обновить можно"),
+        action: { kind: "wait" },
       };
     case "GITHUB_USER_LIMIT_REACHED":
       return {

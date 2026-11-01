@@ -19,18 +19,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ApiError,
+  getProject,
   githubErrorCode,
   isRepositoryFullName,
   linkedProjectId,
   linkRepository,
   listProjects,
+  syncRepository,
   unlinkRepository,
   type ProjectGitHub,
   type ProjectResponse,
   type ProjectSummary,
 } from "@/lib/api";
 
-import { GitHubErrorAlert, useRetryCountdown } from "../github-error";
+import { GitHubErrorAlert, retryMinutes, useRetryCountdown } from "../github-error";
 import {
   DataPlaceholder,
   NO_DESCRIPTION,
@@ -46,16 +48,20 @@ import {
   UNAVAILABLE_WARNING,
 } from "../github-texts";
 import { BADGE } from "./project-texts";
+import { isSyncActive, SyncMessage } from "./repository-sync";
 
 const FORMAT_ERROR = "Формат: владелец/репозиторий.";
 
 /** A failed link with the name it sent, for «Повторить» after a 502. */
 type LinkError = { error: unknown; fullName: string };
 
+/** Changes the form's `github` from its current value, never from a stale copy. */
+export type GitHubUpdate = (current: ProjectGitHub | null) => ProjectGitHub | null;
+
 /**
- * «Репозиторий GitHub» in the project form (DESIGN.md). Link and unlink act at
- * once, apart from «Сохранить»: the form takes only `github` from their answer,
- * so unsaved edits in the fields stay.
+ * «Репозиторий GitHub» in the project form (DESIGN.md). Link, unlink and
+ * «Обновить данные» act at once, apart from «Сохранить»: the form takes only
+ * `github` from their answer, so unsaved edits in the fields stay.
  */
 export function RepositoryBlock({
   project,
@@ -68,24 +74,29 @@ export function RepositoryBlock({
   project: ProjectResponse | null;
   /** A request of the form itself is in flight. */
   busy: boolean;
-  /** Lets the form disable its buttons while a link or unlink runs. */
+  /** Lets the form disable its buttons while a request of the block runs. */
   onPendingChange: (pending: boolean) => void;
-  onGitHub: (github: ProjectGitHub | null) => void;
+  onGitHub: (update: GitHubUpdate) => void;
   onNotFound: () => void;
 }) {
   const router = useRouter();
   const [value, setValue] = useState("");
   const [replacing, setReplacing] = useState(false);
   const [formatError, setFormatError] = useState(false);
-  const [pending, setPending] = useState<"link" | "unlink" | null>(null);
+  const [pending, setPending] = useState<"link" | "unlink" | "sync" | null>(null);
   // Blocks a second request before the disabled state reaches the DOM.
   const inFlight = useRef(false);
   const [linkError, setLinkError] = useState<LinkError | null>(null);
   const [unlinkError, setUnlinkError] = useState<unknown>(null);
+  const [syncError, setSyncError] = useState<unknown>(null);
   const [confirming, setConfirming] = useState(false);
   // Read only for GITHUB_REPOSITORY_ALREADY_LINKED, to name the other project.
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const { left: waitLeft, start: startWait, stop: stopWait } = useRetryCountdown();
+  const { left: syncWaitLeft, start: startSyncWait, stop: stopSyncWait } = useRetryCountdown();
+  // The repository's 10-minute pause between manual syncs, by the browser's clock.
+  const { left: pauseLeft, startAt: startPause } = useRetryCountdown();
+  const nextManualSyncAt = project?.github?.sync.next_manual_sync_at ?? null;
   const input = useRef<HTMLInputElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   // Where the focus goes once the block shows the other state.
@@ -100,6 +111,11 @@ export function RepositoryBlock({
     focusNext.current = null;
   });
 
+  useEffect(() => {
+    // An invalid date parses to NaN and starts no pause; the API stays the judge.
+    startPause(nextManualSyncAt === null ? null : Date.parse(nextManualSyncAt));
+  }, [nextManualSyncAt, startPause]);
+
   if (project === null) {
     return (
       <RepositorySection>
@@ -111,14 +127,16 @@ export function RepositoryBlock({
   const { id: projectId, github } = project;
   const disabled = busy || pending !== null;
 
-  function begin(action: "link" | "unlink") {
+  function begin(action: "link" | "unlink" | "sync") {
     inFlight.current = true;
     setPending(action);
     onPendingChange(true);
     setFormatError(false);
     setLinkError(null);
     setUnlinkError(null);
+    setSyncError(null);
     stopWait();
+    stopSyncWait();
   }
 
   function end() {
@@ -158,7 +176,7 @@ export function RepositoryBlock({
     begin("link");
     try {
       const answer = await linkRepository(projectId, fullName);
-      onGitHub(answer.github);
+      onGitHub(() => answer.github);
       setValue("");
       setReplacing(false);
       focusNext.current = "panel";
@@ -212,7 +230,7 @@ export function RepositoryBlock({
     begin("unlink");
     try {
       const answer = await unlinkRepository(projectId);
-      onGitHub(answer.github);
+      onGitHub(() => answer.github);
       setReplacing(false);
       focusNext.current = "input";
     } catch (error) {
@@ -222,6 +240,56 @@ export function RepositoryBlock({
       setUnlinkError(error);
     }
     end();
+  }
+
+  async function sync(repoId: number) {
+    if (inFlight.current) {
+      return;
+    }
+    begin("sync");
+    try {
+      const state = await syncRepository(repoId);
+      // Only the sync state of the same repository: nothing else came back.
+      onGitHub((current) =>
+        current?.github_repo_id === repoId ? { ...current, sync: state } : current,
+      );
+      // The button becomes disabled, so the focus would be lost.
+      focusNext.current = "panel";
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (githubErrorCode(error) === "NOT_FOUND") {
+        // None of the user's projects links the repository any longer: the
+        // project is read once and only its github is taken, without a message.
+        if ((await reloadGitHub()) === "leave") {
+          return;
+        }
+      } else {
+        setSyncError(error);
+        startSyncWait(error);
+      }
+    }
+    end();
+  }
+
+  async function reloadGitHub(): Promise<"stay" | "leave"> {
+    try {
+      const answer = await getProject(projectId);
+      onGitHub(() => answer.github);
+    } catch (error) {
+      if (leaves(error)) {
+        return "leave";
+      }
+      setSyncError(error);
+    }
+    return "stay";
+  }
+
+  function retrySync() {
+    // Shown after a countdown ends: the message closes and the user syncs again.
+    setSyncError(null);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -244,6 +312,15 @@ export function RepositoryBlock({
 
   const hintId = "project-repository-hint";
   const errorId = "project-repository-error";
+  const syncActive = github !== null && isSyncActive(github.sync.status);
+  // A pause of a running job is not shown: the button waits for the job anyway.
+  const paused = !syncActive && pauseLeft > 0;
+  let syncLabel = "Обновить данные";
+  if (pending === "sync") {
+    syncLabel = "Ставим в очередь…";
+  } else if (paused && syncWaitLeft === 0) {
+    syncLabel = `Обновить через ${retryMinutes(pauseLeft)} мин`;
+  }
 
   return (
     <RepositorySection>
@@ -255,6 +332,27 @@ export function RepositoryBlock({
       )}
 
       {github !== null && <LinkedRepository github={github} panel={panel} />}
+
+      {github !== null && (
+        <div className="flex flex-col items-start gap-3">
+          <Button
+            type="button"
+            disabled={disabled || syncActive || paused || syncWaitLeft > 0}
+            onClick={() => void sync(github.github_repo_id)}
+          >
+            {syncLabel}
+          </Button>
+          {syncError !== null && (
+            <GitHubErrorAlert
+              error={syncError}
+              request="sync"
+              projects={[]}
+              waitLeft={syncWaitLeft}
+              onRetry={retrySync}
+            />
+          )}
+        </div>
+      )}
 
       {github !== null && !replacing && (
         <div className="flex flex-wrap gap-3">
@@ -275,6 +373,11 @@ export function RepositoryBlock({
         </div>
       )}
       {unlinkError !== null && <RequestErrorAlert error={unlinkError} />}
+      {paused && (
+        <p className="text-sm text-text-muted">
+          Данные одного репозитория можно обновлять раз в 10 минут.
+        </p>
+      )}
 
       {(github === null || replacing) && (
         <div className="flex flex-col gap-2">
@@ -434,6 +537,7 @@ function LinkedRepository({
           />
         </div>
       )}
+      <SyncMessage github={github} />
       {github.synced_at === null ? (
         <DataPlaceholder>{NOT_SYNCED_TEXT}</DataPlaceholder>
       ) : (

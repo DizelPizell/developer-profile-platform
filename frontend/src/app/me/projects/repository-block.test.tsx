@@ -181,6 +181,7 @@ describe("the block's states", () => {
     expect(linked.textContent).toBe(
       "octocat/Hello-WorldОбновлён: 30.10.2026My first repository" +
         "Владелец репозиторияФорк github/Hello-WorldВ архиве на GitHub" +
+        "Ещё не синхронизирован с GitHub." +
         "Языки и другие данные появятся после первой синхронизации с GitHub. Сейчас данные ещё не загружены.",
     );
     expect(block().textContent).not.toMatch(/подтвержд|провер|верифиц/i);

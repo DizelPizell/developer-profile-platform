@@ -27,6 +27,21 @@
   --shadow-pixel-lg: 6px 6px 0 var(--color-outline);
   /* Panel: 4px inner frame plus the hard shadow. */
   --shadow-panel: inset 0 0 0 4px var(--color-frame), 4px 4px 0 var(--color-outline);
+
+  /* The squares of «Получаем данные с GitHub…»: brightness in steps, no easing. */
+  --animate-sync-step: sync-step 0.9s steps(1, end) infinite;
+
+  @keyframes sync-step {
+    0% {
+      opacity: 1;
+    }
+    33% {
+      opacity: 0.6;
+    }
+    66% {
+      opacity: 0.3;
+    }
+  }
 }
 
 /* Font variables are set by next/font on <html> (src/app/fonts.ts). */

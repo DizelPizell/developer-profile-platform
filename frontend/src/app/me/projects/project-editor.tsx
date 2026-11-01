@@ -342,7 +342,9 @@ export function ProjectEditor({
           busy={pending !== null}
           onPendingChange={setGithubPending}
           // Only github is taken from the answer: unsaved edits and «Сохранить» stay as they are.
-          onGitHub={(github) => setSaved((current) => current && { ...current, github })}
+          onGitHub={(update) =>
+            setSaved((current) => current && { ...current, github: update(current.github) })
+          }
           onNotFound={onNotFound}
         />
 
