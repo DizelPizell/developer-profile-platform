@@ -348,7 +348,7 @@ Done in F-GH1.3:
 
 Folded on 2026-10-31 (the owner): the list page and the link dialog got these states in F-GH1.2, and the form block gets them in F-GH1.3 with the same component (`src/app/me/github-error.tsx`). Its tests and manual steps moved there.
 
-### F-GH1.5 — Sync status, languages and «Обновить данные» (M; after backend 6.4)
+### F-GH1.5 — Sync status, languages and «Обновить данные» (M; after backend 6.4) [done; manual check pending]
 
 Screens, texts and rules: "Sync status, languages and «Обновить данные»" in `DESIGN.md`; mockup `repository-sync.png`. One PR, one commit per item below.
 
@@ -430,6 +430,16 @@ Decided with the owner (2026-11-01):
 - The data date with the time.
 - The button is «Обновить данные»; during a pause it is disabled with a countdown and a hint.
 - The mockup `repository-sync.png` (11 states and a rules card) was drawn before the code. The mockup decides the layout; `DESIGN.md` and the contract win where it differs.
+
+Done in F-GH1.5:
+- `src/lib/api/github.ts`: `syncRepository` and `GITHUB_SYNC_TOO_SOON`. `src/lib/github-languages.ts`: the shares. `src/app/me/github-texts.tsx`: the chips, the empty-list text and the data date. `src/app/me/github-error.tsx`: the `sync` request, the `TOO_SOON` card and a countdown started from a moment. `src/app/me/projects/repository-sync.tsx`: the message and the polling hook; `repository-block.tsx` holds the button and the pause.
+- Decisions made while building:
+  - The form's `onGitHub` takes an updater (`current github → new github`), not a value: a 202 or a polling answer is applied only while the form still shows the repository it was sent for, checked against the state at the moment it lands, not against the props of an older render.
+  - The polling effect reads its callbacks through `useEffectEvent` (React 19), so a new `onGitHub` on every render of the form does not restart the series and its 24-read count.
+  - A late answer is dropped in two ways: a form or block request cancels the read in flight (abort plus a flag checked after `await`), and the updater compares `github_repo_id`. The second is defence in depth: the mutation that removes it survives, since every path that changes the repository runs a request and cancels the read first.
+  - The pause from `next_manual_sync_at` and an error's countdown are separate: the button text shows the pause only while no error countdown runs, so the error card and the button never show two different numbers.
+  - The `TOO_SOON` card is not in `github-states.png`; its text and tone follow `DESIGN.md` (a label like the other waits).
+- Checked with Vitest + RTL (fetch mocked, fake timers; 548 tests), 28 mutations (27 fail tests; the unmount mutation first survived, so a test now checks that a tab shown after the form is closed reads nothing; the `github_repo_id` check survives as described above), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual project sync check"; it has not been run yet.
 
 ### Decided
 

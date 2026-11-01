@@ -133,6 +133,24 @@ The same setup as above (backend rebuilt, `npm run dev`, signed in, `http://loca
 
 Not checked by hand, only by tests: the `unavailable` and `relation: "NONE"` warnings (only a sync sets them, Phase 6), 503 `GITHUB_RATE_LIMITED`, 422 `VALIDATION_ERROR` from the API (the client check sends no invalid name), 500 `INTERNAL_ERROR` with «Код запроса», an unlink error, and the countdown reaching its end.
 
+## Manual project sync check
+
+The same setup as above, and the GitHub sync worker, which has no Compose service yet: start and stop it by hand as the backend README says (`docker compose run --rm --no-deps backend python -m app.github.worker`, Ctrl+C to stop). Each step that changes the root `.env` ends by putting the value back and running `docker compose up -d backend`.
+
+1. With the worker stopped, link one of your repositories in a project form → «Получаем данные с GitHub…» with three squares, «Обновить данные» disabled, and a `GET /projects/<id>` in Network every 5 seconds.
+2. Wait 2 minutes → the reads stop and the message is «Синхронизация идёт дольше обычного. Проверьте позже.» with «Проверить снова».
+3. Start the worker and press «Проверить снова» → one read at once, and within 5–10 seconds «Данные GitHub от <date>, <time>», the language chips with shares under «Доля кода в байтах, по данным GitHub», «Обновить через 10 мин» (or less) disabled, and «Данные одного репозитория можно обновлять раз в 10 минут.»
+4. Change «Название» without saving, press «Обновить данные» when it is active (or link another repository) and wait for the end of the sync → the changed title is still in the field and «Сохранить» is active.
+5. The pause: `GITHUB_MANUAL_SYNC_COOLDOWN_SECONDS=60`, restart the backend, link a repository and wait for the sync → after a minute the button becomes «Обновить данные» without a request. Press it → «Ставим в очередь…», then «Получаем данные с GitHub…», then a new date.
+6. Too soon: with the 60-second pause, open the same project in a second tab and press «Обновить данные» there; in the first tab, without reloading, press it as soon as it is active → «Данные недавно обновлялись» with «Повторить через 1 мин».
+7. A failed sync: stop the worker, start it with `docker compose run --rm --no-deps -e GITHUB_WORKER_MAX_ATTEMPTS=1 backend python -m app.github.worker`, disconnect the computer from the internet after it has started, press «Обновить данные» → «Не удалось обновить данные с GitHub. Показаны данные от …» and the old chips. Reconnect, stop the worker and start it as usual.
+8. Your request limit: `GITHUB_USER_REQUESTS_PER_HOUR=7` with the 60-second pause; link a repository, wait for the pause to end and press «Обновить данные» → «Слишком много обращений к GitHub» with the countdown.
+9. With the worker stopped, link a repository and switch to another browser tab for 30 seconds → Network shows no reads meanwhile; come back → one read at once.
+10. Link your own empty public repository (create one on github.com) and let the worker sync it → «GitHub не нашёл в репозитории кода на известных ему языках.»
+11. Narrow screen (375 px): the chips wrap, the block has no horizontal scroll.
+
+Not checked by hand, only by tests: the `unavailable` warning (two 404s in a row come with backend step 6.5), `relation: "NONE"` after a sync, three failed reads in a row, a late read answered after an unlink or a save, a sync 404 (the repository unlinked in another tab between two clicks), «<1 %» and «Другие» beyond what your repositories show, and 500 `INTERNAL_ERROR` on a sync.
+
 ## Manual public page check
 
 Backend running, a published profile with slug `<slug>`. Use a private window (no session) for steps 1–8.
