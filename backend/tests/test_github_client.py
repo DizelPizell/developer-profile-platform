@@ -246,6 +246,28 @@ def test_is_contributor_reads_at_most_five_pages():
     assert len(recorder.requests) == 5
 
 
+def test_find_contributors_stops_when_all_are_found():
+    client, recorder = _client(_contributor_pages(found_on=2))
+
+    assert client.find_contributors("octocat", "Hello-World", {4000001, 10}) == {4000001, 10}
+    assert len(recorder.requests) == 2
+
+
+def test_find_contributors_returns_those_found_in_five_pages():
+    client, recorder = _client(_contributor_pages(found_on=3))
+
+    found = client.find_contributors("octocat", "Hello-World", {4000001, 50, 60})
+
+    assert found == {4000001, 50}
+    assert len(recorder.requests) == 5
+
+
+def test_languages_keep_names_with_spaces_and_symbols():
+    client, _ = _client(_json(200, {"C++": 10, "Vim Script": 5, "F#": 1}))
+
+    assert client.get_languages("octocat", "Hello-World") == {"C++": 10, "Vim Script": 5, "F#": 1}
+
+
 def test_is_contributor_stops_on_last_page():
     client, recorder = _client(_json(200, _fixture("contributors.json")))
 
@@ -293,7 +315,10 @@ def test_malformed_repository_is_unavailable(body):
     assert exc.value.reason == "malformed_response"
 
 
-@pytest.mark.parametrize("body", [[], {"C": "1"}, {"C": -1}, {"C": True}, {" ": 1}])
+@pytest.mark.parametrize(
+    "body",
+    [[], {"C": "1"}, {"C": -1}, {"C": True}, {" ": 1}, {"C\x00": 1}, {"C\n++": 1}, {"\x7f": 1}],
+)
 def test_malformed_languages_are_unavailable(body):
     client, _ = _client(_json(200, body))
 

@@ -10,6 +10,7 @@ import base64
 import logging
 import re
 import threading
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -495,7 +496,10 @@ class GitHubApiClient:
             raise _malformed(response.status_code)
         languages: dict[str, int] = {}
         for language, size in data.items():
-            if not language.strip() or isinstance(size, bool) or not isinstance(size, int):
+            # A name is stored as a JSONB key, which cannot hold NUL, and shown as text.
+            if not language.strip() or any(unicodedata.category(ch) == "Cc" for ch in language):
+                raise _malformed(response.status_code)
+            if isinstance(size, bool) or not isinstance(size, int):
                 raise _malformed(response.status_code)
             if size < 0:
                 raise _malformed(response.status_code)
@@ -525,15 +529,20 @@ class GitHubApiClient:
         has_next = "next" in response.links and page < MAX_CONTRIBUTOR_PAGES
         return ContributorPage(github_user_ids=tuple(ids), has_next=has_next)
 
-    def is_contributor(self, owner: str, name: str, github_user_id: int) -> bool:
-        """Whether the user is in the first 5 contributor pages (ADR-017)."""
+    def find_contributors(self, owner: str, name: str, github_user_ids: set[int]) -> set[int]:
+        """Which of these users are in the first 5 contributor pages (ADR-017).
+        Stops reading pages once all of them are found."""
+        found: set[int] = set()
         for page in range(1, MAX_CONTRIBUTOR_PAGES + 1):
             result = self.get_contributor_page(owner, name, page)
-            if github_user_id in result.github_user_ids:
-                return True
-            if not result.has_next:
-                return False
-        return False
+            found.update(github_user_ids.intersection(result.github_user_ids))
+            if found == github_user_ids or not result.has_next:
+                break
+        return found
+
+    def is_contributor(self, owner: str, name: str, github_user_id: int) -> bool:
+        """Whether the user is in the first 5 contributor pages (ADR-017)."""
+        return bool(self.find_contributors(owner, name, {github_user_id}))
 
     def _get(self, operation: str, path: str, params: dict | None = None) -> httpx.Response:
         self._pause.check(self._now())
