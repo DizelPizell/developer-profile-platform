@@ -404,6 +404,14 @@ class GitHubApiClient:
     def __repr__(self) -> str:
         return f"GitHubApiClient(base_url={GITHUB_API!r})"
 
+    @property
+    def rate_limits(self) -> RateLimitState:
+        return self._rate_limits
+
+    @property
+    def pause(self) -> RateLimitPause:
+        return self._pause
+
     def get_rate_limit(self) -> RateLimit:
         """The core limit from /rate_limit, which does not spend it. The worker's
         startup check reads it: app credentials get 5,000, none get 60 (ADR-016)."""
