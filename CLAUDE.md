@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.4.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.4, with F-GH1.5 in the frontend.
 
 
 
@@ -880,6 +880,8 @@ backend Phase 6 step 6.3: the worker core — claim with SKIP LOCKED, the outcom
 
 backend Phase 6 step 6.4: the processor — metadata by id and languages, each in its own short transaction with its category status, the relation of every link recomputed from up to 5 contributor pages; python -m app.github.worker, run by hand until 6.6 (ADR-018)
 
+frontend F-GH1.5: the sync status, the language chips with shares and the data date in the project form, «Обновить данные» with the pause, and polling every 5 seconds while a job is active (visible tab only, at most 2 minutes) (manual check against the worker pending)
+
 
 
 Not yet started:
@@ -887,8 +889,6 @@ Not yet started:
 
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
-
-frontend sync status in the cabinet — F-GH1.5 (FRONTEND_PLAN; its full manual check waits for the worker)
 
 sync and public GitHub data — Phase 6 steps 6.5–6.7 (ADR-018, ADR-019)
 
@@ -898,7 +898,7 @@ Current next goal:
 
 
 
-F-GH1.5 (FRONTEND_PLAN): the sync status and «Обновить» with the pause in the project form, checked against the worker run by hand; then Phase 6 step 6.5 (DEVELOPMENT_PLAN): periodic syncs and the two-404 rule (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+Phase 6 step 6.5 (DEVELOPMENT_PLAN): periodic syncs and the two-404 rule (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
