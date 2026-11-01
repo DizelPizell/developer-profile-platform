@@ -92,6 +92,25 @@ Decided in step 6.2, 2026-10-31.
 - The charge comes after the insert, so a reused job costs nothing. If the commit fails after it, the user loses those 7 until they leave the window; the budget has no refund.
 - The manual sync locks the repository row (`SELECT ... FOR UPDATE`) before it reads the latest job. A link holds the same lock through its upsert. The partial unique index alone keeps one active job, but a job that finishes before the first request commits would leave the index empty, and a second request could queue another job inside the pause; the lock makes it read the new job first. An advisory lock was rejected (a key derived from a UUID, invisible in the schema), and so was SERIALIZABLE (retries).
 
+### Worker core
+
+Decided in step 6.3, 2026-11-01; the code is `backend/app/github/worker.py`.
+
+- **One worker process in V1.** ADR-009's `SKIP LOCKED` would let several run, but requests go one at a time ("Rate limits" above), and each process would keep its own pause. A second process started by mistake is still safe: it skips the rows the first has locked.
+- **Claim.** A short transaction takes the due `QUEUED` job scheduled earliest (`FOR UPDATE SKIP LOCKED`), sets `SYNCING`, `attempt_count + 1` and `updated_at`, and commits before the job runs. The processor runs outside any transaction of the worker and commits its own writes (one transaction per category, step 6.4); what it leaves uncommitted is rolled back.
+- **Outcome and fence.** The outcome is written in another short transaction, only while the job is still `SYNCING` at the claimed `attempt_count`. If the watchdog took the job back in between, the outcome is dropped and logged, so a lost worker cannot overwrite the next attempt. Rejected: one transaction around the whole job (GitHub requests inside an open transaction, and its failure would undo the category writes) and a heartbeat (a job is at most 7 requests of at most 10 seconds, far below the stale threshold).
+- **Attempts** are counted at the claim, so a worker that dies during a job has used the attempt. A rate limit gives it back (`attempt_count - 1`), sets `scheduled_at` to the reset and starts the pause; `last_error` keeps the previous label.
+- **Labels** of `last_error` in jobs: `NOT_FOUND` (404), `GITHUB_UNAVAILABLE` (timeout, network error, 5xx, malformed answer), `UNEXPECTED_STATUS` (a redirect the processor did not follow, another 4xx), `WORKER_LOST` (the watchdog), `INTERNAL_ERROR` (an exception from the code, the only case logged with a traceback). Labels carry no status code; a rate limit has no label.
+- **Retries.** A failure with attempts left returns the job to `QUEUED` at `now + min(base · 2^(attempt − 1), max)`: 30 seconds, then 1, 2 and 4 minutes, and `FAILED` after the fifth attempt. No jitter, as there is one worker. The processor can end a job `FAILED` at once (the second 404 in a row, step 6.5).
+- **401 during a job**: the job returns to `QUEUED` with its attempt given back, and the worker stops with an error. It is a configuration problem; failing every job would only hide it.
+- **Watchdog.** Before each claim, also while claims are held: `SYNCING` jobs whose `updated_at` is older than the stale threshold, with `SKIP LOCKED`, return to `QUEUED` due now with `WORKER_LOST`, or become `FAILED` when their attempts are used up.
+- **Holding claims.** No claim during the rate-limit pause, nor while the latest `x-ratelimit-remaining` seen is at or below the reserve, until that answer's reset. Without a known remaining or reset the worker claims: only its own requests would tell it more. The worker charges no user; a manual sync already counted its 7.
+- **Startup.** `GET /rate_limit` (it does not spend the limit) with the app credentials: a 401 or a core limit of 60 or less stops the worker with an error, and so does an unavailable GitHub; the restart policy (step 6.6) starts it again. The answer seeds the rate-limit state, so a worker started in a busy hour keeps to the reserve from its first claim.
+- **Loop.** Due jobs run back to back; when none is due the worker waits the poll interval. SIGTERM and SIGINT end the loop after the current job, so the Compose service (step 6.6) needs a stop grace period longer than one job (about 70 seconds). Any other failed iteration, such as the database being down, is logged and retried after a poll.
+- **Settings**: `GITHUB_WORKER_POLL_SECONDS` (5), `GITHUB_WORKER_MAX_ATTEMPTS` (5), `GITHUB_WORKER_RETRY_BASE_SECONDS` (30), `GITHUB_WORKER_RETRY_MAX_SECONDS` (1800, not below the base), `GITHUB_WORKER_STALE_SECONDS` (600), `GITHUB_WORKER_RESERVE` (500).
+- **No processor yet.** Step 6.3 has no processor that reads GitHub and no process entry point: a worker deployed with a placeholder would mark jobs `SYNCED` without data. Both come in step 6.4. Jobs queued since step 6.2 stay `QUEUED` until then and are run in a first burst, within the reserve.
+- **Logs**: job and repository ids, attempt, status, label and times; never a response body, a header or the credentials (the client logs only the operation, the status and the remaining budget).
+
 ### Status for the client
 
 There is no separate status endpoint. The cabinet project response (`GET /projects/{id}` and every response that returns `ProjectResponse`) carries `github.sync`:
@@ -142,7 +161,7 @@ Checked in step 5.2 on 2026-10-30, with app credentials and no user token (`back
 
 ## Open questions
 
-- Conditional requests in syncs: storing an ETag per repository and category would let an unchanged repository cost no budget, since a 304 did not spend the limit in step 5.2. Not in V1 until decided, at the latest with steps 6.3–6.4.
+- Conditional requests in syncs: storing an ETag per repository and category would let an unchanged repository cost no budget, since a 304 did not spend the limit in step 5.2. Not in V1 until decided, at the latest with step 6.4 (step 6.3 makes no data requests).
 - File content for the code viewer (ADR-011's open question) and the return of README and the file tree.
 - Whether periodic syncs should skip repositories linked only to hidden (`PUBLISHED` + `PRIVATE`) projects.
 - Worker health checks and alerting beyond the restart policy (Phase 9).

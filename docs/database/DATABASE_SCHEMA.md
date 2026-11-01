@@ -106,7 +106,7 @@ Indexes: `uq_github_sync_jobs_active` (unique `github_repository_id` WHERE statu
 
 `github_sync_category_status`: `id`, `github_repository_id` (FK → github_repositories, `ON DELETE CASCADE`), `category` (VARCHAR(20): metadata/languages, `ck_github_sync_category_status_category`), `last_success_at`, `last_error` (TEXT), `last_error_at`, all three nullable; `UNIQUE (github_repository_id, category)` (`uq_github_sync_category_status_repository_category`); `last_error` and `last_error_at` are set together (`ck_github_sync_category_status_error_time`). A row appears with the category's first attempt.
 
-`last_error` in both tables is a fixed label such as `NOT_FOUND`, matching `^[A-Z_]{1,64}$` (`ck_github_sync_jobs_last_error`, `ck_github_sync_category_status_last_error`); GitHub's text is never stored. Both tables cascade from `github_repositories`: a repository that a project links cannot be deleted (`RESTRICT` above), and when an unlinked one is, its sync records go with it. Links made before step 6.1 have no rows: no job means `NOT_SYNCED`. Finished jobs are kept (retention is an open question of ADR-018).
+`last_error` in both tables is a fixed label such as `NOT_FOUND` (the worker's labels are listed in ADR-018, "Worker core"), matching `^[A-Z_]{1,64}$` (`ck_github_sync_jobs_last_error`, `ck_github_sync_category_status_last_error`); GitHub's text is never stored. Both tables cascade from `github_repositories`: a repository that a project links cannot be deleted (`RESTRICT` above), and when an unlinked one is, its sync records go with it. Links made before step 6.1 have no rows: no job means `NOT_SYNCED`. Finished jobs are kept (retention is an open question of ADR-018).
 
 ## Project fields (Phase 3)
 
