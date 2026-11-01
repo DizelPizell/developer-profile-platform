@@ -24,6 +24,7 @@ from app.github.client import (
     GitHubRateLimited,
     GitHubUnavailable,
     GitHubUnexpected,
+    RateLimit,
     RateLimitPause,
     RateLimitState,
 )
@@ -32,6 +33,7 @@ from app.github.worker import (
     CredentialsError,
     SyncFailed,
     SyncWorker,
+    check_credentials,
     claim_job,
     recover_stale_jobs,
     retry_delay,
@@ -401,6 +403,153 @@ def test_rejected_credentials_give_the_job_back_and_stop(db_session, worker_log)
         f"Sync job {job_id}: GitHub rejected the app credentials; stopping"
     ]
     assert all("worker_client_secret" not in r.getMessage() for r in worker_log.records)
+
+
+def _seen(worker: SyncWorker, remaining: int | None, reset_at: datetime | None) -> None:
+    worker.client.rate_limits.update(
+        RateLimit(limit=5000, remaining=remaining, reset_at=reset_at, used=None, resource="core")
+    )
+
+
+def test_no_claims_during_a_rate_limit_pause(db_session):
+    job_id = _job(db_session)
+    clock = Clock()
+    worker = _worker(_ok, clock)
+    worker.client.pause.start(T0 + timedelta(minutes=5))
+
+    assert worker.run_once(db_session) is False
+    assert _state(db_session, job_id)["attempt_count"] == 0
+
+    clock.now = T0 + timedelta(minutes=5)
+    assert worker.run_once(db_session) is True
+
+
+def test_a_rate_limited_job_holds_the_other_jobs(db_session):
+    first = _job(db_session, scheduled_at=T0 - timedelta(minutes=1))
+    second = _job(db_session)
+    worker = _worker(_raises(GitHubRateLimited(T0 + timedelta(minutes=10))))
+
+    assert [worker.run_once(db_session) for _ in range(2)] == [True, False]
+
+    assert _state(db_session, first)["scheduled_at"] == T0 + timedelta(minutes=10)
+    assert _state(db_session, second)["attempt_count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("reserve", "remaining", "claims"),
+    [(500, 500, False), (500, 501, True), (500, 0, False), (0, 0, False), (0, 1, True)],
+)
+def test_no_claims_within_the_reserve(db_session, monkeypatch, reserve, remaining, claims):
+    monkeypatch.setattr(settings, "github_worker_reserve", reserve)
+    _job(db_session)
+    worker = _worker(_ok)
+    _seen(worker, remaining, T0 + timedelta(minutes=30))
+
+    assert worker.run_once(db_session) is claims
+
+
+def test_the_reserve_holds_until_the_reset(db_session):
+    _job(db_session)
+    clock = Clock()
+    worker = _worker(_ok, clock)
+    _seen(worker, 100, T0 + timedelta(minutes=1))
+
+    assert worker.run_once(db_session) is False
+    clock.now = T0 + timedelta(minutes=1)
+    assert worker.run_once(db_session) is True
+
+
+@pytest.mark.parametrize(
+    ("remaining", "reset_at"), [(None, T0 + timedelta(minutes=30)), (100, None)]
+)
+def test_an_unknown_budget_does_not_hold_claims(db_session, remaining, reset_at):
+    _job(db_session)
+    worker = _worker(_ok)
+    _seen(worker, remaining, reset_at)
+
+    assert worker.run_once(db_session) is True
+
+
+def test_no_budget_seen_yet_does_not_hold_claims(db_session):
+    _job(db_session)
+
+    assert _worker(_ok).run_once(db_session) is True
+
+
+def test_the_watchdog_runs_while_claims_are_held(db_session):
+    job_id = _job(db_session, status="SYNCING", attempt_count=1, updated_at=T0 - timedelta(hours=1))
+    worker = _worker(_ok)
+    worker.client.pause.start(T0 + timedelta(minutes=5))
+
+    assert worker.run_once(db_session) is False
+    assert _state(db_session, job_id)["last_error"] == "WORKER_LOST"
+
+
+def test_a_hold_is_logged_when_it_starts_and_ends(db_session, worker_log):
+    _job(db_session)
+    clock = Clock()
+    worker = _worker(_ok, clock)
+    _seen(worker, 10, T0 + timedelta(minutes=1))
+
+    for _ in range(3):
+        worker.run_once(db_session)
+    clock.now = T0 + timedelta(minutes=1)
+    worker.run_once(db_session)
+
+    messages = [r.getMessage() for r in _worker_records(worker_log) if "claim" in r.getMessage()]
+    assert messages == [
+        "GitHub sync worker: no claims, remaining 10 within the reserve until 2026-11-01 12:01:00",
+        "GitHub sync worker: claiming",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# The startup check
+# ---------------------------------------------------------------------------
+
+
+def _rate_limit_answer(limit: int, remaining: int = 4000, status: int = 200):
+    reset = int((T0 + timedelta(minutes=30) - datetime(1970, 1, 1)).total_seconds())
+    core = {"limit": limit, "remaining": remaining, "reset": reset, "used": limit - remaining}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/rate_limit"
+        if status != 200:
+            return httpx.Response(status, json={"message": "Bad credentials"})
+        return httpx.Response(200, json={"resources": {"core": core}})
+
+    return handler
+
+
+def test_the_startup_check_accepts_the_app_limit_and_seeds_the_reserve(db_session):
+    _job(db_session)
+    worker = _worker(_ok, handler=_rate_limit_answer(5000, remaining=400))
+
+    check_credentials(worker.client)
+
+    # The budget read at startup already counts: 400 is within the reserve.
+    assert worker.run_once(db_session) is False
+
+
+@pytest.mark.parametrize(
+    "handler",
+    [_rate_limit_answer(60, remaining=59), _rate_limit_answer(5000, status=401)],
+    ids=["unauthenticated limit", "401"],
+)
+def test_the_startup_check_refuses_missing_credentials(handler):
+    worker = _worker(_ok, handler=handler)
+
+    with pytest.raises(CredentialsError) as exc:
+        check_credentials(worker.client)
+
+    assert "worker_client" not in str(exc.value)
+
+
+def test_the_startup_check_fails_when_github_is_unavailable():
+    worker = _worker(_ok, handler=lambda request: httpx.Response(502))
+
+    with pytest.raises(GitHubUnavailable):
+        check_credentials(worker.client)
 
 
 # ---------------------------------------------------------------------------

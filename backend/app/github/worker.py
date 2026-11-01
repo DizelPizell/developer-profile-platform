@@ -42,6 +42,9 @@ UNEXPECTED_STATUS = "UNEXPECTED_STATUS"
 WORKER_LOST = "WORKER_LOST"
 INTERNAL_ERROR = "INTERNAL_ERROR"
 
+# Without credentials GitHub allows 60 requests an hour; app credentials get 5,000.
+UNAUTHENTICATED_LIMIT = 60
+
 
 @dataclass(frozen=True)
 class ClaimedJob:
@@ -64,10 +67,28 @@ class SyncFailed(Exception):
 
 
 class CredentialsError(Exception):
-    """GitHub rejected the app credentials; the worker stops (ADR-016)."""
+    """GitHub rejected the app credentials, or did not count them; the worker
+    stops (ADR-016). It never falls back to unauthenticated requests."""
 
 
 Processor = Callable[[Session, ClaimedJob], None]
+
+
+def check_credentials(client: GitHubApiClient) -> None:
+    """The startup check (ADR-018): /rate_limit must answer with the app's
+    limit. Its answer also seeds the rate-limit state that the reserve reads."""
+    try:
+        rate = client.get_rate_limit()
+    except GitHubCredentialsRejected:
+        raise CredentialsError("GitHub rejected the app credentials") from None
+    if rate.limit is None or rate.limit <= UNAUTHENTICATED_LIMIT:
+        raise CredentialsError("GitHub did not count the app credentials")
+    logger.info(
+        "GitHub sync worker: core limit %s, remaining %s, reset at %s",
+        rate.limit,
+        rate.remaining,
+        rate.reset_at,
+    )
 
 
 def retry_delay(attempt: int) -> timedelta:
@@ -180,11 +201,37 @@ class SyncWorker:
         self.client = client
         self.process = process
         self.now = now
+        self._hold: str | None = None
+
+    def hold_reason(self, now: datetime) -> str | None:
+        """Why no job may be claimed now (ADR-018), or None.
+
+        The rate-limit pause holds until the reset it was given. The reserve
+        holds while the latest remaining budget seen is at or below it, until
+        that answer's reset. Without a known remaining or reset the worker
+        claims: only its own requests would tell it more."""
+        try:
+            self.client.pause.check(now)
+        except GitHubRateLimited as exc:
+            return f"rate limited until {exc.retry_at}"
+        latest = self.client.rate_limits.latest
+        if latest is None or latest.remaining is None or latest.reset_at is None:
+            return None
+        if latest.reset_at > now and latest.remaining <= settings.github_worker_reserve:
+            return f"remaining {latest.remaining} within the reserve until {latest.reset_at}"
+        return None
 
     def run_once(self, db: Session) -> bool:
         """The watchdog, then at most one job. Returns whether a job was run."""
         now = self.now()
         recover_stale_jobs(db, now)
+        hold = self.hold_reason(now)
+        if hold != self._hold:
+            # Logged when it starts and ends, not on every poll.
+            logger.info("GitHub sync worker: %s", f"no claims, {hold}" if hold else "claiming")
+            self._hold = hold
+        if hold is not None:
+            return False
         job = claim_job(db, now)
         if job is None:
             return False
