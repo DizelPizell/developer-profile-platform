@@ -173,6 +173,14 @@ Checked in step 5.2 on 2026-10-30, with app credentials and no user token (`back
 - README and the recursive file tree of a public repository are readable (`octocat/Hello-World`; the tree was not truncated). Access does not block the deferred categories when they return.
 - A `304` to a conditional request did not spend the limit (ADR-016). V1 still does not store ETags; see "Open questions".
 
+Checked in step 6.4 on 2026-11-01 by the project owner, against live GitHub and the dev database (`docker compose run --rm --no-deps backend python -m app.github.worker` after `docker compose build backend`):
+
+- At startup `/rate_limit` answered `200` with a limit of 5000, so the app credentials were picked up.
+- After a project was relinked (step 6.2), the worker took the job, made 2 requests (`/repositories/{id}`, `/languages`) and the job was `SYNCED` at its first attempt; a second job of the same repository was also `SYNCED`. No contributor pages were requested: only the owner was linked.
+- The log showed no secrets and no response bodies. Ctrl+C stopped the worker after the current job ("stopped" in the log).
+- The project form and `/me/projects` opened without errors after `SYNCED`.
+- Not checked by hand: `CONTRIBUTOR` and `NONE`, GitHub failures (404, rate limit, 5xx), a moved repository, an empty repository's languages, a backlog of queued jobs.
+
 ## Open questions
 
 - Conditional requests in syncs: storing an ETag per repository and category would let an unchanged repository cost no budget, since a 304 did not spend the limit in step 5.2. Not used in V1 (decided in step 6.4, "Processor"); open for after V1.
