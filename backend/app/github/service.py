@@ -53,6 +53,7 @@ from app.settings import settings
 
 OWNER = "OWNER"
 CONTRIBUTOR = "CONTRIBUTOR"
+NONE = "NONE"
 
 logger = logging.getLogger(__name__)
 

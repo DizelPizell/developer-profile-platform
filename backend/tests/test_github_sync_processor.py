@@ -2,13 +2,14 @@
 mocked GitHub and stored one category at a time, and the job's outcome
 through the worker."""
 
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.github import service as github_service
@@ -29,6 +30,7 @@ from app.models.github import (
     GitHubRepository,
     GitHubSyncCategoryStatus,
     GitHubSyncJob,
+    ProjectRepository,
 )
 from app.models.identity import User
 from tests.test_github_constraints import _link, _project, _repository
@@ -197,6 +199,14 @@ def _user(db: Session, github_user_id: int) -> User:
     db.add(user)
     db.flush()
     return user
+
+
+@pytest.fixture
+def worker_log(caplog, monkeypatch):
+    # alembic's fileConfig (db_engine fixture) disables loggers that existed before it ran.
+    monkeypatch.setattr(logging.getLogger("app.github.sync"), "disabled", False)
+    caplog.set_level(logging.INFO, logger="app.github.sync")
+    return caplog
 
 
 @pytest.fixture
@@ -456,3 +466,197 @@ def test_the_processor_uses_the_given_client(env):
 
     assert other.requests == ["metadata"]
     assert _job(env, job_id)[2] == "GITHUB_UNAVAILABLE"
+
+
+# ---------------------------------------------------------------------------
+# The relation of every link (ADR-017)
+# ---------------------------------------------------------------------------
+
+OTHER_ID, STRANGER_ID = 20002, 30003
+
+
+def _add_link(env: Env, github_user_id: int, relation: str) -> uuid.UUID:
+    user = _user(env.db, github_user_id)
+    link = _link(env.db, _project(env.db, user), env.repository, relation)
+    link.relation_checked_at = EARLIER
+    env.db.commit()
+    return link.id
+
+
+def _relations(env: Env) -> dict[uuid.UUID, tuple[str, datetime]]:
+    rows = env.db.execute(
+        select(
+            ProjectRepository.id, ProjectRepository.relation, ProjectRepository.relation_checked_at
+        ).where(ProjectRepository.github_repository_id == env.repository.id)
+    ).all()
+    return {link_id: (relation, checked) for link_id, relation, checked in rows}
+
+
+def test_the_owner_needs_no_contributor_pages(env):
+    env.db.execute(update(ProjectRepository).values(relation="NONE"))
+    env.db.commit()
+
+    env.sync()
+
+    assert env.github.requests == ["metadata", "languages"]
+    assert _relations(env) == {env.link.id: ("OWNER", T0)}
+
+
+def test_every_link_is_recomputed_with_one_pass_over_the_pages(env):
+    contributor = _add_link(env, OTHER_ID, "NONE")
+    stranger = _add_link(env, STRANGER_ID, "CONTRIBUTOR")
+    env.github.contributors = [[1, 2], [OTHER_ID, 3]]
+
+    env.sync()
+
+    assert _relations(env) == {
+        env.link.id: ("OWNER", T0),
+        contributor: ("CONTRIBUTOR", T0),
+        stranger: ("NONE", T0),
+    }
+    assert env.github.requests == ["metadata", "languages", "contributors", "contributors"]
+
+
+def test_pages_stop_once_every_developer_is_found(env):
+    contributor = _add_link(env, OTHER_ID, "NONE")
+    env.github.contributors = [[OTHER_ID], [1], [2]]
+
+    env.sync()
+
+    assert _relations(env)[contributor][0] == "CONTRIBUTOR"
+    assert env.github.requests.count("contributors") == 1
+
+
+def test_at_most_five_pages_and_seven_requests(env):
+    contributor = _add_link(env, OTHER_ID, "CONTRIBUTOR")
+    env.github.contributors = [[n] for n in range(1, 6)] + [[OTHER_ID]]
+
+    env.sync()
+
+    assert _relations(env)[contributor][0] == "NONE"
+    assert env.github.requests.count("contributors") == 5
+    # The manual sync charges the user 7 (ADR-018): the most a job can make.
+    assert env.client.requests_sent == 7
+
+
+def test_an_empty_contributor_list_is_none(env):
+    contributor = _add_link(env, OTHER_ID, "CONTRIBUTOR")
+    env.github.contributors = None
+
+    env.sync()
+
+    assert _relations(env)[contributor][0] == "NONE"
+
+
+def test_a_transfer_changes_the_owners_relation(env):
+    env.github.repo = _github_repo(owner="neworg", owner_id=99)
+    env.github.contributors = [[OWNER_ID]]
+
+    env.sync()
+
+    assert _relations(env) == {env.link.id: ("CONTRIBUTOR", T0)}
+
+
+def test_a_new_owner_after_a_transfer_is_owner(env):
+    new_owner = _add_link(env, OTHER_ID, "NONE")
+    env.github.repo = _github_repo(owner="other", owner_id=OTHER_ID)
+    env.github.contributors = [[1]]
+
+    env.sync()
+
+    assert _relations(env) == {env.link.id: ("NONE", T0), new_owner: ("OWNER", T0)}
+
+
+@pytest.mark.parametrize("answer", [_status(502), _timeout, RATE_LIMITED, _status(404)])
+def test_unread_contributors_keep_the_relations(env, worker_log, answer):
+    contributor = _add_link(env, OTHER_ID, "CONTRIBUTOR")
+    job_id = _queued_job(env)
+    env.github.fail["contributors"] = answer
+
+    _run(env)
+
+    assert _relations(env) == {
+        env.link.id: ("OWNER", T0),
+        contributor: ("CONTRIBUTOR", EARLIER),
+    }
+    assert _job(env, job_id) == ("SYNCED", 1, None)
+    assert any("contributors not read" in r.getMessage() for r in worker_log.records)
+
+
+def test_rejected_credentials_on_contributors_stop_the_worker(env):
+    contributor = _add_link(env, OTHER_ID, "CONTRIBUTOR")
+    env.github.fail["contributors"] = _status(401)
+
+    with pytest.raises(GitHubCredentialsRejected):
+        env.sync()
+
+    assert _relations(env)[contributor] == ("CONTRIBUTOR", EARLIER)
+
+
+def test_no_relation_is_recomputed_when_a_category_fails(env):
+    env.db.execute(update(ProjectRepository).values(relation_checked_at=EARLIER))
+    env.db.commit()
+    env.github.fail["languages"] = _status(502)
+
+    with pytest.raises(GitHubUnavailable):
+        env.sync()
+
+    assert _relations(env) == {env.link.id: ("OWNER", EARLIER)}
+
+
+def test_a_link_replaced_during_the_sync_is_left_alone(env):
+    contributor = _add_link(env, OTHER_ID, "CONTRIBUTOR")
+    project_id = env.db.scalar(
+        select(ProjectRepository.project_id).where(ProjectRepository.id == contributor)
+    )
+    env.github.contributors = [[1]]
+
+    def relink():
+        if env.github.requests[-1] != "contributors":
+            return
+        env.db.execute(delete(ProjectRepository).where(ProjectRepository.id == contributor))
+        env.db.execute(
+            insert(ProjectRepository).values(
+                project_id=project_id,
+                owner_id=env.db.scalar(select(User.id).where(User.github_user_id == OTHER_ID)),
+                github_repository_id=env.repository.id,
+                relation="CONTRIBUTOR",
+                relation_checked_at=T0 - timedelta(minutes=1),
+            )
+        )
+        env.db.commit()
+
+    env.github.during = relink
+    env.sync()
+
+    relations = _relations(env)
+    assert contributor not in relations
+    assert sorted(relations.values()) == [
+        ("CONTRIBUTOR", T0 - timedelta(minutes=1)),
+        ("OWNER", T0),
+    ]
+
+
+def test_links_of_other_repositories_are_untouched(env):
+    other_repository = _repository(env.db)
+    user = _user(env.db, OTHER_ID)
+    other = _link(env.db, _project(env.db, user), other_repository, "CONTRIBUTOR")
+    env.db.commit()
+
+    env.sync()
+
+    assert (
+        env.db.scalar(
+            select(ProjectRepository.relation_checked_at).where(ProjectRepository.id == other.id)
+        )
+        != T0
+    )
+
+
+def test_no_links_need_no_contributor_pages(env):
+    env.db.execute(delete(ProjectRepository))
+    env.db.commit()
+
+    env.sync()
+
+    assert env.github.requests == ["metadata", "languages"]
