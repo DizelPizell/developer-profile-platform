@@ -567,7 +567,11 @@ function LinkedRepository({
         <RepositoryLanguages languages={github.languages} />
       )}
       {syncedAt && <p className="text-sm text-text-muted">{syncedAt}</p>}
-      {github.unavailable && <Warning>{UNAVAILABLE_WARNING}</Warning>}
+      {/* Mounted while empty, so the warning is announced when it appears. The panel's
+          one role="status" is the sync message; aria-live here is what that role implies. */}
+      <div aria-live="polite" aria-atomic="true" className="empty:-mt-3">
+        {github.unavailable && <Warning>{UNAVAILABLE_WARNING}</Warning>}
+      </div>
       {github.relation === "NONE" && <Warning>{NO_RELATION_WARNING}</Warning>}
     </div>
   );

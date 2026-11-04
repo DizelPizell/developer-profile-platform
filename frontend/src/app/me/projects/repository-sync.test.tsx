@@ -152,6 +152,8 @@ async function renderEdit(project: ProjectResponse, extra: Record<string, Reply[
 const block = () => screen.getByRole("region", { name: "Репозиторий GitHub" });
 const panel = () => screen.getByRole("group", { name: "Привязанный репозиторий" });
 const status = () => within(panel()).getByRole("status");
+const warnings = () => within(panel()).queryAllByText(/Репозиторий недоступен/);
+const announced = () => panel().querySelector('[aria-live="polite"]');
 const button = (name: string | RegExp, scope: HTMLElement = document.body) =>
   within(scope).getByRole<HTMLButtonElement>("button", { name });
 const syncButton = () => button(/^Обновить|^Ставим/, block());
@@ -211,14 +213,39 @@ describe("the sync message", () => {
     expect(within(panel()).queryByText(/Данные GitHub от/)).toBeNull();
   });
 
-  test.each([
-    ["an unavailable repository", { unavailable: true }, /Репозиторий недоступен/],
-    ["relation NONE", { relation: "NONE" as const }, /вы сейчас не владелец/],
-  ])("%s shows its warning with the message, and can be synced", async (_name, fields, warning) => {
-    await renderEdit(withGitHub(fields, { status: "FAILED" }));
+  test("relation NONE shows its warning with the message, and can be synced", async () => {
+    await renderEdit(withGitHub({ relation: "NONE" }, { status: "FAILED" }));
     expect(status().textContent).toMatch(/^Не удалось обновить данные/);
-    expect(within(panel()).getByText(warning)).toBeTruthy();
+    expect(within(panel()).getByText(/вы сейчас не владелец/)).toBeTruthy();
     expect(syncButton().disabled).toBe(false);
+  });
+
+  test("FAILED and unavailable: only the warning, with the data, and it can be synced", async () => {
+    await renderEdit(withGitHub({ unavailable: true }, { status: "FAILED" }));
+    expect(status().textContent).toBe("");
+    expect(warnings()).toHaveLength(1);
+    expect(within(panel()).getByRole("list", { name: "Языки" })).toBeTruthy();
+    expect(within(panel()).getByText(`Данные GitHub от ${shownAt(SYNCED_AT)}`)).toBeTruthy();
+    expect(syncButton().disabled).toBe(false);
+  });
+
+  test("FAILED and unavailable without data: only the warning, with the placeholder", async () => {
+    await renderEdit(
+      withGitHub(
+        { unavailable: true, synced_at: null, languages: [] },
+        { status: "FAILED", last_success_at: null },
+      ),
+    );
+    expect(status().textContent).toBe("");
+    expect(warnings()).toHaveLength(1);
+    expect(within(panel()).getByText(/появятся после первой синхронизации/)).toBeTruthy();
+    expect(within(panel()).queryByText(/Данные GitHub от/)).toBeNull();
+  });
+
+  test("QUEUED and unavailable: the message and the warning", async () => {
+    await renderEdit(withGitHub({ unavailable: true }, { status: "QUEUED" }));
+    expect(status().textContent).toBe("Получаем данные с GitHub…");
+    expect(warnings()).toHaveLength(1);
   });
 });
 
@@ -476,6 +503,59 @@ describe("polling (fake timers)", () => {
     await advance(5_000);
     await advance(30_000);
     expect(calls(GET)).toHaveLength(2);
+  });
+
+  test("unavailable: a stopped poll keeps its message beside the warning", async () => {
+    const stuck = withGitHub({ unavailable: true }, SYNC_STATE.QUEUED);
+    await renderPolling(stuck, [Response.json(stuck)]);
+
+    await advance(24 * 5_000);
+
+    expect(status().textContent).toContain("Синхронизация идёт дольше обычного. Проверьте позже.");
+    expect(button("Проверить снова", status())).toBeTruthy();
+    expect(warnings()).toHaveLength(1);
+  });
+
+  test("a job that ends FAILED and unavailable leaves only the warning", async () => {
+    await renderPolling(withGitHub({}, SYNC_STATE.QUEUED), [
+      Response.json(withGitHub({ unavailable: true }, { status: "FAILED" })),
+    ]);
+    expect(status().textContent).toBe("Получаем данные с GitHub…");
+    expect(warnings()).toHaveLength(0);
+
+    await advance(5_000);
+
+    expect(status().textContent).toBe("");
+    expect(warnings()).toHaveLength(1);
+    await advance(30_000);
+    expect(calls(GET)).toHaveLength(2);
+  });
+
+  test("the warning appears in a live region that was already mounted", async () => {
+    await renderPolling(withGitHub({}, SYNC_STATE.QUEUED), [
+      Response.json(withGitHub({ unavailable: true }, { status: "FAILED" })),
+    ]);
+    const region = announced();
+    expect(region?.getAttribute("aria-atomic")).toBe("true");
+    expect(region?.textContent).toBe("");
+
+    await advance(5_000);
+
+    // The same node: a region added together with its text is not announced.
+    expect(announced()).toBe(region);
+    expect(region?.textContent).toMatch(/^Репозиторий недоступен/);
+    expect(within(panel()).getAllByRole("status")).toHaveLength(1);
+  });
+
+  test("a repository that came back loses the warning without a reload", async () => {
+    await renderPolling(withGitHub({ unavailable: true }, SYNC_STATE.QUEUED), [Response.json(DONE)]);
+    expect(warnings()).toHaveLength(1);
+
+    await advance(5_000);
+
+    expect(warnings()).toHaveLength(0);
+    expect(status().textContent).toBe("");
+    expect(within(panel()).getByRole("list", { name: "Языки" })).toBeTruthy();
   });
 
   test("an unlink elsewhere ends polling with the input", async () => {

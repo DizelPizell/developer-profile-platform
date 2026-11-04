@@ -178,6 +178,10 @@ function syncMessage(github: ProjectGitHub, stop: PollStop | null): Message | nu
     return { tone: "plain", text: "Ещё не синхронизирован с GitHub." };
   }
   if (status === "FAILED") {
+    // The unavailable warning says it, and such a repository's job fails every day.
+    if (github.unavailable) {
+      return null;
+    }
     const shown = github.synced_at === null ? null : dateTimeText(github.synced_at);
     return {
       tone: "error",
