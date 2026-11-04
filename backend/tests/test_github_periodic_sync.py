@@ -18,7 +18,13 @@ from app.models.projects import Project
 from app.settings import settings
 from tests.conftest import wait_until_blocked
 from tests.test_github_constraints import _link, _owner, _repository, _repository_fields
-from tests.test_github_worker import Clock, Recorder, _seen, _worker
+from tests.test_github_worker import (
+    Clock,
+    Recorder,
+    _seen,
+    _session_that_does_not_wait,
+    _worker,
+)
 
 T0 = datetime(2026, 11, 1, 12, 0)
 DAY = timedelta(days=1)
@@ -291,7 +297,7 @@ class TestConcurrentEnqueue:
         connected = Event()
 
         def enqueue() -> int:
-            with Session(db_engine) as db:
+            with _session_that_does_not_wait(db_engine) as db:
                 pids.append(db.scalar(text("SELECT pg_backend_pid()")))
                 connected.set()
                 return enqueue_periodic_syncs(db, T0)

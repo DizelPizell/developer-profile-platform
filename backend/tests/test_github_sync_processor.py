@@ -28,7 +28,7 @@ from app.github.client import (
     RateLimitState,
 )
 from app.github.sync import make_processor, sync_repository
-from app.github.worker import SyncWorker
+from app.github.worker import SyncWorker, enqueue_periodic_syncs
 from app.models.github import (
     GitHubRepository,
     GitHubSyncCategoryStatus,
@@ -40,6 +40,7 @@ from app.models.projects import Project
 from app.settings import settings
 from tests.conftest import wait_until_blocked
 from tests.test_github_constraints import _link, _project, _repository, _repository_fields
+from tests.test_github_worker import _session_that_does_not_wait
 
 T0 = datetime(2026, 11, 1, 12, 0)
 EARLIER = T0 - timedelta(days=2)
@@ -943,7 +944,10 @@ class TestLinkDuringA404:
         connected = Event()
 
         def sync() -> None:
-            with Session(db_engine) as db:
+            # One connection: sync_repository ends its transactions, and a pooled
+            # session could wait on another backend than the pid seen here. The
+            # lock timeout ends the thread if the test fails before the commit.
+            with _session_that_does_not_wait(db_engine) as db:
                 pids.append(db.scalar(text("SELECT pg_backend_pid()")))
                 db.rollback()
                 connected.set()
@@ -966,3 +970,151 @@ class TestLinkDuringA404:
 
         with Session(db_engine) as db:
             assert db.get(GitHubRepository, repository_id).unavailable_since is None
+
+
+# ---------------------------------------------------------------------------
+# Through a periodic job
+# ---------------------------------------------------------------------------
+
+DAY = timedelta(days=1)
+
+
+@pytest.fixture
+def published(available) -> Env:
+    """A published project whose repository was last synced two days ago."""
+    env = available
+    env.db.execute(
+        update(Project)
+        .where(Project.id == env.project.id)
+        .values(
+            status="PUBLISHED",
+            visibility="PUBLIC",
+            title="T",
+            summary="S",
+            role="R",
+            contribution="C",
+        )
+    )
+    env.db.add(
+        GitHubSyncJob(
+            github_repository_id=env.repository.id,
+            status="SYNCED",
+            scheduled_at=EARLIER,
+            created_at=EARLIER,
+            updated_at=EARLIER,
+        )
+    )
+    env.db.commit()
+    return env
+
+
+def _latest_job(env: Env) -> tuple:
+    row = env.db.execute(
+        select(GitHubSyncJob.status, GitHubSyncJob.attempt_count, GitHubSyncJob.last_error)
+        .where(GitHubSyncJob.github_repository_id == env.repository.id)
+        .order_by(GitHubSyncJob.created_at.desc())
+        .limit(1)
+    ).one()
+    return tuple(row)
+
+
+def test_a_periodic_job_refreshes_a_renamed_repository(published):
+    env = published
+    env.github.repo = _github_repo(name="renamed")
+
+    _run(env)
+
+    assert _latest_job(env) == ("SYNCED", 1, None)
+    assert env.github.requests == ["metadata", "languages"]
+    assert (env.row().full_name, env.row().name) == (f"{OWNER}/renamed", "renamed")
+    assert env.row().html_url == f"https://github.com/{OWNER}/renamed"
+    github = github_service.project_github(env.db, env.project.id, T0)
+    assert github.full_name == f"{OWNER}/renamed"
+
+
+def test_a_periodic_job_follows_a_transfer(published):
+    env = published
+    env.github.repo = _github_repo(owner="new-owner", owner_id=OWNER_ID + 1)
+    env.github.contributors = [[OWNER_ID]]
+
+    _run(env)
+
+    assert env.row().full_name == "new-owner/new-name"
+    assert env.row().owner_github_id == OWNER_ID + 1
+    env.db.expire_all()
+    assert env.db.get(ProjectRepository, env.link.id).relation == "CONTRIBUTOR"
+
+
+def test_a_rename_between_the_two_reads_is_retried_under_the_new_name(published):
+    env = published
+    env.github.fail["languages"] = MOVED
+
+    _run(env)
+    assert _latest_job(env) == ("QUEUED", 1, "UNEXPECTED_STATUS")
+
+    del env.github.fail["languages"]
+    env.github.repo = _github_repo(name="renamed")
+    _run_at(env, T0 + RETRY)
+
+    assert _latest_job(env) == ("SYNCED", 2, None)
+    assert env.row().full_name == f"{OWNER}/renamed"
+
+
+def test_an_unavailable_repository_costs_a_request_a_day_and_recovers_by_itself(published):
+    env = published
+    env.github.fail["metadata"] = _status(404)
+
+    _run(env)
+    _run_at(env, T0 + RETRY)
+    assert _latest_job(env) == ("FAILED", 2, "NOT_FOUND")
+    assert env.row().unavailable_since == T0 + RETRY
+    assert env.github.requests == ["metadata", "metadata"]
+
+    _run_at(env, T0 + DAY + timedelta(minutes=1))
+    assert _latest_job(env) == ("FAILED", 1, "NOT_FOUND")
+    assert env.row().unavailable_since == T0 + RETRY
+    assert env.github.requests == ["metadata"] * 3
+
+    del env.github.fail["metadata"]
+    _run_at(env, T0 + 2 * DAY + timedelta(minutes=2))
+    assert _latest_job(env) == ("SYNCED", 1, None)
+    assert env.row().unavailable_since is None
+    assert env.github.requests == ["metadata"] * 4 + ["languages"]
+
+
+def test_a_repository_recreated_under_the_same_name_is_a_new_row(published):
+    """The old id answers 404 for good; nothing matches a repository by name, as
+    the name may now belong to someone else. A new link makes a second row."""
+    env = published
+    env.seed_categories(metadata="NOT_FOUND")
+    env.github.fail["metadata"] = _status(404)
+    _run(env)
+    old = env.row()
+    assert old.unavailable_since == T0
+    full_name = old.full_name
+
+    data = GitHubRepositoryData(
+        github_repo_id=REPO_ID + 1,
+        owner_github_id=OWNER_ID,
+        owner_login=OWNER,
+        name=old.name,
+        full_name=full_name,
+        html_url=old.html_url,
+        description=None,
+        is_fork=False,
+        is_archived=False,
+        pushed_at=None,
+        parent_full_name=None,
+    )
+    github_service.store_link(
+        env.db, env.project, github_service.CheckedRepository(data, "OWNER"), T0
+    )
+    env.db.commit()
+
+    github = github_service.project_github(env.db, env.project.id, T0)
+    assert (github.github_repo_id, github.full_name) == (REPO_ID + 1, full_name)
+    assert github.unavailable is False
+    assert env.row().unavailable_since == T0
+    # The link queued the new row; the old one has no links left, so no periodic
+    # job reads it again.
+    assert enqueue_periodic_syncs(env.db, T0 + 3 * DAY) == 0
