@@ -156,6 +156,17 @@ There is no separate status endpoint. The cabinet project response (`GET /projec
 
 The worker is a separate process from the backend image (ADR-009), run as its own service in Docker Compose, with the same environment as the backend, including the GitHub credentials. It runs with `restart: unless-stopped` and starts after the `migrate` service has completed.
 
+### Worker service (step 6.6)
+
+Decided in step 6.6, 2026-11-05, with the owner. The code is the `github-worker` service in `docker-compose.yml`, checked in CI by `.github/scripts/check_compose.py`.
+
+- **Stop grace period: 90 seconds.** One job is up to 7 requests of 10 seconds each, the 70 seconds of "Worker core", and the 10 seconds apply per phase of a request (connect, read), so a slow job can take longer. A worker killed past the grace period is a lost worker: the job waits for the watchdog, with one attempt spent.
+- **`depends_on: backend`.** The worker does not call the API. Only `backend` has `build`, and this link makes `up --build github-worker` build the image; without it the command builds nothing and the worker silently keeps the old image. Rejected: `build` on both services (a build failed with `image ... already exists`, and a single-service build leaves the two on different images) and `pull_policy: build` (every `up` recreates the containers, and `up backend` still leaves the worker behind).
+- **Build the whole stack only.** `docker compose up -d --build backend` leaves the worker on its old image: Compose does not recreate a service that depends on the one rebuilt. The rule is in the backend README, with the command that compares the two images. An image version label is step 9.4.
+- **Always on, no profile.** With a profile, `up --build` without it left the worker on the old image.
+- **No health check** until step 9.6 ("Open questions"): Compose does not act on `unhealthy`, and nothing waits for the worker.
+- **`unless-stopped` and rejected credentials.** A worker that exits with code 1 is restarted with growing pauses: with bad keys, a loop in the log until the keys are fixed or the service is stopped. `/rate_limit` spends no budget. Rejected: `on-failure` with a limit, which gives up within seconds, so a short GitHub or network failure at startup would leave no worker. `docker kill` is not restarted.
+
 ## Consequences
 
 ### Positive

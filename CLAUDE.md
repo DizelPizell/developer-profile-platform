@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.5, with F-GH1.5 in the frontend.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.6, with F-GH1.5 in the frontend.
 
 V1 was narrowed by the owner on 2026-11-04 (PRD "V1 scope", DEVELOPMENT_PLAN "V1 and the remaining work"), and this wins over the "V1 focuses on" list above: analytics is V1.1, right after the launch; the technical project workspace and experience, skills and education are after V1; minimal contacts are in V1.
 
@@ -886,6 +886,8 @@ frontend F-GH1.5: the sync status, the language chips with shares and the data d
 
 backend Phase 6 step 6.5: periodic syncs queued in the worker's iteration (at most once a minute, 30 jobs at a time, repositories of PUBLISHED projects with no job in 24 hours, nothing during a hold), the two-404 rule with unavailable_since keeping its first date (ADR-018) (manual check pending)
 
+backend Phase 6 step 6.6: the github-worker service in Compose on the backend image, always on, updated only with the whole stack (docker compose up -d --build), and a CI workflow that checks it (ADR-018) (manual check pending)
+
 
 
 Not yet started:
@@ -902,7 +904,7 @@ the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
 analytics — Phase 7, V1.1
 
-the worker service and public GitHub data — Phase 6 steps 6.6–6.7 (ADR-018, ADR-019)
+public GitHub data — Phase 6 step 6.7 (ADR-019)
 
 the sync message of an unavailable repository — F-GH1.6 (FRONTEND_PLAN)
 
@@ -912,7 +914,7 @@ Current next goal:
 
 
 
-Phase 6 step 6.6 (DEVELOPMENT_PLAN): the github-worker service in Compose, with F-GH1.6 (FRONTEND_PLAN) beside it; then step 6.7, the public github object (ADR-019), and F-GH2. After them the deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
+F-GH1.6 (FRONTEND_PLAN), the sync message of an unavailable repository; then Phase 6 step 6.7, the public github object (ADR-019), and F-GH2. After them the deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
 
 Do not start a step before the previous one is merged.
 

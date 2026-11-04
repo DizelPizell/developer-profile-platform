@@ -26,24 +26,75 @@ docker compose up -d --build
 ```
 
 The one-shot `migrate` service runs `alembic upgrade head` on every `up` and
-exits; the backend starts only after it succeeds.
+exits; the backend and the worker start only after it succeeds.
 
-### Run the GitHub sync worker
+### GitHub sync worker (service)
 
 The worker (ADR-018) takes sync jobs from the database, reads the repositories'
 metadata and languages from GitHub with the app credentials, and recomputes
-the relation of every link. It has no Compose service yet (step 6.6); with the
-stack running, start it by hand on the backend image:
+the relation of every link. It is the `github-worker` service on the backend's
+image, always on. The one command to start or update it is the whole stack:
 
 ```bash
-docker compose run --rm --no-deps backend python -m app.github.worker
+docker compose up -d --build
 ```
 
-Ctrl+C stops it after the current job. It exits with code 1 when GitHub
-rejects the credentials or cannot be reached at startup. Jobs queued before
-the first run (every link and import since step 6.2) run back to back, up to
-7 GitHub requests each; the worker claims no job while GitHub's remaining
-budget is at or below `GITHUB_WORKER_RESERVE`. To count them first:
+Compose copies the code into the image when it builds, so other commands can
+leave the worker on old code:
+
+| Command | Result |
+| --- | --- |
+| `docker compose up -d --build` | API and worker on the new image |
+| `docker compose up -d --build github-worker` | The same: the worker's link to `backend` builds the image |
+| `docker compose up -d --build backend` | API on the new image, **worker on the old one** |
+| `docker compose up -d` | Nothing is built: both stay on the old image |
+| A container started earlier by `docker compose run` | Keeps its image until it is stopped |
+
+Two identical builds get different image ids here, so every `up --build`
+recreates the containers, and the worker restarts after its current job.
+
+To check that the API and the worker run one image, compare the two lines:
+
+```bash
+docker inspect --format "{{.Image}}" developer-platform-backend developer-platform-github-worker
+```
+
+The log's start line, `started, periodic sync every 86400 s, batch 30`, shows
+the settings the running code reads:
+
+```bash
+docker compose logs -f github-worker
+```
+
+To stop it after the current job (Compose waits up to 90 seconds):
+
+```bash
+docker compose stop github-worker
+```
+
+It stays stopped until the next `docker compose up -d`. That also applies after
+`docker kill developer-platform-github-worker`, which the restart policy ignores;
+a job killed halfway stays `SYNCING` until the watchdog takes it back
+(`GITHUB_WORKER_STALE_SECONDS`). `docker compose up -d` also recreates the backend
+and the worker after a change of `.env`.
+
+The worker exits with code 1 when GitHub rejects the credentials or cannot be
+reached at startup, and Docker restarts it with pauses that grow: a loop in the
+log, which spends no GitHub budget, until the keys are fixed or the worker is
+stopped with the command above. Without GitHub keys in development it is the same
+loop. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` must still not be empty, or
+the backend does not start either.
+
+For debugging by hand, this is a second worker, which ADR-018 considers safe; stop
+it when done, as it keeps its image:
+
+```bash
+docker compose run --build --rm --no-deps backend python -m app.github.worker
+```
+
+Jobs queued while no worker ran go back to back, up to 7 GitHub requests each; the
+worker claims no job while GitHub's remaining budget is at or below
+`GITHUB_WORKER_RESERVE`. To count them first:
 
 ```bash
 docker exec developer-platform-postgres psql -U <user> -d <database> \
@@ -60,26 +111,25 @@ nothing while it claims nothing (a rate limit, the reserve).
 ### Manual periodic sync check
 
 Not run yet. Real GitHub and a repository of your own. Each step that changes
-the root `.env` ends by putting the value back. The worker reads `.env` when it
-starts, so restart it after a change.
+the root `.env` ends by putting the value back, and `docker compose up -d` after
+a change recreates the worker with it.
 
-0. Check that the image has the current code. Compose copies the code into the
-   image when it builds, and neither `run` nor `up` rebuilds on their own; a
-   variable the image's `Settings` does not know is dropped silently, so
+0. Check that the worker has the current code. Run `docker compose up -d --build`
+   for the whole stack: `docker compose up -d --build backend` does not update the
+   worker. A variable the image's `Settings` does not know is dropped silently, so
    `printenv` proves nothing. Ask the settings themselves, which fails with an
    `AttributeError` on an old image:
 
    ```bash
-   docker compose run --build --rm --no-deps backend python -c "from app.settings import settings; print(settings.github_periodic_sync_seconds)"
+   docker compose exec github-worker python -c "from app.settings import settings; print(settings.github_periodic_sync_seconds)"
    ```
 
-   Recreate the API on the same image with `docker compose up -d --build
-   backend`, and start the worker with `--build` as well. Its line after the limit
-   names both values: `started, periodic sync every 120 s, batch 30`.
+   The worker's line after the limit names both values, such as `started, periodic
+   sync every 120 s, batch 30`.
 1. Link the repository to a published project, and to a draft of another
-   repository. Set `GITHUB_PERIODIC_SYNC_SECONDS=120` and start the worker: both
-   links' jobs run once. The first periodic look comes with the first iteration,
-   so a published repository with no recent job is queued at once.
+   repository. Set `GITHUB_PERIODIC_SYNC_SECONDS=120` and run `docker compose up
+   -d`: both links' jobs run once. The first periodic look comes with the first
+   iteration, so a published repository with no recent job is queued at once.
 2. Wait 3 minutes: the log shows `periodic syncs queued`, and only the published
    project's repository gets new jobs (the query above, or the job lines of the
    log).
