@@ -441,6 +441,10 @@ Done in F-GH1.5:
   - The `TOO_SOON` card is not in `github-states.png`; its text and tone follow `DESIGN.md` (a label like the other waits).
 - Checked with Vitest + RTL (fetch mocked, fake timers; 548 tests), 28 mutations (27 fail tests; the unmount mutation first survived, so a test now checks that a tab shown after the form is closed reads nothing; the `github_repo_id` check survives as described above), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual project sync check"; it has not been run yet.
 
+### F-GH1.6 — The sync message of an unavailable repository (S; after backend 6.5)
+
+After backend step 6.5 an unavailable repository's job ends `FAILED`, so the panel would show «Не удалось обновить данные с GitHub…» next to «Репозиторий недоступен…», and «Показаны данные от …» next to a warning that says the repository is gone. Decided with the owner on 2026-11-04: with `unavailable: true` a `FAILED` job shows no sync message (`DESIGN.md`, the message table). The stopped-polling messages and `QUEUED` stay. Tests: `FAILED` with and without `unavailable`, with and without `synced_at`.
+
 ### Decided
 
 - **F-GH1.4 folded into F-GH1.3** (2026-10-31, the owner). F-GH1.2 built the waiting states and their shared component for the list page and the link dialog, so only the form block was left; F-GH1.3 builds it with the same component, and its tests and manual steps are listed there. Rejected: keeping F-GH1.4 as a separate small PR that would only repeat the form block's error tests.

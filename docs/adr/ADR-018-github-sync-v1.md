@@ -62,7 +62,7 @@ Timeouts, 5xx answers and malformed responses are retryable failures with ADR-00
 
 ### Repository not found
 
-- A 404 for the repository's metadata is recorded in `github_sync_category_status` (`last_error = 'NOT_FOUND'`), and the job is retried once after the base retry delay, charging an attempt.
+- A 404 for the repository's metadata is recorded in `github_sync_category_status` (`last_error = 'NOT_FOUND'`), and the job is retried after the usual retry delay, charging an attempt.
 - If the previous metadata attempt also ended with `NOT_FOUND` (no success in between), `github_repositories.unavailable_since` is set and the job ends `FAILED` without further attempts. This applies whether the two 404s come from one job or two.
 - A later successful metadata fetch clears `unavailable_since`.
 - `unavailable_since` is a fact about the repository (ADR-017), not a job status. ADR-009's rule that `github_repositories` does not duplicate sync status, timestamps or errors still holds for job data.
@@ -125,6 +125,21 @@ Decided in step 6.4, 2026-11-01; the code is `backend/app/github/sync.py`.
 - **404** is retried with `NOT_FOUND` like any failure until step 6.5 adds the two-404 rule.
 - **Conditional requests** (ETags) are not used in V1: two requests a day per repository linked to a published project do not need them. The open question below stays for later.
 
+### Periodic syncs and missing repositories
+
+Decided in step 6.5, 2026-11-04.
+
+- **The enqueue** is one `INSERT ... SELECT ... ON CONFLICT DO NOTHING` in the worker's iteration, after the hold check and before the claim, at most once a minute. The minute is kept in the worker's memory and moved before the enqueue runs, so a failing enqueue costs one iteration a minute and cannot stop the claims.
+- **Which repositories**: linked to at least one `PUBLISHED` project, whatever its visibility, with no job created in the last 24 hours (`GITHUB_PERIODIC_SYNC_SECONDS`) and no active job. Hidden projects are included: the cabinet shows their data, two requests a day cost little, and one rule is simpler than two. Drafts and archived projects are not. An old active job is excluded in the selection, not only by the unique index, or such rows would keep taking places in the batch.
+- **At most 30 jobs a minute** (`GITHUB_PERIODIC_SYNC_BATCH`). Jobs are claimed by `scheduled_at`, so a manual sync waits behind everything queued before it, and the form's polling stops after 2 minutes. A short batch keeps that wait short; 30 a minute is 3,600 requests an hour at the usual 2 a job, under the 4,500 above the reserve, and covers about 43,000 repositories a day. No jitter: the batch already spreads them, and there is one worker.
+- **While claims are held** (the rate-limit pause or the reserve) nothing is queued: the jobs could not run, and a manual sync would queue behind them.
+- A periodic job starts the manual pause of its repository, like any job: the pause counts from the latest job. The texts avoid «вы» for this reason.
+- **The second 404.** The previous label is read after GitHub answered, in the transaction that records the new one, under the lock on the repository row that a link holds through its upsert. A link that succeeded in between has cleared the label, so its repository is not marked unavailable by a 404 that came before it. With the second 404 the job is `FAILED` at once (`SyncFailed` with `final`), with `NOT_FOUND`.
+- **Which attempts count**: those GitHub answered. A label of another kind between two 404s breaks the series (404, 503, 404 is not two in a row). A rate limit records no label and does not break it. A 404 for languages does not count: the rule reads only the metadata category.
+- **The retry after the first 404** uses the ordinary delay of its attempt, not always the base one: a special case would buy nothing, since a first 404 usually comes at the first attempt. A first 404 at the last attempt ends the job `FAILED`, and the second comes with the next job.
+- **`unavailable_since` keeps the first date.** A later 404 does not move it. An unavailable repository still gets a job a day, one request ending `FAILED` at once, so a repository made public again recovers on its own; its relation is not touched until then.
+- Any other answer about a blocked repository stays as it is (see "Open questions").
+
 ### Status for the client
 
 There is no separate status endpoint. The cabinet project response (`GET /projects/{id}` and every response that returns `ProjectResponse`) carries `github.sync`:
@@ -145,7 +160,7 @@ The worker is a separate process from the backend image (ADR-009), run as its ow
 
 - The stored GitHub data is exactly what V1 shows: no README text, file names or other people's data sit in the database unused.
 - Rate limits never exhaust a job's attempts; a busy hour delays syncs and does not fail them.
-- A repository that became private disappears from public pages within one retry delay of the second 404.
+- A repository that became private disappears from public pages within one retry delay of the second 404, and the first one comes with the next job: up to 24 hours later, unless a job runs sooner. Accepted in step 6.5: the data was public until then.
 - The client learns the outcome through the response it already reads.
 
 ### Negative
@@ -185,6 +200,6 @@ Checked in step 6.4 on 2026-11-01 by the project owner, against live GitHub and 
 
 - Conditional requests in syncs: storing an ETag per repository and category would let an unchanged repository cost no budget, since a 304 did not spend the limit in step 5.2. Not used in V1 (decided in step 6.4, "Processor"); open for after V1.
 - File content for the code viewer (ADR-011's open question) and the return of README and the file tree.
-- Whether periodic syncs should skip repositories linked only to hidden (`PUBLISHED` + `PRIVATE`) projects.
+- A repository blocked by GitHub, which may answer 403 or 451 rather than 404 (not checked): today such an answer is `UNEXPECTED_STATUS`, the job ends `FAILED` after its attempts, and the stored data stays shown. Left as it is in step 6.5, without evidence of the real answer.
 - Worker health checks and alerting beyond the restart policy (Phase 9).
 - Retention of finished jobs: kept in V1 (about one row a day per repository linked to a published project); deleting old `SYNCED` and `FAILED` rows can come later without a schema change.

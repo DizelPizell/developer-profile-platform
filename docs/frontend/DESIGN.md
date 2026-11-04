@@ -467,6 +467,7 @@ The sync message, at most one, by `sync.status` and `synced_at`. Its tones are t
 | `SYNCED` | None: the data date says it |
 | `FAILED`, `synced_at` set | «Не удалось обновить данные с GitHub. Показаны данные от {date}.» (`error`) |
 | `FAILED`, `synced_at` `null` | «Не удалось получить данные с GitHub. Попробуйте обновить позже.» (`error`) |
+| `FAILED` with `unavailable: true` (F-GH1.6) | None: the `unavailable` warning says it, and a job of an unavailable repository ends `FAILED` every day |
 | Polling stopped after its 24 reads | «Синхронизация идёт дольше обычного. Проверьте позже.» and «Проверить снова» (`label`: the job may still finish) |
 | Three failed reads in a row | «Не удалось узнать статус синхронизации.» and «Проверить снова» (`error`) |
 
