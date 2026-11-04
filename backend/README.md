@@ -52,6 +52,39 @@ docker exec developer-platform-postgres psql -U <user> -d <database> \
 
 Use `POSTGRES_USER` and `POSTGRES_DB` from your `.env` file.
 
+Once a minute the worker also queues up to `GITHUB_PERIODIC_SYNC_BATCH` jobs for
+repositories linked to a published project with no job in the last
+`GITHUB_PERIODIC_SYNC_SECONDS`, so they sync only while it runs. It queues
+nothing while it claims nothing (a rate limit, the reserve).
+
+### Manual periodic sync check
+
+Not run yet. Real GitHub, a repository of your own, the stack running after
+`docker compose build backend`. Each step that changes the root `.env` ends by
+putting the value back. The worker reads `.env` when it starts, so restart it
+after a change.
+
+1. Link the repository to a published project, and to a draft of another
+   repository. Set `GITHUB_PERIODIC_SYNC_SECONDS=120` and start the worker: both
+   links' jobs run once.
+2. Wait 3 minutes: the log shows `periodic syncs queued`, and only the published
+   project's repository gets new jobs (the query above, or the job lines of the
+   log).
+3. Rename the repository on GitHub and wait for the next job: the project form
+   shows the new name, with no error.
+4. Make the repository private and wait for the next job: `NOT_FOUND at attempt
+   1`, about 30 seconds later `FAILED at attempt 2`, and the form shows
+   «Репозиторий недоступен: удалён или стал приватным.»
+5. Wait for another job: `FAILED at attempt 1` after one request, and
+   `unavailable_since` keeps its date.
+6. Make the repository public again and wait for the next job: `SYNCED`, and the
+   warning is gone after the form is reloaded.
+7. Press «Обновить данные» right after a periodic job: the button shows its
+   pause, as after a manual sync.
+
+Checked by tests only: the batch limit, the reserve, a link during a 404, and a
+rate limit between two 404s.
+
 ### Run tests
 
 Tests require a PostgreSQL instance. Use the Docker Compose database or create a

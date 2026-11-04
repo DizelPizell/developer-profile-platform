@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.4, with F-GH1.5 in the frontend.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.5, with F-GH1.5 in the frontend.
 
 
 
@@ -882,6 +882,8 @@ backend Phase 6 step 6.4: the processor — metadata by id and languages, each i
 
 frontend F-GH1.5: the sync status, the language chips with shares and the data date in the project form, «Обновить данные» with the pause, and polling every 5 seconds while a job is active (visible tab only, at most 2 minutes) (manual check against the worker pending)
 
+backend Phase 6 step 6.5: periodic syncs queued in the worker's iteration (at most once a minute, 30 jobs at a time, repositories of PUBLISHED projects with no job in 24 hours, nothing during a hold), the two-404 rule with unavailable_since keeping its first date (ADR-018) (manual check pending)
+
 
 
 Not yet started:
@@ -890,7 +892,9 @@ Not yet started:
 
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
 
-sync and public GitHub data — Phase 6 steps 6.5–6.7 (ADR-018, ADR-019)
+the worker service and public GitHub data — Phase 6 steps 6.6–6.7 (ADR-018, ADR-019)
+
+the sync message of an unavailable repository — F-GH1.6 (FRONTEND_PLAN)
 
 
 
@@ -898,7 +902,7 @@ Current next goal:
 
 
 
-Phase 6 step 6.5 (DEVELOPMENT_PLAN): periodic syncs and the two-404 rule (ADR-018). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+Phase 6 step 6.6 (DEVELOPMENT_PLAN): the github-worker service in Compose, with F-GH1.6 (FRONTEND_PLAN) beside it; then step 6.7, the public github object (ADR-019). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
 
 Do not start a step before the previous one is merged.
 
