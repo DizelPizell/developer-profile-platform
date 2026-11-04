@@ -59,14 +59,27 @@ nothing while it claims nothing (a rate limit, the reserve).
 
 ### Manual periodic sync check
 
-Not run yet. Real GitHub, a repository of your own, the stack running after
-`docker compose build backend`. Each step that changes the root `.env` ends by
-putting the value back. The worker reads `.env` when it starts, so restart it
-after a change.
+Not run yet. Real GitHub and a repository of your own. Each step that changes
+the root `.env` ends by putting the value back. The worker reads `.env` when it
+starts, so restart it after a change.
 
+0. Check that the image has the current code. Compose copies the code into the
+   image when it builds, and neither `run` nor `up` rebuilds on their own; a
+   variable the image's `Settings` does not know is dropped silently, so
+   `printenv` proves nothing. Ask the settings themselves, which fails with an
+   `AttributeError` on an old image:
+
+   ```bash
+   docker compose run --build --rm --no-deps backend python -c "from app.settings import settings; print(settings.github_periodic_sync_seconds)"
+   ```
+
+   Recreate the API on the same image with `docker compose up -d --build
+   backend`, and start the worker with `--build` as well. Its line after the limit
+   names both values: `started, periodic sync every 120 s, batch 30`.
 1. Link the repository to a published project, and to a draft of another
    repository. Set `GITHUB_PERIODIC_SYNC_SECONDS=120` and start the worker: both
-   links' jobs run once.
+   links' jobs run once. The first periodic look comes with the first iteration,
+   so a published repository with no recent job is queued at once.
 2. Wait 3 minutes: the log shows `periodic syncs queued`, and only the published
    project's repository gets new jobs (the query above, or the job lines of the
    log).
