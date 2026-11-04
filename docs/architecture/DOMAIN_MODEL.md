@@ -6,7 +6,7 @@
 GitHub OAuth login (register and login unified), logout, sessions, current user.
 
 ### Profile
-Professional profile, slug, publication state, experience, education, skills, featured projects.
+Professional profile, slug, publication state, contacts, featured projects. Experience, education and skills come after V1.
 
 ### Projects
 Project lifecycle, context, technologies, screenshots, demo, repository association, showcase.
@@ -15,7 +15,7 @@ Project lifecycle, context, technologies, screenshots, demo, repository associat
 Public repository listing, linking, import, synchronization, normalized technical data. Public data only, read with the app's credentials; no user token (ADR-016).
 
 ### Analytics
-Event collection, profile metrics, project metrics and funnel metrics.
+Event collection, profile metrics, project metrics and funnel metrics. V1.1, right after the V1 launch.
 
 ### Files
 Object storage, uploads and access policy.
@@ -65,7 +65,7 @@ GitHub:
 
 ConnectGitHub and DisconnectGitHub are not part of V1: the user grants no repository access (ADR-016).
 
-Analytics:
+Analytics (V1.1):
 - TrackEvent
 - GetProfileAnalytics
 - GetProjectAnalytics

@@ -21,9 +21,9 @@ PostgreSQL is the application state source of truth.
 users
 auth_sessions
 profiles
-experiences
-educations
-skills
+experiences (after V1)
+educations (after V1)
+skills (after V1)
 
 projects
 project_showcases
@@ -41,7 +41,7 @@ github_sync_category_status
 github_contributors (deferred, not in V1)
 github_commits (deferred, not in V1)
 
-analytics_events
+analytics_events (V1.1)
 
 files
 ```

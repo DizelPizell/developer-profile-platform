@@ -373,6 +373,8 @@ The repository list is not stored in the database; a page GitHub returned is kep
 
 ## Analytics
 
+V1.1, right after the V1 launch (DEVELOPMENT_PLAN, Phase 7). These endpoints do not exist in V1.
+
 ```http
 POST /analytics/events
 GET  /analytics/profile

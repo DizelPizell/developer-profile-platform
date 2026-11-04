@@ -8,9 +8,9 @@ This document is reconciled with `docs/database/DATABASE_DECISIONS.md` and the A
 USER
 AUTH_SESSION
 PROFILE
-EXPERIENCE
-EDUCATION
-SKILL
+EXPERIENCE (after V1)
+EDUCATION (after V1)
+SKILL (after V1)
 PROJECT
 PROJECT_SHOWCASE
 TECHNOLOGY
@@ -24,7 +24,7 @@ GITHUB_SYNC_JOB
 GITHUB_SYNC_CATEGORY_STATUS
 GITHUB_CONTRIBUTOR (deferred, not in V1)
 GITHUB_COMMIT (deferred, not in V1)
-ANALYTICS_EVENT
+ANALYTICS_EVENT (V1.1)
 ```
 
 There is no separate `PROJECT_CONTRIBUTION` entity in V1. `role` and `contribution` are plain fields on `PROJECT` — see ADR-004-project-contribution.md.
@@ -36,9 +36,9 @@ V1 stores only repository metadata and languages (ADR-018-github-sync-v1.md). Pr
 ```text
 USER 1:1 PROFILE
 USER 1:N AUTH_SESSION
-USER 1:N EXPERIENCE
-USER 1:N EDUCATION
-USER 1:N SKILL (not in Phase 3; see ADR-015)
+USER 1:N EXPERIENCE (after V1)
+USER 1:N EDUCATION (after V1)
+USER 1:N SKILL (after V1; see ADR-015)
 USER 1:1 GITHUB_ACCOUNT
 USER 1:N PROJECT (owner)
 
@@ -57,7 +57,7 @@ GITHUB_REPOSITORY 1:N GITHUB_SYNC_CATEGORY_STATUS
 GITHUB_REPOSITORY 1:N GITHUB_CONTRIBUTOR (deferred)
 GITHUB_REPOSITORY 1:N GITHUB_COMMIT (deferred)
 
-PROFILE/PROJECT 1:N ANALYTICS_EVENT
+PROFILE/PROJECT 1:N ANALYTICS_EVENT (V1.1)
 ```
 
 ## User fields
@@ -163,7 +163,7 @@ The seven text fields are nullable `TEXT` with CHECK constraints; stored values 
 
 ## Analytics
 
-Events should include:
+V1.1: the table does not exist in V1. Events should include:
 - event type
 - profile/project reference when applicable
 - timestamp
@@ -187,6 +187,6 @@ Consider indexes for:
 - github_sync_category_status (repository_id, category) unique
 - github_contributor (repository_id, github_user_id) (unique), when contributors return
 - github_commit repository_id + sha (unique), when commits return
-- analytics profile/project + timestamp
+- analytics profile/project + timestamp, with V1.1
 
 Exact SQLAlchemy models and indexes must be reviewed before migrations.

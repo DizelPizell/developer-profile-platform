@@ -529,11 +529,13 @@ paths:
   /analytics/events:
     post:
       summary: Track analytics event
+      description: V1.1, not in V1 (DEVELOPMENT_PLAN, Phase 7).
       responses:
         "202": {description: Event accepted}
   /analytics/profile:
     get:
       summary: Profile analytics
+      description: V1.1, not in V1 (DEVELOPMENT_PLAN, Phase 7).
       responses:
         "200": {description: Analytics}
   /analytics/projects/{id}:
@@ -541,6 +543,7 @@ paths:
       - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
     get:
       summary: Project analytics
+      description: V1.1, not in V1 (DEVELOPMENT_PLAN, Phase 7).
       responses:
         "200": {description: Analytics}
 components:
