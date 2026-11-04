@@ -5,11 +5,13 @@ through the worker."""
 import logging
 import uuid
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from threading import Event
 
 import httpx
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.orm import Session
 
 from app.github import service as github_service
@@ -35,7 +37,9 @@ from app.models.github import (
 )
 from app.models.identity import User
 from app.models.projects import Project
-from tests.test_github_constraints import _link, _project, _repository
+from app.settings import settings
+from tests.conftest import wait_until_blocked
+from tests.test_github_constraints import _link, _project, _repository, _repository_fields
 
 T0 = datetime(2026, 11, 1, 12, 0)
 EARLIER = T0 - timedelta(days=2)
@@ -693,3 +697,272 @@ def test_no_links_need_no_contributor_pages(env):
     env.sync()
 
     assert env.github.requests == ["metadata", "languages"]
+
+
+# ---------------------------------------------------------------------------
+# Two 404s in a row
+# ---------------------------------------------------------------------------
+
+RETRY = timedelta(seconds=30)
+
+
+@pytest.fixture
+def available(env) -> Env:
+    env.db.execute(
+        update(GitHubRepository)
+        .where(GitHubRepository.id == env.repository.id)
+        .values(unavailable_since=None)
+    )
+    env.db.commit()
+    return env
+
+
+def _run_at(env: Env, moment: datetime) -> None:
+    env.clock.now = moment
+    _run(env)
+
+
+def test_two_404s_in_one_job_end_it_and_mark_the_repository(available):
+    env = available
+    job_id = _queued_job(env)
+    env.github.fail["metadata"] = _status(404)
+
+    _run(env)
+    assert _job(env, job_id) == ("QUEUED", 1, "NOT_FOUND")
+    assert env.row().unavailable_since is None
+    assert env.categories()["metadata"] == (None, "NOT_FOUND", T0)
+
+    _run_at(env, T0 + RETRY)
+    assert _job(env, job_id) == ("FAILED", 2, "NOT_FOUND")
+    assert env.row().unavailable_since == T0 + RETRY
+    assert env.row().updated_at == T0 + RETRY
+    assert env.categories()["metadata"] == (None, "NOT_FOUND", T0 + RETRY)
+    assert env.github.requests == ["metadata", "metadata"]
+
+
+def test_two_404s_in_two_jobs_count_as_two(available):
+    env = available
+    last_attempt = settings.github_worker_max_attempts - 1
+    first = _queued_job(env, attempt_count=last_attempt)
+    env.github.fail["metadata"] = _status(404)
+
+    _run(env)
+    assert _job(env, first) == ("FAILED", last_attempt + 1, "NOT_FOUND")
+    assert env.row().unavailable_since is None
+
+    second = _queued_job(env)
+    _run_at(env, T0 + timedelta(days=1))
+    assert _job(env, second) == ("FAILED", 1, "NOT_FOUND")
+    assert env.row().unavailable_since == T0 + timedelta(days=1)
+
+
+def test_another_failure_between_two_404s_breaks_the_series(available):
+    env = available
+    job_id = _queued_job(env)
+    env.github.fail["metadata"] = _status(404)
+    _run(env)
+
+    env.github.fail["metadata"] = _status(503)
+    _run_at(env, T0 + timedelta(minutes=1))
+    assert env.categories()["metadata"][1] == "GITHUB_UNAVAILABLE"
+
+    env.github.fail["metadata"] = _status(404)
+    _run_at(env, T0 + timedelta(minutes=5))
+    assert _job(env, job_id) == ("QUEUED", 3, "NOT_FOUND")
+    assert env.row().unavailable_since is None
+
+    _run_at(env, T0 + timedelta(minutes=10))
+    assert _job(env, job_id) == ("FAILED", 4, "NOT_FOUND")
+    assert env.row().unavailable_since is not None
+
+
+def test_a_rate_limit_between_two_404s_does_not_break_the_series(available):
+    env = available
+    job_id = _queued_job(env)
+    env.github.fail["metadata"] = _status(404)
+    _run(env)
+
+    env.github.fail["metadata"] = RATE_LIMITED
+    _run_at(env, T0 + RETRY)
+    assert _job(env, job_id) == ("QUEUED", 1, "NOT_FOUND")
+
+    env.github.fail["metadata"] = _status(404)
+    _run_at(env, T0 + timedelta(minutes=11))
+    assert _job(env, job_id) == ("FAILED", 2, "NOT_FOUND")
+    assert env.row().unavailable_since == T0 + timedelta(minutes=11)
+
+
+def test_a_success_between_two_404s_breaks_the_series(available):
+    env = available
+    first = _queued_job(env)
+    env.github.fail["metadata"] = _status(404)
+    _run(env)
+
+    del env.github.fail["metadata"]
+    _run_at(env, T0 + RETRY)
+    assert _job(env, first) == ("SYNCED", 2, None)
+
+    second = _queued_job(env)
+    env.github.fail["metadata"] = _status(404)
+    _run_at(env, T0 + timedelta(days=1))
+    assert _job(env, second) == ("QUEUED", 1, "NOT_FOUND")
+    assert env.row().unavailable_since is None
+
+
+def test_a_link_between_two_404s_breaks_the_series(available):
+    env = available
+    job_id = _queued_job(env)
+    env.github.fail["metadata"] = _status(404)
+    _run(env)
+
+    github_service.record_category_success(env.db, env.repository.id, "metadata", T0)
+    env.db.commit()
+
+    _run_at(env, T0 + RETRY)
+    assert _job(env, job_id) == ("QUEUED", 2, "NOT_FOUND")
+    assert env.row().unavailable_since is None
+
+
+def test_a_404_of_the_languages_does_not_count(available):
+    env = available
+    job_id = _queued_job(env)
+    env.github.fail["languages"] = _status(404)
+
+    _run(env)
+    _run_at(env, T0 + RETRY)
+
+    assert _job(env, job_id) == ("QUEUED", 2, "NOT_FOUND")
+    assert env.row().unavailable_since is None
+    assert env.categories()["metadata"][1] is None
+    assert env.categories()["languages"][1] == "NOT_FOUND"
+
+
+def test_a_later_404_keeps_the_first_date_and_costs_one_request(env):
+    env.seed_categories(metadata="NOT_FOUND")
+    job_id = _queued_job(env)
+    env.github.fail["metadata"] = _status(404)
+
+    _run(env)
+
+    assert _job(env, job_id) == ("FAILED", 1, "NOT_FOUND")
+    assert env.row().unavailable_since == EARLIER
+    assert env.github.requests == ["metadata"]
+
+
+def test_an_unavailable_repository_keeps_its_data_and_relation(available):
+    env = available
+    env.db.execute(
+        update(ProjectRepository)
+        .where(ProjectRepository.id == env.link.id)
+        .values(relation="CONTRIBUTOR", relation_checked_at=EARLIER)
+    )
+    env.seed_categories(metadata="NOT_FOUND")
+    _queued_job(env)
+    env.github.fail["metadata"] = _status(404)
+
+    _run(env)
+
+    env.db.expire_all()
+    link = env.db.get(ProjectRepository, env.link.id)
+    assert (link.relation, link.relation_checked_at) == ("CONTRIBUTOR", EARLIER)
+    assert (env.row().name, env.row().languages) == ("old-name", {"Old": 1})
+    github = github_service.project_github(env.db, env.project.id, T0)
+    assert github.unavailable is True
+    assert github.sync.status == "FAILED"
+
+
+def test_a_success_after_it_clears_it_and_recomputes_the_relation(env):
+    env.seed_categories(metadata="NOT_FOUND")
+    job_id = _queued_job(env)
+    env.github.repo = _github_repo(owner="new-owner", owner_id=OWNER_ID + 1)
+    env.github.contributors = [[]]
+
+    _run(env)
+
+    assert _job(env, job_id) == ("SYNCED", 1, None)
+    assert env.row().unavailable_since is None
+    assert env.categories()["metadata"][1] is None
+    env.db.expire_all()
+    assert env.db.get(ProjectRepository, env.link.id).relation == "NONE"
+    assert github_service.project_github(env.db, env.project.id, T0).unavailable is False
+
+
+def test_a_404_for_a_repository_deleted_meanwhile_writes_nothing(available):
+    env = available
+    env.github.fail["metadata"] = _status(404)
+
+    def delete_repository() -> None:
+        env.db.execute(delete(ProjectRepository))
+        env.db.execute(delete(GitHubRepository).where(GitHubRepository.id == env.repository.id))
+        env.db.commit()
+
+    env.github.during = delete_repository
+
+    with pytest.raises(GitHubNotFound):
+        env.sync()
+
+    assert env.db.scalar(select(GitHubSyncCategoryStatus.id)) is None
+
+
+class TestLinkDuringA404:
+    """A link holds the repository row until it commits. A 404 that GitHub gave
+    before that link must see its success, so it is not a second one."""
+
+    @pytest.fixture
+    def repository_id(self, db_engine):
+        with Session(db_engine) as db:
+            github_repo_id = 900_000 + uuid.uuid4().int % 100_000
+            repository = GitHubRepository(**_repository_fields(github_repo_id=github_repo_id))
+            db.add(repository)
+            db.flush()
+            db.add(
+                GitHubSyncCategoryStatus(
+                    github_repository_id=repository.id,
+                    category="metadata",
+                    last_error="NOT_FOUND",
+                    last_error_at=EARLIER,
+                )
+            )
+            db.commit()
+            repository_id = repository.id
+        yield repository_id
+        with Session(db_engine) as db:
+            db.execute(delete(GitHubRepository).where(GitHubRepository.id == repository_id))
+            db.commit()
+
+    def test_the_404_waits_for_the_link_and_is_a_first_one(self, db_engine, repository_id):
+        client = GitHubApiClient(
+            httpx.Client(transport=httpx.MockTransport(_status(404))),
+            "sync_client_id",
+            "sync_client_secret",
+            rate_limits=RateLimitState(),
+            pause=RateLimitPause(),
+            now=Clock(),
+        )
+        pids: list[int] = []
+        connected = Event()
+
+        def sync() -> None:
+            with Session(db_engine) as db:
+                pids.append(db.scalar(text("SELECT pg_backend_pid()")))
+                db.rollback()
+                connected.set()
+                sync_repository(db, client, repository_id, Clock())
+
+        with Session(db_engine) as link, ThreadPoolExecutor(1) as pool:
+            link.execute(
+                select(GitHubRepository.id)
+                .where(GitHubRepository.id == repository_id)
+                .with_for_update()
+            )
+            github_service.record_category_success(link, repository_id, "metadata", T0)
+            running = pool.submit(sync)
+            assert connected.wait(timeout=5)
+            wait_until_blocked(db_engine, pids[0])
+            link.commit()
+
+            with pytest.raises(GitHubNotFound):
+                running.result(timeout=5)
+
+        with Session(db_engine) as db:
+            assert db.get(GitHubRepository, repository_id).unavailable_since is None
