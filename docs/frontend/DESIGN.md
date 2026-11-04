@@ -436,7 +436,7 @@ Linked:
   - «Заменить репозиторий» shows the input again with «Отмена». A successful link replaces the previous one (contract).
   - «Отвязать» asks in an `AlertDialog` (focus starts on «Отмена»): «Отвязать репозиторий?», «Проект и его тексты останутся. Пропадёт только связь с {full_name}. Привязать можно снова.», «Отвязать» (`error` fill) and «Отмена». Confirming closes the dialog and sends `DELETE /projects/{id}/repository`; the button reads «Отвязываем…» meanwhile, and an error is shown under the buttons with the cabinet texts (unlink does not read GitHub).
 
-States of a linked repository (ADR-017). In F-GH1 only a sync can set them (Phase 6), but the contract already returns the fields:
+States of a linked repository (ADR-017):
 
 | Field | Shown in the block |
 |---|---|
@@ -454,7 +454,7 @@ Behavior:
 
 #### Sync status, languages and «Обновить данные» (F-GH1.5)
 
-Mockup: `repository-sync.png` (11 states and a rules card). API: `sync`, `synced_at` and `languages` of `ProjectGitHub`, and `POST /integrations/github/repositories/{github_repo_id}/sync` (contract, GitHub; ADR-018, ADR-019). Decided with the owner on 2026-11-01. The mockup draws each state in one frame; the panel keeps its border from `project-form.png`, and the new elements take the mockup's order.
+Mockup: `repository-sync.png` (11 states and a rules card). It does not draw an unavailable repository: that state follows the tables here. API: `sync`, `synced_at` and `languages` of `ProjectGitHub`, and `POST /integrations/github/repositories/{github_repo_id}/sync` (contract, GitHub; ADR-018, ADR-019). Decided with the owner on 2026-11-01. The mockup draws each state in one frame; the panel keeps its border from `project-form.png`, and the new elements take the mockup's order.
 
 Order, top to bottom. Inside the panel: `full_name` and «Обновлён: {date}», the description, the labels, the sync message, the languages or a placeholder, «Данные GitHub от {date}», the `unavailable` and `NONE` warnings. Under the panel: «Обновить данные» on its own row, «Заменить репозиторий» and «Отвязать», the pause hint while a pause runs, the note on link and unlink.
 
@@ -470,6 +470,8 @@ The sync message, at most one, by `sync.status` and `synced_at`. Its tones are t
 | `FAILED` with `unavailable: true` (F-GH1.6) | None: the `unavailable` warning says it, and a job of an unavailable repository ends `FAILED` every day |
 | Polling stopped after its 24 reads | «Синхронизация идёт дольше обычного. Проверьте позже.» and «Проверить снова» (`label`: the job may still finish) |
 | Three failed reads in a row | «Не удалось узнать статус синхронизации.» and «Проверить снова» (`error`) |
+
+The `unavailable` warning has a live region of its own, `aria-live="polite"` with `aria-atomic`, mounted while it is empty, so it is announced when a sync ends with it. That is what `role="status"` implies; the panel keeps one `role="status"`, the sync message.
 
 Languages (ADR-019):
 

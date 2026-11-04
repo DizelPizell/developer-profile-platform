@@ -884,6 +884,8 @@ backend Phase 6 step 6.4: the processor — metadata by id and languages, each i
 
 frontend F-GH1.5: the sync status, the language chips with shares and the data date in the project form, «Обновить данные» with the pause, and polling every 5 seconds while a job is active (visible tab only, at most 2 minutes) (manual check against the worker pending)
 
+frontend F-GH1.6: one warning for an unavailable repository, without the failed sync message, announced from its own live region (manual check pending)
+
 backend Phase 6 step 6.5: periodic syncs queued in the worker's iteration (at most once a minute, 30 jobs at a time, repositories of PUBLISHED projects with no job in 24 hours, nothing during a hold), the two-404 rule with unavailable_since keeping its first date (ADR-018) (manual check pending)
 
 backend Phase 6 step 6.6: the github-worker service in Compose on the backend image, always on, updated only with the whole stack (docker compose up -d --build), and a CI workflow that checks it (ADR-018) (manual check pending)
@@ -906,15 +908,13 @@ analytics — Phase 7, V1.1
 
 public GitHub data — Phase 6 step 6.7 (ADR-019)
 
-the sync message of an unavailable repository — F-GH1.6 (FRONTEND_PLAN)
-
 
 
 Current next goal:
 
 
 
-F-GH1.6 (FRONTEND_PLAN), the sync message of an unavailable repository; then Phase 6 step 6.7, the public github object (ADR-019), and F-GH2. After them the deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
+Phase 6 step 6.7 (DEVELOPMENT_PLAN), the public github object (ADR-019), and F-GH2. After them the deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
 
 Do not start a step before the previous one is merged.
 
