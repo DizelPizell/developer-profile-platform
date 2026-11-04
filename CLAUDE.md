@@ -842,6 +842,8 @@ Current development stage
 
 The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) has started: steps 6.1–6.5, with F-GH1.5 in the frontend.
 
+V1 was narrowed by the owner on 2026-11-04 (PRD "V1 scope", DEVELOPMENT_PLAN "V1 and the remaining work"), and this wins over the "V1 focuses on" list above: analytics is V1.1, right after the launch; the technical project workspace and experience, skills and education are after V1; minimal contacts are in V1.
+
 
 
 Completed:
@@ -890,7 +892,15 @@ Not yet started:
 
 
 
+the deployment skeleton — Phase 9 steps 9.1–9.3, before Phase 4
+
 demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
+
+contacts — steps C.1–C.2
+
+the rest before the launch — steps 8.3, 8.4, 9.4–9.8
+
+analytics — Phase 7, V1.1
 
 the worker service and public GitHub data — Phase 6 steps 6.6–6.7 (ADR-018, ADR-019)
 
@@ -902,7 +912,7 @@ Current next goal:
 
 
 
-Phase 6 step 6.6 (DEVELOPMENT_PLAN): the github-worker service in Compose, with F-GH1.6 (FRONTEND_PLAN) beside it; then step 6.7, the public github object (ADR-019). Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}) is still to be done.
+Phase 6 step 6.6 (DEVELOPMENT_PLAN): the github-worker service in Compose, with F-GH1.6 (FRONTEND_PLAN) beside it; then step 6.7, the public github object (ADR-019), and F-GH2. After them the deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
 
 Do not start a step before the previous one is merged.
 
