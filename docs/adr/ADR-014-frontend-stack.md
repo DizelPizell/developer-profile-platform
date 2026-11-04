@@ -4,6 +4,8 @@
 
 Accepted for the decisions below. The items under "Open questions" are not decided.
 
+Note (2026-11-04): the IDE view moved after V1 with the workspace (ADR-006), so its part of "Sync status and file content for the IDE view" under "Open questions" waits for it. The sync status was decided in ADR-018.
+
 ## Context
 
 Legacy ADR `002-nextjs.md` chose Next.js + TypeScript for public profiles, the dashboard and the technical workspace, but fixed nothing else: router, styling, components, tests, how the browser reaches the API, or which pages render where.

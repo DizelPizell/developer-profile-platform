@@ -6,6 +6,8 @@ Accepted.
 
 Narrows ADR-010-github-evidence-data-model-v1.md and ADR-011-partial-sync-success.md for V1 (which categories are synchronized and stored) and refines ADR-009-github-sync-worker-execution-model.md (triggers, rate limits, a missing repository, the status contract). Those ADRs keep their text; each carries a note pointing here.
 
+Note (2026-11-04): the workspace moved after V1 (ADR-006), so the file tree, needed only by the code viewer, returns with it and not with the public project page. For README, contributors and commits the text below stands, and whether README comes before the V1 launch is not decided (DEVELOPMENT_PLAN, "Open questions").
+
 ## Context
 
 ADR-009 fixed how the worker claims and retries jobs. ADR-010 and ADR-011 fixed the evidence scope: metadata, README, languages and file tree as mandatory categories, contributors and commits as optional ones. They left open when jobs are created, how the client sees the outcome, and how GitHub's rate limits are handled.

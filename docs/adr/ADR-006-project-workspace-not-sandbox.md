@@ -4,6 +4,8 @@
 
 Accepted
 
+Note (2026-11-04): the owner moved the workspace out of V1: it comes after V1 (PRD, "V1 scope"; DEVELOPMENT_PLAN, "V1 and the remaining work"). The decision below stands for when it returns: read-only, and no repository code is executed. Where the text says "V1", read the first version of the workspace.
+
 ## Context
 
 The product should make technical project evidence easy to inspect.

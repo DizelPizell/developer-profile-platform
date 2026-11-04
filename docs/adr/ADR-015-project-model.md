@@ -6,6 +6,8 @@ Accepted for the decisions below. The items under "Open questions" are not decid
 
 Amends ADR-005-project-lifecycle-and-visibility.md (allowed state combinations and transitions) and ADR-013-profile-editing-and-origin-check.md (projects in the public profile, `DELETE` in CORS).
 
+Note (2026-11-04): skills come after V1, with experience and education, and the question under "Open questions" stays open until then. Phase 7 is V1.1, so what happens to the analytics events of a deleted project is decided there (DEVELOPMENT_PLAN, "V1 and the remaining work").
+
 ## Context
 
 DEVELOPMENT_PLAN Phase 3 adds projects: the model, technologies, lifecycle and visibility, CRUD, validation, the showcase with up to three featured projects and their order (US-007, US-012–US-014, US-018–US-021).

@@ -32,7 +32,7 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 | ADR-003-github-token-storage.md | Encrypted GitHub OAuth Token Storage | Accepted (not applied in V1: no user token is stored, see ADR-016) |
 | ADR-004-project-contribution.md | Project Contribution as Project Fields in V1 | Accepted |
 | ADR-005-project-lifecycle-and-visibility.md | Separate Project Lifecycle and Visibility | Accepted (allowed combinations and transitions fixed by ADR-015) |
-| ADR-006-project-workspace-not-sandbox.md | Read-only Project Workspace in V1 | Accepted |
+| ADR-006-project-workspace-not-sandbox.md | Read-only Project Workspace in V1 | Accepted (the workspace moved after V1 — see note in the file) |
 | ADR-007-github-is-source-of-technical-evidence.md | GitHub as Technical Evidence Source | Accepted |
 | ADR-008-no-kafka-outbox-v1.md | No Kafka or Outbox in V1 | Accepted |
 | ADR-009-github-sync-worker-execution-model.md | GitHub Sync Worker Execution Model | Accepted (triggers, rate limits and status contract refined by ADR-018) |
@@ -59,24 +59,27 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 | 006-github-source-of-truth.md | GitHub as Technical Evidence Source | Superseded by ADR-007-github-is-source-of-technical-evidence.md |
 | 007-object-storage.md | S3-compatible Object Storage | Accepted |
 | 008-no-microservices-v1.md | No Microservices in V1 | Superseded by ADR-001-modular-monolith.md |
-| 009-analytics-first-class.md | Analytics as a First-Class Domain | Accepted (CV_DOWNLOAD amended to deferred — see note in the file) |
+| 009-analytics-first-class.md | Analytics as a First-Class Domain | Accepted (CV_DOWNLOAD amended to deferred, analytics moved to V1.1 — see notes in the file) |
 | 010-no-arbitrary-code-execution.md | No Arbitrary Repository Execution in V1 | Superseded by ADR-006-project-workspace-not-sandbox.md |
 | 011-evidence-over-score.md | Evidence Over Scores | Accepted (GitHub-specific application formalized in ADR-007-github-is-source-of-technical-evidence.md) |
 | 012-github-sync-model.md | Normalize GitHub Data Locally | Accepted (transport decision now in ADR-008-no-kafka-outbox-v1.md) |
 
 A "Superseded" status means the decision itself has been replaced; the file is kept, unedited in substance, as the historical record of what was decided and why at the time. "Accepted" means the decision still holds, whether or not it has since been amended by a note or a later ADR; this is the status written in each ADR file.
 
+V1 was narrowed by the owner on 2026-11-04 (PRD, "V1 scope"; DEVELOPMENT_PLAN, "V1 and the remaining work"): analytics is V1.1, the workspace and experience, skills and education are after V1, and minimal contacts are in V1. Where an ADR says "V1" otherwise, its dated note or this decision wins.
+
 ## Open decisions requiring discussion
 
 These are known gaps intentionally left unresolved, because resolving them would mean making a new architectural decision rather than reconciling existing ones:
 
-- **File content retrieval for code viewer.** Whether file content is fetched on demand from GitHub with a short-lived cache, or stored locally. Provisional direction: on-demand. Not confirmed; a separate decision is required before implementation. See ADR-011-partial-sync-success.md. README and the file tree themselves are deferred in V1 (ADR-018).
+- **File content retrieval for code viewer.** Whether file content is fetched on demand from GitHub with a short-lived cache, or stored locally. Provisional direction: on-demand. Not confirmed; a separate decision is required before implementation. See ADR-011-partial-sync-success.md. README and the file tree themselves are deferred in V1 (ADR-018). Needed only when the workspace returns, after V1.
 - **README display policy.** Plain text or rendered markdown, HTML in markdown, images from other hosts. Required before README returns. See ADR-019.
 - **GitHub follow-ups.** Private repositories through a GitHub App (ADR-016); cleanup of unlinked `github_repositories` rows and of the data of unavailable repositories (ADR-017); repositories blocked by GitHub (ADR-018); GitHub API behaviors not yet verified, checked in step 5.2 (ADR-016, ADR-017, ADR-018).
+- **Contacts.** Which contacts, where they are shown, and what "contact visibility" means in the minimal form. Required before step C.1. See DEVELOPMENT_PLAN, "Open questions".
 - **CV feature.** Whether V1 includes any CV generation/storage/download capability at all; `CV_DOWNLOAD` stays deferred until this is decided.
 - **Profile follow-ups.** Markdown in `bio`, profile photo upload, slug change, rate limiting and the `__Host-` cookie prefix. See ADR-013.
-- **Frontend follow-ups.** How server-side Next.js code sees the session cookie across ports; production topology (one origin behind Nginx or a separate API host); when Playwright is introduced; caching of public pages; sync status and file content for the IDE view (depends on ADR-009–011). See ADR-014.
-- **Project follow-ups.** Returning a published project to draft; skills as technologies confirmed by published projects (deferred, unresolved); technology spelling and curation; showcase description and highlights; fields of later phases; the public project page (Phase 4); deletion side effects in object storage and analytics; markdown in project fields; the project and technology limits. See ADR-015.
+- **Frontend follow-ups.** How server-side Next.js code sees the session cookie across ports; production topology (one origin behind Nginx or a separate API host); when Playwright is introduced; caching of public pages; sync status and file content for the IDE view (depends on ADR-009–011; the IDE view is after V1). See ADR-014.
+- **Project follow-ups.** Returning a published project to draft; skills as technologies confirmed by published projects (deferred, unresolved, after V1); technology spelling and curation; showcase description and highlights; fields of later phases; the public project page (Phase 4); deletion side effects in object storage and analytics (the latter with V1.1); markdown in project fields; the project and technology limits. See ADR-015.
 
 Resolved by this round (no longer open): the GitHub sync worker/queue mechanism, GitHub sync status storage shape (ADR-009), and the storage shapes for README (TEXT column), languages (JSONB), file tree (JSONB) and contributors (ADR-011); contributor unique key `(github_repository_id, github_user_id)` (ADR-011); commits classified as optional history category — fetch failure does not block `SYNCED`, append-only model, freshness tracked in `github_sync_category_status` (ADR-011); GitHub OAuth as the only login mechanism, email nullable and not unique, USER 1:1 GITHUB_ACCOUNT, auth_sessions table with token_hash only, slug rules (ADR-012); session lifetime fixed at 14 days absolute via `SESSION_TTL_DAYS` (ADR-012); `github_login` and `email` refreshed from GitHub on every login (ADR-012); profile fields, publication rules, identical 404 for non-public profiles, Origin check instead of a CSRF token, and CORS policy (ADR-013); frontend stack, direct browser-to-API calls in development, SSR for the public profile and a client-side cabinet (ADR-014); project owner and 404 rule, the four allowed lifecycle/visibility pairs and the transitions, Phase 3 project fields and publish requirements, shared technologies, featured projects in `project_showcases` with a database-held limit of three and deferrable ordering, hard delete, the project limit, project error codes, projects in the public profile, `DELETE` in CORS (ADR-015); public GitHub data only, read with the app's credentials, no user token stored, no connect or disconnect flow (ADR-016); a shared `github_repositories` table with its V1 field list, `project_repositories`, the `OWNER`/`CONTRIBUTOR`/`NONE` relation, linking and import rules, forks, renames, unavailable repositories (ADR-017); V1 sync categories, sync triggers, rate-limit handling, the two-404 rule, the sync status contract (`github.sync` in the cabinet project response) and the worker service (ADR-018); the public `github` object on project cards and its whitelist (ADR-019).
 
@@ -84,7 +87,7 @@ Resolved by this round (no longer open): the GitHub sync worker/queue mechanism,
 
 - **Dependencies (GitHub Evidence).** Deferred pending a separate review of GitHub API behavior and availability — not a live open question, not rejected outright. See ADR-010-github-evidence-data-model-v1.md.
 - **Pull Requests, Releases, CI/CD as separate synced entities, and storing GitHub file content in PostgreSQL.** Explicitly out of required V1 scope. See ADR-010.
-- **README, file tree, contributors and commits.** Not fetched or stored in V1; they return with the public project page and a README display decision, under the rules of ADR-010 and ADR-011. See ADR-018.
+- **README, file tree, contributors and commits.** Not fetched or stored in V1; they return under the rules of ADR-010 and ADR-011. The file tree returns with the workspace, after V1. README, contributors and commits return with the public project page and a README display decision, and whether README comes before the V1 launch is not decided (DEVELOPMENT_PLAN, "Open questions"). See ADR-018.
 
 ## Where to look
 
