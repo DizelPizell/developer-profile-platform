@@ -43,5 +43,25 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # The GitHub sync worker (ADR-018): one process on the backend's image. SIGTERM
+  # ends it after the current job, hence the grace period.
+  github-worker:
+    image: ${COMPOSE_PROJECT_NAME}-backend
+    pull_policy: never
+    container_name: developer-platform-github-worker
+    command: ["python", "-m", "app.github.worker"]
+    restart: unless-stopped
+    stop_grace_period: 90s
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      # The worker does not call the API. This link makes
+      # `up --build github-worker` build the image, which only backend can do.
+      backend:
+        condition: service_started
+
 volumes:
   postgres_data:
