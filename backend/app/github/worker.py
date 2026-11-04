@@ -320,7 +320,11 @@ class SyncWorker:
         retried after a poll."""
         wait = wait or stop.wait
         check_credentials(self.client)
-        logger.info("GitHub sync worker: started")
+        logger.info(
+            "GitHub sync worker: started, periodic sync every %s s, batch %s",
+            settings.github_periodic_sync_seconds,
+            settings.github_periodic_sync_batch,
+        )
         while not stop.is_set():
             try:
                 with sessions() as db:
