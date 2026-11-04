@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
+from app.github import worker as worker_module
 from app.github.worker import enqueue_periodic_syncs
 from app.models.github import GitHubRepository, GitHubSyncJob
 from app.models.identity import User
@@ -17,6 +18,7 @@ from app.models.projects import Project
 from app.settings import settings
 from tests.conftest import wait_until_blocked
 from tests.test_github_constraints import _link, _owner, _repository, _repository_fields
+from tests.test_github_worker import Clock, Recorder, _seen, _worker
 
 T0 = datetime(2026, 11, 1, 12, 0)
 DAY = timedelta(days=1)
@@ -177,6 +179,83 @@ def test_an_old_active_job_takes_no_place_in_the_batch(db_session, monkeypatch, 
 
     assert enqueue_periodic_syncs(db_session, T0) == 1
     assert len(_jobs(db_session, due)) == 1
+
+
+# ---------------------------------------------------------------------------
+# In the worker's iteration
+# ---------------------------------------------------------------------------
+
+
+def test_a_job_queued_by_an_iteration_is_run_by_it(db_session):
+    repository = _linked(db_session)
+    recorder = Recorder()
+
+    assert _worker(recorder).run_once(db_session) is True
+
+    assert [job.github_repository_id for job in recorder.jobs] == [repository.id]
+    assert _jobs(db_session, repository)[0].status == "SYNCED"
+
+
+def test_the_enqueue_runs_at_most_once_a_minute(db_session):
+    clock = Clock()
+    worker = _worker(Recorder(), clock)
+    worker.run_once(db_session)
+    repository = _linked(db_session)
+
+    clock.now = T0 + timedelta(seconds=59)
+    assert worker.run_once(db_session) is False
+    assert _jobs(db_session, repository) == []
+
+    clock.now = T0 + timedelta(seconds=60)
+    assert worker.run_once(db_session) is True
+    assert len(_jobs(db_session, repository)) == 1
+
+
+def test_nothing_is_queued_during_a_rate_limit_pause(db_session):
+    clock = Clock()
+    repository = _linked(db_session)
+    worker = _worker(Recorder(), clock)
+    worker.client.pause.start(T0 + timedelta(minutes=10))
+
+    assert worker.run_once(db_session) is False
+    assert _jobs(db_session, repository) == []
+
+    clock.now = T0 + timedelta(minutes=10)
+    assert worker.run_once(db_session) is True
+    assert len(_jobs(db_session, repository)) == 1
+
+
+def test_nothing_is_queued_within_the_reserve(db_session):
+    clock = Clock()
+    repository = _linked(db_session)
+    worker = _worker(Recorder(), clock)
+    reset_at = T0 + timedelta(minutes=10)
+    _seen(worker, settings.github_worker_reserve, reset_at)
+
+    assert worker.run_once(db_session) is False
+    assert _jobs(db_session, repository) == []
+
+    clock.now = reset_at
+    assert worker.run_once(db_session) is True
+    assert len(_jobs(db_session, repository)) == 1
+
+
+def test_an_enqueue_that_fails_does_not_stop_the_claims(db_session, monkeypatch):
+    def broken(db: Session, now: datetime) -> int:
+        raise RuntimeError("the enqueue failed")
+
+    repository = _repository(db_session)
+    _job(db_session, repository, T0, "QUEUED")
+    monkeypatch.setattr(worker_module, "enqueue_periodic_syncs", broken)
+    recorder = Recorder()
+    worker = _worker(recorder)
+
+    with pytest.raises(RuntimeError):
+        worker.run_once(db_session)
+    assert recorder.jobs == []
+
+    assert worker.run_once(db_session) is True
+    assert len(recorder.jobs) == 1
 
 
 # ---------------------------------------------------------------------------

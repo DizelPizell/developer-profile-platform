@@ -62,6 +62,9 @@ INTERNAL_ERROR = "INTERNAL_ERROR"
 # Without credentials GitHub allows 60 requests an hour; app credentials get 5,000.
 UNAUTHENTICATED_LIMIT = 60
 
+# How often the worker looks for repositories due a periodic sync (ADR-018).
+PERIODIC_ENQUEUE_INTERVAL = timedelta(minutes=1)
+
 
 @dataclass(frozen=True)
 class ClaimedJob:
@@ -283,6 +286,7 @@ class SyncWorker:
         self.process = process
         self.now = now
         self._hold: str | None = None
+        self._next_enqueue: datetime | None = None
 
     def hold_reason(self, now: datetime) -> str | None:
         """Why no job may be claimed now (ADR-018), or None.
@@ -330,8 +334,19 @@ class SyncWorker:
                 wait(settings.github_worker_poll_seconds)
         logger.info("GitHub sync worker: stopped")
 
+    def enqueue_due(self, db: Session, now: datetime) -> None:
+        """Periodic syncs, at most once a minute (ADR-018). The time moves first:
+        an enqueue that fails costs one iteration a minute, the others still claim."""
+        if self._next_enqueue is not None and now < self._next_enqueue:
+            return
+        self._next_enqueue = now + PERIODIC_ENQUEUE_INTERVAL
+        queued = enqueue_periodic_syncs(db, now)
+        if queued:
+            logger.info("GitHub sync worker: %s periodic syncs queued", queued)
+
     def run_once(self, db: Session) -> bool:
-        """The watchdog, then at most one job. Returns whether a job was run."""
+        """The watchdog, the periodic enqueue, then at most one job. Nothing is
+        queued or claimed during a hold. Returns whether a job was run."""
         now = self.now()
         recover_stale_jobs(db, now)
         hold = self.hold_reason(now)
@@ -341,6 +356,7 @@ class SyncWorker:
             self._hold = hold
         if hold is not None:
             return False
+        self.enqueue_due(db, now)
         job = claim_job(db, now)
         if job is None:
             return False
