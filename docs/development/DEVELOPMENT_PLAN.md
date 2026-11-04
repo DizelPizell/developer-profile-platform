@@ -1,5 +1,43 @@
 # Development Plan
 
+## V1 and the remaining work
+
+Decided by the owner on 2026-11-04. What V1 is: `docs/product/PRD.md` ("V1 scope", "Success criteria").
+
+The remaining work goes in this order, which replaces the numeric order of the phases below. Each step still starts when the previous one is merged.
+
+1. GitHub: 6.6 and F-GH1.6, then 6.7 and F-GH2.
+2. The deployment skeleton: 9.1–9.3. It comes before Phase 4, so the production topology is known early: it decides whether CORS stays and how `FRONTEND_URL` is set (ADR-014).
+3. Phase 4 - Demo and Media.
+4. Contacts: C.1–C.2.
+5. Before the launch: 8.3, 8.4 and 9.4–9.7.
+6. The launch: 9.8.
+7. V1.1: Phase 7, right after the launch.
+
+Launch blockers, besides the scope of V1:
+- rate limiting, 8.3 (ADR-013), without the event ingestion;
+- the security review, 8.4;
+- deployment, 9.1–9.4 and 9.8;
+- backups, 9.5;
+- monitoring, 9.6;
+- account deletion and the data policy, 9.7.
+
+V1.1: analytics, Phase 7, with every event: `CONTACT_CLICK` and the click analytics of Phase 4 too.
+
+After V1:
+- the read-only project workspace (the file explorer, the code viewer and the file tree it needs, ADR-018);
+- experience, skills and education on the profile; the question of skills in ADR-015 stays open;
+- what ADR-010 keeps out of V1, and the V2 list of the PRD.
+
+Open questions:
+- **Contacts**: which contacts, where they are shown, and what "contact visibility" (PRD) means in the minimal form. Needed before C.1.
+- **8.1, 8.2 and 8.5** are not named as launch blockers: whether the launch waits for them.
+- **README, contributors and commits**: ADR-018 returns them with the public project page, and the workspace, which needs the file tree, is now after V1. Whether README comes before the V1 launch is not decided.
+- **Production storage in 9.3**: nothing uses object storage before Phase 4. Whether it is part of the skeleton or finished with Phase 4.
+- **Goals, architecture and highlights** of a project (ADR-015, "Fields of later phases"): whether they are in V1.
+
+Sizes of the steps in Phases 7–9 and of C.1–C.2 are estimates, by the number of commits and tests of the past steps; each step gets its details when it is planned.
+
 ## Phase 0 - Bootstrap
 - repository [done]
 - documentation [done]
@@ -105,7 +143,7 @@ Order relative to later phases:
 - object storage cleanup when a project is deleted (ADR-015)
 - public project page (`/u/{slug}/projects/{id}`, ADR-015)
 - demo-first UX
-- click analytics
+- click analytics: moved to V1.1 (step 7.3)
 
 ## Phase 5 - GitHub Repositories, Linking and Import
 
@@ -141,29 +179,42 @@ Numbered after the Phase 4 frontend steps in `docs/frontend/FRONTEND_PLAN.md`; e
 - **F-GH1 Cabinet** (M–L; F-GH1.1–F-GH1.3 after 5.3–5.6 (F-GH1.4 folded into F-GH1.3), F-GH1.5 after 6.4; substeps in `docs/frontend/FRONTEND_PLAN.md`): the repository list with import, link by `owner/name` and unlink in the project form, the relation and unavailable states, «Обновить» with the pause and polling while `QUEUED` or `SYNCING` (F-GH1.5), the sync message of an unavailable repository (F-GH1.6, after 6.5). Also the login screen note from `docs/frontend/DESIGN.md`, which changes the F2 text. The repository list handles 409 `GITHUB_LOGIN_OUTDATED`: «Войдите заново: логин на GitHub изменился».
 - **F-GH2 Public** (M, after 6.7): the GitHub block on project cards and on the project page with «Источник: GitHub», the relation and fork texts and language shares (ADR-019).
 
-## Phase 7 - Analytics
-- event ingestion
-- profile/project analytics
-- funnel
-- privacy-safe tracking
+## Contacts (V1)
+
+Minimal contacts of a profile, so that a visitor can contact the developer (US-025). Decided by the owner on 2026-11-04. The contract does not exist yet; see "Open questions" above. No analytics event in V1: `CONTACT_CLICK` comes with V1.1.
+
+- **C.1 Backend** (S–M): the model, the API and the visibility of contacts, in the cabinet and in the public profile DTO.
+- **C.2 Frontend** (S–M, after C.1): contacts in the cabinet and on the public page.
+
+## Phase 7 - Analytics (V1.1)
+
+Released as V1.1, right after the V1 launch (decided by the owner on 2026-11-04).
+
+- **7.0 Decisions** (S): an ADR on privacy-safe tracking, sessions and how long events are kept.
+- **7.1 Event ingestion** (M, after 7.0): the model and `POST /analytics/events`, with its rate limit.
+- **7.2 Profile and project analytics** (M, after 7.1): the aggregates and the cabinet API.
+- **7.3 Events from the frontend** (M, after 7.1): profile and project views, demo, GitHub and contact clicks.
+- **7.4 The analytics screen** (M, after 7.2): profile and project analytics and the funnel.
 
 ## Phase 8 - Quality and Security
-- unit/integration/E2E tests
-- lint/format/type checks
-- security review
-- rate limiting where required
-- logging
-- performance checks
+
+- **8.1 Manual checks** (S): the checks marked pending in this plan and in `docs/frontend/FRONTEND_PLAN.md`.
+- **8.2 End-to-end tests** (M–L): Playwright on the main flows (ADR-014).
+- **8.3 Rate limiting** (S–M) [launch blocker]: where required (ADR-013), without the event ingestion, which gets its limit in 7.1.
+- **8.4 Security review** (M) [launch blocker]: the review and its fixes.
+- **8.5 Logging, performance and type checks** (S–M).
 
 ## Phase 9 - Production
-- production Docker
-- reverse proxy
-- HTTPS
-- production storage
-- secrets
-- backups
-- CI/CD
-- monitoring
-- release process
+
+Steps 9.1–9.3 are the deployment skeleton and come before Phase 4 ("V1 and the remaining work"). Every step here is a launch blocker.
+
+- **9.1 Production topology** (S): an ADR on one origin behind Nginx or a separate API host (ADR-014).
+- **9.2 Images, reverse proxy, HTTPS** (M, after 9.1): production Docker for the frontend and the backend, Nginx, HTTPS.
+- **9.3 Production environment** (M, after 9.1): production Compose, storage and secrets.
+- **9.4 CI/CD** (M, after 9.2 and 9.3).
+- **9.5 Backups** (S–M, after 9.3).
+- **9.6 Monitoring** (M, after 9.3).
+- **9.7 Account deletion and the data policy** (M): ADR-012 leaves account deletion undecided.
+- **9.8 Release** (S, last): the release process and the launch.
 
 A phase is complete only when its Definition of Done is satisfied.

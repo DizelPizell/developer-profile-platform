@@ -6,7 +6,8 @@ Stages of the V1 frontend. Stack and rendering: ADR-014-frontend-stack.md. Scree
 
 - F1–F4 use only what the backend already has: GitHub login, `/auth/me`, logout, profile editing and publication, and the public profile (DEVELOPMENT_PLAN Phase 1 and the Phase 2 API).
 - F5 and F6 are steps 3.4 and 3.5 of backend Phase 3 (DEVELOPMENT_PLAN). The Phase 3 contract is fixed (ADR-015, `docs/api/API_CONTRACT.md`). F5 starts when the cabinet API (step 3.2) is implemented, F6 when the public API (step 3.3) is.
-- F7 and later start only when the matching backend phase has an API contract (Phases 4–6).
+- F7 and later start only when the matching backend phase has an API contract (Phases 4–6, contacts).
+- The order of the remaining work, and what is V1, V1.1 and after V1: DEVELOPMENT_PLAN, "V1 and the remaining work" (decided on 2026-11-04).
 
 ## F0 — Mockups [done]
 
@@ -455,12 +456,14 @@ After backend step 6.5 an unavailable repository's job ends `FAILED`, so the pan
 
 - **Opening the repository page for a specific project.** The form's «выберите из своего списка» opens `/me/repositories` without preselecting the project in the link dialog. A preselect (`?project={id}`) would save a step; it is left out of F-GH1 unless the owner asks for it.
 
-## F7+ — Demos, GitHub data, IDE view
+## F7+ — Demos, GitHub data, contacts
 
 **Goal**: add project pages and technical evidence as the backend provides them.
 
 - The public project page `/u/{slug}/projects/{id}`, demos and screenshots — after backend Phase 4.
 - GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 is planned above. There is no profile-level «Данные GitHub» block in V1.
-- Read-only IDE view — not in V1 Phases 5–6: the file tree and README are deferred (ADR-018), and file content is still an open question (ADR-011).
+- Contacts on the cabinet and the public page — step C.2 in DEVELOPMENT_PLAN, after C.1.
+- Analytics — V1.1: steps 7.3 and 7.4 in DEVELOPMENT_PLAN, after the V1 launch.
+- Read-only IDE view — after V1 (decided by the owner on 2026-11-04): the file tree is deferred (ADR-018), and file content is still an open question (ADR-011).
 
 Each of these gets its own goal, done criteria and tests when its backend contract exists.
