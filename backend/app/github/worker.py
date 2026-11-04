@@ -24,7 +24,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import httpx
-from sqlalchemy import case, select, update
+from sqlalchemy import DateTime, case, literal, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -39,7 +40,14 @@ from app.github.client import (
     RateLimitState,
 )
 from app.github.dependencies import get_now
-from app.models.github import SYNC_ERROR_PATTERN, GitHubSyncJob
+from app.models.github import (
+    ACTIVE_SYNC_JOB_STATUSES,
+    SYNC_ERROR_PATTERN,
+    GitHubRepository,
+    GitHubSyncJob,
+    ProjectRepository,
+)
+from app.models.projects import Project
 from app.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -161,6 +169,56 @@ def recover_stale_jobs(db: Session, now: datetime) -> int:
             status,
         )
     return len(rows)
+
+
+def enqueue_periodic_syncs(db: Session, now: datetime) -> int:
+    """Queues a job for repositories linked to a PUBLISHED project, whatever its
+    visibility, with no job created in the last period and none active (ADR-018).
+    At most a batch at a time, so a manual sync never waits behind a long queue;
+    the repositories queued leave the selection, so the rest come with the next
+    calls, in any order. Returns how many were queued."""
+    cutoff = now - timedelta(seconds=settings.github_periodic_sync_seconds)
+    published = (
+        select(ProjectRepository.id)
+        .join(Project, Project.id == ProjectRepository.project_id)
+        .where(
+            ProjectRepository.github_repository_id == GitHubRepository.id,
+            Project.status == "PUBLISHED",
+        )
+        .exists()
+    )
+    # An old active job counts here too: left to the unique index, such
+    # repositories would take places in the batch on every call.
+    recent = (
+        select(GitHubSyncJob.id)
+        .where(
+            GitHubSyncJob.github_repository_id == GitHubRepository.id,
+            or_(
+                GitHubSyncJob.created_at > cutoff,
+                GitHubSyncJob.status.in_(ACTIVE_SYNC_JOB_STATUSES),
+            ),
+        )
+        .exists()
+    )
+    time = literal(now, DateTime)
+    due = (
+        select(GitHubRepository.id, literal("QUEUED"), time, time, time)
+        .where(published, ~recent)
+        .limit(settings.github_periodic_sync_batch)
+    )
+    queued = db.execute(
+        pg_insert(GitHubSyncJob)
+        .from_select(
+            ["github_repository_id", "status", "scheduled_at", "created_at", "updated_at"], due
+        )
+        .on_conflict_do_nothing(
+            index_elements=[GitHubSyncJob.github_repository_id],
+            index_where=GitHubSyncJob.status.in_(ACTIVE_SYNC_JOB_STATUSES),
+        )
+        .returning(GitHubSyncJob.id)
+    ).all()
+    db.commit()
+    return len(queued)
 
 
 def claim_job(db: Session, now: datetime) -> ClaimedJob | None:

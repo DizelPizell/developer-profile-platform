@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     github_worker_stale_seconds: int = Field(default=600, ge=1)
     # The worker claims no job while GitHub's remaining budget is at or below this.
     github_worker_reserve: int = Field(default=500, ge=0)
+    # A repository linked to a published project gets a job this often; the worker
+    # queues at most this many such jobs a minute (ADR-018).
+    github_periodic_sync_seconds: int = Field(default=86_400, ge=1)
+    github_periodic_sync_batch: int = Field(default=30, ge=1)
 
     @model_validator(mode="after")
     def _retry_max_not_below_base(self) -> "Settings":

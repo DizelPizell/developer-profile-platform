@@ -93,11 +93,13 @@ _WORKER_ENV = (
     "GITHUB_WORKER_RETRY_MAX_SECONDS",
     "GITHUB_WORKER_STALE_SECONDS",
     "GITHUB_WORKER_RESERVE",
+    "GITHUB_PERIODIC_SYNC_SECONDS",
+    "GITHUB_PERIODIC_SYNC_BATCH",
 )
 
 
 def test_worker_defaults(monkeypatch):
-    """ADR-009's starting values and ADR-018's reserve."""
+    """ADR-009's starting values and ADR-018's reserve and periodic syncs."""
     for name in _WORKER_ENV:
         monkeypatch.delenv(name, raising=False)
 
@@ -110,7 +112,9 @@ def test_worker_defaults(monkeypatch):
         s.github_worker_retry_max_seconds,
         s.github_worker_stale_seconds,
         s.github_worker_reserve,
-    ) == (5, 5, 30, 1800, 600, 500)
+        s.github_periodic_sync_seconds,
+        s.github_periodic_sync_batch,
+    ) == (5, 5, 30, 1800, 600, 500, 86_400, 30)
 
 
 @pytest.mark.parametrize(
@@ -122,6 +126,8 @@ def test_worker_defaults(monkeypatch):
         {"github_worker_stale_seconds": 0},
         {"github_worker_reserve": -1},
         {"github_worker_retry_base_seconds": 60, "github_worker_retry_max_seconds": 59},
+        {"github_periodic_sync_seconds": 0},
+        {"github_periodic_sync_batch": 0},
     ],
 )
 def test_worker_settings_rejected(overrides):
