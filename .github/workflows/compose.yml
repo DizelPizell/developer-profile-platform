@@ -1,0 +1,35 @@
+name: Compose
+
+on:
+  push:
+    paths:
+      - "docker-compose.yml"
+      - ".env.example"
+      - ".github/workflows/compose.yml"
+      - ".github/scripts/check_compose.py"
+  pull_request:
+    paths:
+      - "docker-compose.yml"
+      - ".env.example"
+      - ".github/workflows/compose.yml"
+      - ".github/scripts/check_compose.py"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the Compose file
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the example environment
+        run: cp .env.example .env
+
+      - name: Validate
+        run: docker compose config -q
+
+      - name: Check the worker service
+        run: python3 .github/scripts/check_compose.py
