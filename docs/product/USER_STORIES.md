@@ -33,11 +33,14 @@
 
 ## Public profile
 - **US-022** View public profile.
-- **US-023** Inspect project.
+- **US-023** Inspect project: the public project page and its GitHub data in V1; the read-only workspace comes after V1.
 - **US-024** Open demo/GitHub.
-- **US-025** Contact developer.
+- **US-025** Contact developer. In V1 in a minimal form (DEVELOPMENT_PLAN, steps C.1–C.2), without `CONTACT_CLICK`.
 
 ## Analytics
+
+V1.1, right after the V1 launch (DEVELOPMENT_PLAN, Phase 7).
+
 - **US-026** Track profile views.
 - **US-027** Track project views.
 - **US-028** Track demo clicks.

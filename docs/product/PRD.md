@@ -18,13 +18,17 @@ A traditional resume mostly describes skills and experience. It is difficult for
 
 - **Developer**: creates a professional profile and presents real work.
 - **Recruiter / Employer**: quickly understands a candidate's experience and evidence.
-- **Technical reviewer**: inspects code, architecture, tests and Git history.
+- **Technical reviewer**: inspects code, architecture, tests and Git history. In V1 this means the project page and the GitHub data with its link to the repository; reading the code on the platform comes with the workspace, after V1.
 
 ## V1 value proposition
 
 V1 is not a LinkedIn or HH replacement. It validates the hypothesis that a structured developer profile with real projects and evidence can communicate professional experience better than a static resume alone.
 
-Candidate search, vacancies, matching and recruiter databases are V2.
+V1, as decided by the owner on 2026-11-04:
+
+> Разработчик входит через GitHub, заполняет профиль с контактами, создаёт проекты с демо, скриншотами и привязанным репозиторием, публикует их; посетитель открывает страницу проекта, демо, данные GitHub и связывается с разработчиком. Всё работает в продакшене по HTTPS, с бэкапами и мониторингом.
+
+Analytics follows as V1.1, right after the V1 launch. Candidate search, vacancies, matching and recruiter databases are V2.
 
 ## Profile
 
@@ -43,7 +47,7 @@ A public profile contains:
 
 The developer controls which projects are featured and their order.
 
-Implemented so far (ADR-013): photo is the GitHub avatar, name is `display_name`, specialization is `headline`, short description is `bio` (plain text), plus `location`; GitHub is shown as `github_login`. A profile can be published only with a name and a headline. Projects and up to 3 featured projects come in Phase 3 (ADR-015); a profile can be published without projects. Experience, skills, education and contacts come with later phases.
+Implemented so far (ADR-013): photo is the GitHub avatar, name is `display_name`, specialization is `headline`, short description is `bio` (plain text), plus `location`; GitHub is shown as `github_login`. A profile can be published only with a name and a headline. Projects and up to 3 featured projects come in Phase 3 (ADR-015); a profile can be published without projects. Contacts are part of V1 in a minimal form (DEVELOPMENT_PLAN, steps C.1–C.2). Experience, skills and education come after V1: projects matter more than a resume, and the question of skills in ADR-015 stays open until then.
 
 ## Project
 
@@ -98,13 +102,15 @@ Do not create artificial skill scores or contribution percentages.
 
 ## Demo-first project page
 
-If a project has a live demo, the demo is the first major element. Then the visitor can read a concise explanation and inspect code/technical details.
+If a project has a live demo, the demo is the first major element. Then the visitor can read a concise explanation and inspect the technical details: the GitHub data in V1, the code with the workspace after V1.
 
 If embedding is blocked by CSP/X-Frame-Options, show a preview and an external "Open live demo" action.
 
 V1 does not execute arbitrary GitHub repositories.
 
 ## Interactive Project Workspace
+
+After V1 (decided by the owner on 2026-11-04). The description stays for when it returns.
 
 A read-only IDE/VS Code-like viewer:
 - file explorer
@@ -132,7 +138,9 @@ GitHub data is cached/normalized in PostgreSQL. Public pages should not call Git
 
 ## Analytics
 
-V1 events:
+V1.1: released right after the V1 launch (DEVELOPMENT_PLAN, Phase 7). V1 sends no analytics events, `CONTACT_CLICK` included.
+
+V1.1 events:
 - profile views
 - project views
 - demo clicks
@@ -171,19 +179,34 @@ Developer controls:
 Included:
 - authentication
 - profile/public profile
+- contacts, in a minimal form (US-025)
 - projects
+- public project page
 - showcase
 - max 3 featured projects
 - demos/screenshots
 - GitHub OAuth/import/sync
-- technical workspace
-- analytics
 - privacy
 - tests
 - CI
 - Docker
 - documentation
 - production-oriented security
+
+Required for the V1 launch (DEVELOPMENT_PLAN, "V1 and the remaining work"):
+- rate limiting (ADR-013)
+- account deletion and a data policy
+- a security review
+- deployment over HTTPS
+- backups
+- monitoring
+
+V1.1, right after the V1 launch:
+- analytics: events, profile and project analytics, the funnel
+
+After V1:
+- the read-only project workspace
+- experience, skills and education on the profile
 
 Excluded:
 - recruiter candidate search
@@ -212,6 +235,18 @@ AI must not produce an unjustified overall candidate score.
 
 ## Success criteria
 
-A developer can register, create a profile, connect GitHub, import/enrich a repository, configure a showcase, publish a profile and receive useful analytics.
+V1:
 
-A visitor can understand the developer, inspect projects, open a demo, inspect technical evidence and contact the developer.
+A developer can sign in with GitHub, create a profile with contacts, import or link a repository and enrich the project, add a demo and screenshots, configure a showcase and publish a profile.
+
+A visitor can understand the developer, open a project page, open a demo, see the GitHub data and contact the developer.
+
+All of it works in production over HTTPS, with backups and monitoring.
+
+V1.1:
+
+A developer receives useful analytics.
+
+After V1:
+
+A visitor inspects the code and the technical details of a project in the workspace.
