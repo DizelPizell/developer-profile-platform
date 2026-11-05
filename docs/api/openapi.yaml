@@ -648,7 +648,7 @@ components:
     PublicProject:
       type: object
       description: Public project whitelist (ADR-015); nothing else is returned.
-      required: [id, title, summary, role, technologies]
+      required: [id, title, summary, role, technologies, github]
       properties:
         id: {type: string, format: uuid}
         title: {type: string}

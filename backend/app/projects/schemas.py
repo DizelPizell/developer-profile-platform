@@ -6,7 +6,7 @@ from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Fie
 from pydantic_core import PydanticCustomError
 
 from app.canonical_uuid import parse_canonical_uuid
-from app.github.schemas import ProjectGitHub, ProjectSummaryGitHub
+from app.github.schemas import ProjectGitHub, ProjectSummaryGitHub, PublicGitHub
 from app.models.projects import (
     FEATURED_PROJECTS_PER_PROFILE,
     PROJECT_TEXT_LIMITS,
@@ -132,13 +132,14 @@ class FeaturedReorderRequest(BaseModel):
 
 
 class PublicProject(BaseModel):
-    """Public project card: a whitelist (ADR-015); nothing else is returned."""
+    """Public project card: a whitelist (ADR-015, ADR-019); nothing else is returned."""
 
     id: uuid.UUID
     title: str
     summary: str
     role: str
     technologies: list[str]
+    github: PublicGitHub | None
 
 
 class PublicFeaturedProject(PublicProject):

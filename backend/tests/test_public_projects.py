@@ -9,7 +9,7 @@ from tests.conftest import login, make_github_transport
 from tests.test_projects import COMPLETE, PROJECTS, _create, _error, _published, _url
 
 PUBLIC = "/api/v1/public/profiles"
-CARD_KEYS = {"id", "title", "summary", "role", "technologies"}
+CARD_KEYS = {"id", "title", "summary", "role", "technologies", "github"}
 FEATURED_KEYS = CARD_KEYS | {"position"}
 SECRET_TEXT = {
     "description": "Secret description marker",
@@ -98,6 +98,7 @@ class TestContent:
                 "summary": COMPLETE["summary"],
                 "role": COMPLETE["role"],
                 "technologies": ["Zeta", "alpha", "Mid"],
+                "github": None,
                 "position": 1,
             }
         ]
@@ -215,5 +216,6 @@ class TestQueryCount:
         assert len(body["featured"]) == 3 and len(body["other"]) == 27
 
         thirty = self._count(visitor, slug, db_session)
-        # Profile, projects, technologies: also rules out a listener that never fired.
-        assert thirty == one == 3
+        # Profile, projects, technologies, GitHub data: also rules out a listener that
+        # never fired.
+        assert thirty == one == 4

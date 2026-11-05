@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
 from app.errors import AppError
+from app.github import service as github_service
 from app.models.identity import Profile, User
 from app.profile import service
 from app.profile.schemas import OwnProfileResponse, ProfileUpdate, PublicProfileResponse
@@ -74,9 +75,11 @@ def get_public_profile(slug: str, db: Session = Depends(get_db)) -> PublicProfil
         raise AppError("NOT_FOUND", "Not Found", 404)
     profile, user, github_account = found
 
-    # Two queries for any number of projects and technologies.
+    # Three queries for any number of projects, technologies and repositories.
     rows = projects_service.public_projects(db, user.id)
-    names = projects_service.technology_names(db, [row.id for row in rows])
+    project_ids = [row.id for row in rows]
+    names = projects_service.technology_names(db, project_ids)
+    github = github_service.public_github(db, project_ids)
     featured: list[PublicFeaturedProject] = []
     other: list[PublicProject] = []
     for row in rows:
@@ -86,6 +89,7 @@ def get_public_profile(slug: str, db: Session = Depends(get_db)) -> PublicProfil
             "summary": row.summary,
             "role": row.role,
             "technologies": names[row.id],
+            "github": github.get(row.id),
         }
         if row.position is None:
             other.append(PublicProject(**card))

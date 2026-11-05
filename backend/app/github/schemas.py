@@ -72,6 +72,22 @@ class ProjectGitHub(BaseModel):
     sync: GitHubSync
 
 
+class PublicGitHub(BaseModel):
+    """GitHub data on a public project card: a whitelist (ADR-019); nothing else is
+    returned. It exists only with a sync behind it and a relation GitHub supports."""
+
+    full_name: str
+    html_url: str
+    description: str | None
+    languages: list[GitHubLanguage]
+    pushed_at: datetime | None
+    is_fork: bool
+    parent_full_name: str | None
+    is_archived: bool
+    relation: Literal["OWNER", "CONTRIBUTOR"]
+    synced_at: datetime
+
+
 class ProjectSummaryGitHub(BaseModel):
     """Which repository a project links, for the cabinet list (ADR-017): no relation,
     languages or sync state, and shown for an unavailable repository too."""

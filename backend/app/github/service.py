@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -39,6 +39,7 @@ from app.github.schemas import (
     GitHubSync,
     ProjectGitHub,
     ProjectSummaryGitHub,
+    PublicGitHub,
 )
 from app.models.github import (
     ACTIVE_SYNC_JOB_STATUSES,
@@ -587,6 +588,58 @@ def linked_repositories(
     return {
         project_id: ProjectSummaryGitHub(full_name=full_name, html_url=html_url)
         for project_id, full_name, html_url in rows
+    }
+
+
+def public_github(db: Session, project_ids: list[uuid.UUID]) -> dict[uuid.UUID, PublicGitHub]:
+    """The public `github` object of the given projects, in one query (ADR-019). A
+    project is absent when it has no link, its repository has not had every category
+    synced, the repository is unavailable or the relation is lost. The caller passes
+    only projects that are public; job states play no part."""
+    rows = db.execute(
+        select(
+            ProjectRepository.project_id,
+            ProjectRepository.relation,
+            GitHubRepository.full_name,
+            GitHubRepository.html_url,
+            GitHubRepository.description,
+            GitHubRepository.languages,
+            GitHubRepository.pushed_at,
+            GitHubRepository.is_fork,
+            GitHubRepository.parent_full_name,
+            GitHubRepository.is_archived,
+            func.min(GitHubSyncCategoryStatus.last_success_at).label("synced_at"),
+        )
+        .join(GitHubRepository, GitHubRepository.id == ProjectRepository.github_repository_id)
+        .join(
+            GitHubSyncCategoryStatus,
+            GitHubSyncCategoryStatus.github_repository_id == GitHubRepository.id,
+        )
+        .where(
+            ProjectRepository.project_id.in_(project_ids),
+            ProjectRepository.relation != NONE,
+            GitHubRepository.unavailable_since.is_(None),
+        )
+        .group_by(ProjectRepository.project_id, ProjectRepository.relation, GitHubRepository.id)
+        # As in repository_sync: the data is as old as its oldest category, and there
+        # is none until every category has succeeded. A row with only an error has no
+        # success, so it is not counted.
+        .having(func.count(GitHubSyncCategoryStatus.last_success_at) == len(SYNC_CATEGORIES))
+    )
+    return {
+        row.project_id: PublicGitHub(
+            full_name=row.full_name,
+            html_url=row.html_url,
+            description=row.description,
+            languages=_languages(row.languages),
+            pushed_at=_utc(row.pushed_at),
+            is_fork=row.is_fork,
+            parent_full_name=row.parent_full_name,
+            is_archived=row.is_archived,
+            relation=row.relation,
+            synced_at=_utc(row.synced_at),
+        )
+        for row in rows
     }
 
 
