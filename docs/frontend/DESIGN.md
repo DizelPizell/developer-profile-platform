@@ -98,7 +98,7 @@ Rules that follow:
 
 ### Public profile — `/u/[slug]`
 
-Data: `GET /api/v1/public/profiles/{slug}` → `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`, and since Phase 3 `featured` and `other` (projects with `id`, `title`, `summary`, `role`, `technologies`, plus `position` in `featured`; ADR-015).
+Data: `GET /api/v1/public/profiles/{slug}` → `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`, and since Phase 3 `featured` and `other` (projects with `id`, `title`, `summary`, `role`, `technologies`, plus `position` in `featured`; ADR-015). Since backend step 6.7 each project also carries a nullable `github` object (ADR-019); the page ignores it until F-GH2.
 
 Blocks:
 
