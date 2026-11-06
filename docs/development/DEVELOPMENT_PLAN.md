@@ -7,9 +7,9 @@ Decided by the owner on 2026-11-04. What V1 is: `docs/product/PRD.md` ("V1 scope
 The remaining work goes in this order, which replaces the numeric order of the phases below. Each step still starts when the previous one is merged.
 
 1. GitHub: 6.6 and F-GH1.6, then 6.7 and F-GH2. [done]
-2. The deployment skeleton: 9.1–9.3. It comes before Phase 4, so the production topology is known early: it decides whether CORS stays and how `FRONTEND_URL` is set (ADR-014).
-3. Phase 4 - Demo and Media.
-4. Contacts: C.1–C.2.
+2. Contacts: ADR-020 → C.1 → the mockup → C.2. Moved ahead of the deployment skeleton by the owner on 2026-11-06.
+3. The deployment skeleton: 9.1–9.3. It comes before Phase 4, so the production topology is known early: it decides whether CORS stays and how `FRONTEND_URL` is set (ADR-014).
+4. Phase 4 - Demo and Media.
 5. Before the launch: 8.3, 8.4 and 9.4–9.7.
 6. The launch: 9.8.
 7. V1.1: Phase 7, right after the launch.
@@ -30,7 +30,6 @@ After V1:
 - what ADR-010 keeps out of V1, and the V2 list of the PRD.
 
 Open questions:
-- **Contacts**: which contacts, where they are shown, and what "contact visibility" (PRD) means in the minimal form. Needed before C.1.
 - **8.1, 8.2 and 8.5** are not named as launch blockers: whether the launch waits for them.
 - **README, contributors and commits**: ADR-018 returns them with the public project page, and the workspace, which needs the file tree, is now after V1. Whether README comes before the V1 launch is not decided.
 - **Production storage in 9.3**: nothing uses object storage before Phase 4. Whether it is part of the skeleton or finished with Phase 4.
@@ -181,10 +180,13 @@ Numbered after the Phase 4 frontend steps in `docs/frontend/FRONTEND_PLAN.md`; e
 
 ## Contacts (V1)
 
-Minimal contacts of a profile, so that a visitor can contact the developer (US-025). Decided by the owner on 2026-11-04. The contract does not exist yet; see "Open questions" above. No analytics event in V1: `CONTACT_CLICK` comes with V1.1.
+Minimal contacts of a profile, so that a visitor can contact the developer (US-025). In V1 by the owner's decision of 2026-11-04; the design is ADR-020-developer-contacts.md. No analytics event in V1: `CONTACT_CLICK` comes with V1.1.
 
-- **C.1 Backend** (S–M): the model, the API and the visibility of contacts, in the cabinet and in the public profile DTO.
-- **C.2 Frontend** (S–M, after C.1): contacts in the cabinet and on the public page.
+Order: ADR-020 [done] → C.1 → the mockup → C.2. Then the deployment skeleton, 9.1–9.3.
+
+- **C.1 Backend** (M): `profile_contacts` and its migration, normalization and validation per type, `contacts` in `PATCH /profile` and in both profile responses, `GET /public/profiles/{slug}/contacts`, the contract. Before it starts: check the assumptions about Telegram and LinkedIn listed in ADR-020. Condition: the Redocly baseline of `docs/api/openapi.yaml` stays at 3 errors and 36 warnings.
+- **The mockup** (S, after ADR-020; can be drawn alongside C.1): the section on the public page, its place and the reveal states, and the block in the cabinet form. C.2 waits for it.
+- **C.2 Frontend** (M, after C.1 and the mockup): contacts in the cabinet and on the public page, email and phone on a click.
 
 ## Phase 7 - Analytics (V1.1)
 
@@ -200,7 +202,7 @@ Released as V1.1, right after the V1 launch (decided by the owner on 2026-11-04)
 
 - **8.1 Manual checks** (S): the checks marked pending in this plan and in `docs/frontend/FRONTEND_PLAN.md`.
 - **8.2 End-to-end tests** (M–L): Playwright on the main flows (ADR-014).
-- **8.3 Rate limiting** (S–M) [launch blocker]: where required (ADR-013), without the event ingestion, which gets its limit in 7.1.
+- **8.3 Rate limiting** (S–M) [launch blocker]: where required (ADR-013), without the event ingestion, which gets its limit in 7.1. Includes `GET /public/profiles/{slug}/contacts`: until this step it has no limit, so a script can read contact values one profile at a time (ADR-020).
 - **8.4 Security review** (M) [launch blocker]: the review and its fixes.
 - **8.5 Logging, performance and type checks** (S–M).
 
@@ -214,8 +216,8 @@ Steps 9.1–9.3 are the deployment skeleton and come before Phase 4 ("V1 and the
 - **9.4 CI/CD** (M, after 9.2 and 9.3), with a version label on the image, so that a stale image shows.
 - **9.5 Backups** (S–M, after 9.3).
 - **9.6 Monitoring** (M, after 9.3), with the worker's health check (ADR-018) and a connection timeout, which `app/database.py` does not set.
-- **9.7 Account deletion and the data policy** (M): ADR-012 leaves account deletion undecided.
-- **9.8 Release** (S, last): the release process and the launch.
+- **9.7 Account deletion and the data policy** (M): ADR-012 leaves account deletion undecided. Also the personal data of contacts, as questions to a lawyer (ADR-020): whether a consent is needed and a checkbox with its date stored, the policy, the right to demand that distribution stops, who the operator is, localization.
+- **9.8 Release** (S, last): the release process and the launch. Launch checklist: every legal question of 9.7 has a lawyer's answer, and what it requires is done.
 
 A phase is complete only when its Definition of Done is satisfied.
 

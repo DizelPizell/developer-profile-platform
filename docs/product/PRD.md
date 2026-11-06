@@ -47,6 +47,8 @@ A public profile contains:
 
 The developer controls which projects are featured and their order.
 
+Contacts (ADR-020): one each of email, Telegram, LinkedIn and phone, and up to 3 other ways to reach the developer, each a name and a link. Telegram, LinkedIn and the others are on the public page; email and phone are shown to a visitor on a click.
+
 Implemented so far (ADR-013): photo is the GitHub avatar, name is `display_name`, specialization is `headline`, short description is `bio` (plain text), plus `location`; GitHub is shown as `github_login`. A profile can be published only with a name and a headline. Projects and up to 3 featured projects come in Phase 3 (ADR-015); a profile can be published without projects. Contacts are part of V1 in a minimal form (DEVELOPMENT_PLAN, steps C.1–C.2). Experience, skills and education come after V1: projects matter more than a resume, and the question of skills in ADR-015 stays open until then.
 
 ## Project
@@ -171,7 +173,7 @@ Cookies:
 Developer controls:
 - profile visibility
 - project visibility
-- contact visibility
+- contact visibility (in V1: adding or removing a contact and hiding the profile; there is no switch per contact, ADR-020)
 - selected GitHub repositories
 
 ## V1 scope

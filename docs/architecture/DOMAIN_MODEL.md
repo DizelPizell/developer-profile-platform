@@ -199,6 +199,8 @@ Publish validation (PRIVATE → PUBLISHED): `display_name` and `headline` must b
 
 A public profile is visible only while PUBLISHED. Private, missing and malformed slugs are indistinguishable (same 404). See ADR-013-profile-editing-and-origin-check.md.
 
+Contacts belong to the Profile aggregate: one each of `EMAIL`, `TELEGRAM`, `LINKEDIN` and `PHONE`, up to 3 of `OTHER`, at most 7 in all. They are developer-provided and are not `users.email`, which is never published. See ADR-020-developer-contacts.md.
+
 ## Publish validation
 
 Minimum, to move a project from DRAFT or ARCHIVED to PUBLISHED:

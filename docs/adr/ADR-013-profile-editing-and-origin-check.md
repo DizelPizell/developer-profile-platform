@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Amended by ADR-015-project-model.md: the public profile includes the profile's public projects, and CORS allows `DELETE`.
+Accepted. Amended by ADR-015-project-model.md: the public profile includes the profile's public projects, and CORS allows `DELETE`. Amended by ADR-020-developer-contacts.md: the profile gains `contacts`, and "never email" below means `users.email`.
 
 ## Context
 
@@ -54,8 +54,9 @@ The database repeats the length limits and rejects blank values with CHECK const
 - `GET /profile`, `PATCH /profile`, `POST /profile/publish`, `POST /profile/unpublish` require a valid session (401 otherwise) and always act on the current user's profile; there is no id in the path.
 - `GET /public/profiles/{slug}` returns only `PUBLISHED` profiles. The slug is lowercased first.
 - A private profile, a missing profile and a malformed slug all return the same 404 as an unknown URL (`NOT_FOUND`); only `request_id` differs. This prevents probing which slugs exist or are private.
-- The public DTO is a whitelist: `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`. Never email, internal ids or status.
+- The public DTO is a whitelist: `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`. Never `users.email`, internal ids or status.
 - Since ADR-015 the public DTO also has `featured` and `other`: the profile's `PUBLISHED` + `PUBLIC` projects, each with its own whitelist (`id`, `title`, `summary`, `role`, `technologies`, plus `position` in `featured`). A profile can still be published without projects.
+- Since ADR-020 the public DTO also has `contacts`, which the developer enters. A contact's email is not `users.email`, and its value is not in this DTO: it comes from a separate endpoint on request.
 
 ### Origin check instead of a CSRF token
 

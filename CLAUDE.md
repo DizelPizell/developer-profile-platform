@@ -900,11 +900,11 @@ Not yet started:
 
 
 
+contacts — steps C.1, the mockup and C.2 (ADR-020 is accepted)
+
 the deployment skeleton — Phase 9 steps 9.1–9.3, before Phase 4
 
 demo, screenshots, file storage (MinIO/S3) and the public project page with its GitHub block — Phase 4
-
-contacts — steps C.1–C.2
 
 the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
@@ -916,7 +916,7 @@ Current next goal:
 
 
 
-The deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
+C.1 (DEVELOPMENT_PLAN), the backend of contacts (ADR-020), then the mockup and C.2. After them the deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
 
 Do not start a step before the previous one is merged.
 

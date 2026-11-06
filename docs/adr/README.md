@@ -17,7 +17,7 @@ The two series were numbered independently, so numbers repeat across them (for e
 
 - A bare reference such as "ADR-003" means the current-series file, `ADR-003-...`.
 - The legacy series is always referred to by its full filename (e.g. "legacy ADR `003-postgresql.md`"), never by a bare number.
-- **All new ADRs continue the current series.** It currently runs from `ADR-001-modular-monolith.md` to `ADR-019-public-github-data.md`; the next ADR is ADR-020. No new legacy-style (unprefixed) ADR is created.
+- **All new ADRs continue the current series.** It currently runs from `ADR-001-modular-monolith.md` to `ADR-020-developer-contacts.md`; the next ADR is ADR-021. No new legacy-style (unprefixed) ADR is created.
 
 This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A one-time rename to unify both series into a single sequence was considered and rejected here — it would rewrite file history across every existing cross-reference for a cosmetic gain; if this is revisited, it should be a deliberate, discussed, separate change rather than an automatic one.
 
@@ -46,6 +46,7 @@ This keeps every future "ADR-NNN" reference unambiguous without a mass rename. A
 | ADR-017-repository-linking-and-import.md | Repository Linking and Import | Accepted (open questions listed in the file) |
 | ADR-018-github-sync-v1.md | GitHub Synchronization in V1 | Accepted (narrows ADR-010 and ADR-011, refines ADR-009; open questions listed in the file) |
 | ADR-019-public-github-data.md | Public GitHub Data | Accepted (README display policy open) |
+| ADR-020-developer-contacts.md | Developer Contacts | Accepted (amends ADR-013; legal questions wait for a lawyer's review before step 9.8) |
 
 ### Legacy series (bare numbers, frozen)
 
@@ -75,7 +76,7 @@ These are known gaps intentionally left unresolved, because resolving them would
 - **File content retrieval for code viewer.** Whether file content is fetched on demand from GitHub with a short-lived cache, or stored locally. Provisional direction: on-demand. Not confirmed; a separate decision is required before implementation. See ADR-011-partial-sync-success.md. README and the file tree themselves are deferred in V1 (ADR-018). Needed only when the workspace returns, after V1.
 - **README display policy.** Plain text or rendered markdown, HTML in markdown, images from other hosts. Required before README returns. See ADR-019.
 - **GitHub follow-ups.** Private repositories through a GitHub App (ADR-016); cleanup of unlinked `github_repositories` rows and of the data of unavailable repositories (ADR-017); repositories blocked by GitHub (ADR-018); GitHub API behaviors not yet verified, checked in step 5.2 (ADR-016, ADR-017, ADR-018).
-- **Contacts.** Which contacts, where they are shown, and what "contact visibility" means in the minimal form. Required before step C.1. See DEVELOPMENT_PLAN, "Open questions".
+- **Contacts: legal questions.** Consent, the data policy, stopping distribution, the operator and localization. They require a lawyer's review before the launch and do not block C.1. See ADR-020 and DEVELOPMENT_PLAN, steps 9.7 and 9.8.
 - **CV feature.** Whether V1 includes any CV generation/storage/download capability at all; `CV_DOWNLOAD` stays deferred until this is decided.
 - **Profile follow-ups.** Markdown in `bio`, profile photo upload, slug change, rate limiting and the `__Host-` cookie prefix. See ADR-013.
 - **Frontend follow-ups.** How server-side Next.js code sees the session cookie across ports; production topology (one origin behind Nginx or a separate API host); when Playwright is introduced; caching of public pages; sync status and file content for the IDE view (depends on ADR-009–011; the IDE view is after V1). See ADR-014.

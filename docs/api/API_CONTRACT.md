@@ -106,7 +106,7 @@ GET /public/profiles/{slug}
 
 No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A private profile, a missing profile and a malformed slug return the same 404 body as an unknown URL (only `request_id` differs).
 
-`PublicProfileResponse` (whitelist — never email, internal user/profile ids or status):
+`PublicProfileResponse` (whitelist — never `users.email`, internal user/profile ids or status). Contacts that the developer enters are a separate thing: step C.1 adds them to this contract under ADR-020.
 
 ```json
 {
