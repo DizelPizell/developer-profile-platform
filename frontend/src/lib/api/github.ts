@@ -4,7 +4,8 @@ import { ApiError } from "./errors";
 /*
  * GitHub data in the cabinet (API_CONTRACT.md, GitHub; ADR-016..ADR-018). Responses
  * are read through a whitelist: unknown fields are dropped, and a wrong shape or an
- * unknown enum value is an unexpected body (INVALID_RESPONSE).
+ * unknown enum value is an unexpected body (INVALID_RESPONSE). The public card is the
+ * exception: a wrong `github` there hides the block only (readPublicGitHub).
  *
  * github_repo_id is a JS number. GitHub's ids are about 10^9 today, far below
  * Number.MAX_SAFE_INTEGER (2^53 - 1); an id above it would lose precision in
@@ -52,6 +53,29 @@ export type ProjectGitHub = {
 
 /** ProjectSummaryGitHub: which repository a project links, in GET /projects. */
 export type ProjectSummaryGitHub = { full_name: string; html_url: string };
+
+export const PUBLIC_GITHUB_RELATIONS = ["OWNER", "CONTRIBUTOR"] as const;
+
+/**
+ * PublicGitHub: the `github` object of a public project card (ADR-019). `pushed_at`
+ * is in the contract, but the page does not show it, so it is neither read nor kept.
+ */
+export type PublicGitHub = {
+  full_name: string;
+  html_url: string;
+  description: string | null;
+  /** Ordered by bytes, descending. */
+  languages: GitHubLanguage[];
+  is_fork: boolean;
+  parent_full_name: string | null;
+  is_archived: boolean;
+  relation: (typeof PUBLIC_GITHUB_RELATIONS)[number];
+  /** ISO 8601 date-time with its offset, kept as a string. */
+  synced_at: string;
+};
+
+/** The block's data, and the name of the first wrong field (never its value). */
+export type PublicGitHubReading = { github: PublicGitHub | null; fault: string | null };
 
 /** An item of GitHubRepositoryListResponse. */
 export type GitHubRepository = {
@@ -181,6 +205,63 @@ export function readProjectGitHub(body: Fields): ProjectGitHub | null | undefine
 /** The same for an item of GET /projects. */
 export function readProjectSummaryGitHub(body: Fields): ProjectSummaryGitHub | null | undefined {
   return body.github === null ? null : toProjectSummaryGitHub(body.github);
+}
+
+const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
+/** With an offset, so that the day in UTC does not depend on the server's zone. */
+function isDateTime(value: unknown): value is string {
+  return isString(value) && DATE_TIME.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+function isLanguageList(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.every((item) => toLanguage(item) !== null);
+}
+
+const PUBLIC_GITHUB_FIELDS: Record<keyof PublicGitHub, (value: unknown) => boolean> = {
+  full_name: isString,
+  html_url: isString,
+  description: isNullableString,
+  languages: isLanguageList,
+  is_fork: isBoolean,
+  parent_full_name: isNullableString,
+  is_archived: isBoolean,
+  relation: (value) => isOneOf(PUBLIC_GITHUB_RELATIONS, value),
+  synced_at: isDateTime,
+};
+
+/**
+ * The `github` field of a public project. The block is an addition to the card, so
+ * a wrong shape hides it and leaves the card and the profile working: the reading has
+ * no data and names the first wrong field. A missing field is not a fault: the API
+ * may simply be older than the page.
+ */
+export function readPublicGitHub(value: unknown): PublicGitHubReading {
+  if (value === undefined || value === null) {
+    return { github: null, fault: null };
+  }
+  if (!isRecord(value)) {
+    return { github: null, fault: "github" };
+  }
+  for (const [field, isValid] of Object.entries(PUBLIC_GITHUB_FIELDS)) {
+    if (!isValid(value[field])) {
+      return { github: null, fault: `github.${field}` };
+    }
+  }
+  return {
+    github: {
+      full_name: value.full_name as string,
+      html_url: value.html_url as string,
+      description: value.description as string | null,
+      languages: (value.languages as unknown[]).map(toLanguage) as GitHubLanguage[],
+      is_fork: value.is_fork as boolean,
+      parent_full_name: value.parent_full_name as string | null,
+      is_archived: value.is_archived as boolean,
+      relation: value.relation as PublicGitHub["relation"],
+      synced_at: value.synced_at as string,
+    },
+    fault: null,
+  };
 }
 
 function toRepository(value: unknown): GitHubRepository | null {

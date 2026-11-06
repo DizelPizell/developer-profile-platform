@@ -37,6 +37,7 @@ export {
   type GitHubSyncStatus,
   type ProjectGitHub,
   type ProjectSummaryGitHub,
+  type PublicGitHub,
   type RepositoryLinkRequest,
 } from "./github";
 export {

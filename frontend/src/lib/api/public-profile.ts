@@ -1,5 +1,6 @@
 import { apiFetch } from "./client";
 import { ApiError } from "./errors";
+import { type PublicGitHub, readPublicGitHub } from "./github";
 
 /** PublicProject from API_CONTRACT.md: a PUBLISHED + PUBLIC project (ADR-015). */
 export type PublicProject = {
@@ -9,6 +10,8 @@ export type PublicProject = {
   role: string;
   /** In the developer's order. */
   technologies: string[];
+  /** ADR-019; null hides the block. */
+  github: PublicGitHub | null;
 };
 
 /** PublicFeaturedProject: a public project with its place 1..3. */
@@ -52,12 +55,18 @@ function toPublicProject(value: unknown): PublicProject | null {
   if (!Array.isArray(technologies) || !technologies.every((name) => typeof name === "string")) {
     return null;
   }
+  const { github, fault } = readPublicGitHub(value.github);
+  if (fault !== null) {
+    // One line per project per request: the first wrong field, never a value.
+    console.warn(`Public project ${value.id as string}: invalid field ${fault}`);
+  }
   return {
     id: value.id as string,
     title: value.title as string,
     summary: value.summary as string,
     role: value.role as string,
     technologies: [...technologies],
+    github,
   };
 }
 

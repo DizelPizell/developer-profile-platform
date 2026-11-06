@@ -1,7 +1,7 @@
 // @vitest-environment node
 // Server-side call: no window, so the client uses API_INTERNAL_URL.
 
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { ApiError, NetworkError } from "./errors";
 import { getPublicProfile, PUBLIC_PROFILE_TIMEOUT_MS } from "./public-profile";
@@ -39,6 +39,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
   fetchMock.mockReset();
 });
+
+/** The fields the page keeps; the API also sends pushed_at. */
+const GITHUB_READ = {
+  full_name: "ann/shop",
+  html_url: "https://github.com/ann/shop",
+  description: "A small shop",
+  languages: [
+    { name: "Python", bytes: 750 },
+    { name: "Shell", bytes: 250 },
+  ],
+  is_fork: true,
+  parent_full_name: "org/shop",
+  is_archived: false,
+  relation: "CONTRIBUTOR",
+  synced_at: "2026-11-01T00:00:00Z",
+};
+const GITHUB = { ...GITHUB_READ, pushed_at: "2026-10-30T10:00:00Z" };
 
 function errorResponse(status: number, code: string) {
   return Response.json(
@@ -93,8 +110,11 @@ describe("getPublicProfile", () => {
 
     const profile = await getPublicProfile("ann");
 
-    expect(profile?.featured).toEqual([first, second]);
-    expect(profile?.other).toEqual([{ ...PROJECT, id: "c" }]);
+    expect(profile?.featured).toEqual([
+      { ...first, github: null },
+      { ...second, github: null },
+    ]);
+    expect(profile?.other).toEqual([{ ...PROJECT, id: "c", github: null }]);
   });
 
   test("drops project fields outside the whitelist", async () => {
@@ -109,8 +129,8 @@ describe("getPublicProfile", () => {
 
     const profile = await getPublicProfile("ann");
 
-    expect(profile?.featured).toEqual([{ ...PROJECT, position: 1 }]);
-    expect(profile?.other).toEqual([PROJECT]);
+    expect(profile?.featured).toEqual([{ ...PROJECT, github: null, position: 1 }]);
+    expect(profile?.other).toEqual([{ ...PROJECT, github: null }]);
   });
 
   test("404 returns null", async () => {
@@ -163,5 +183,167 @@ describe("getPublicProfile", () => {
   ])("an unexpected body (%s) throws ApiError", async (_name, response) => {
     fetchMock.mockResolvedValue(response);
     await expect(getPublicProfile("ann")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("github on a public project", () => {
+  const warn = vi.spyOn(console, "warn");
+
+  beforeEach(() => {
+    warn.mockReset();
+    warn.mockImplementation(() => {});
+  });
+
+  afterAll(() => {
+    warn.mockRestore();
+  });
+
+  function read(github: unknown) {
+    fetchMock.mockResolvedValue(
+      Response.json({ ...PROFILE, other: [{ ...PROJECT, github }] }),
+    );
+    return getPublicProfile("ann");
+  }
+
+  test("is read in featured and other, without a log", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        ...PROFILE,
+        featured: [{ ...PROJECT, github: GITHUB, position: 1 }],
+        other: [{ ...PROJECT, github: GITHUB }],
+      }),
+    );
+
+    const profile = await getPublicProfile("ann");
+
+    expect(profile?.featured[0].github).toEqual(GITHUB_READ);
+    expect(profile?.other[0].github).toEqual(GITHUB_READ);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("the nullable fields and an empty language list are read", async () => {
+    const github = { ...GITHUB, description: null, parent_full_name: null, languages: [] };
+
+    const profile = await read(github);
+
+    expect(profile?.other[0].github).toMatchObject({
+      description: null,
+      parent_full_name: null,
+      languages: [],
+    });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("pushed_at and unknown fields are not copied", async () => {
+    const profile = await read({ ...GITHUB, github_repo_id: 7, stars: 100 });
+
+    expect(Object.keys(profile?.other[0].github ?? {}).sort()).toEqual(
+      Object.keys(GITHUB_READ).sort(),
+    );
+  });
+
+  test("pushed_at is not read, so a wrong one changes nothing", async () => {
+    const profile = await read({ ...GITHUB, pushed_at: 7 });
+
+    expect(profile?.other[0].github).toEqual(GITHUB_READ);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("null is a card without the block and without a log", async () => {
+    const profile = await read(null);
+
+    expect(profile?.other[0].github).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("a missing field is a card without the block and without a log", async () => {
+    fetchMock.mockResolvedValue(Response.json({ ...PROFILE, other: [PROJECT] }));
+
+    const profile = await getPublicProfile("ann");
+
+    expect(profile?.other[0].github).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test.each<[string, unknown, string]>([
+    ["a string", "ann/shop", "github"],
+    ["a number", 7, "github"],
+    ["a boolean", true, "github"],
+    ["an array", [GITHUB], "github"],
+    ["full_name of a wrong type", { ...GITHUB, full_name: 7 }, "github.full_name"],
+    ["full_name missing", { ...GITHUB, full_name: undefined }, "github.full_name"],
+    ["html_url null", { ...GITHUB, html_url: null }, "github.html_url"],
+    ["description of a wrong type", { ...GITHUB, description: 7 }, "github.description"],
+    ["languages not a list", { ...GITHUB, languages: "Python" }, "github.languages"],
+    ["languages null", { ...GITHUB, languages: null }, "github.languages"],
+    ["a language without a name", { ...GITHUB, languages: [{ bytes: 1 }] }, "github.languages"],
+    [
+      "a language with negative bytes",
+      { ...GITHUB, languages: [{ name: "Python", bytes: -1 }] },
+      "github.languages",
+    ],
+    [
+      "a language with fractional bytes",
+      { ...GITHUB, languages: [{ name: "Python", bytes: 1.5 }] },
+      "github.languages",
+    ],
+    ["is_fork of a wrong type", { ...GITHUB, is_fork: "true" }, "github.is_fork"],
+    ["parent of a wrong type", { ...GITHUB, parent_full_name: 7 }, "github.parent_full_name"],
+    ["is_archived null", { ...GITHUB, is_archived: null }, "github.is_archived"],
+    ["relation NONE", { ...GITHUB, relation: "NONE" }, "github.relation"],
+    ["an unknown relation", { ...GITHUB, relation: "ADMIN" }, "github.relation"],
+    ["synced_at null", { ...GITHUB, synced_at: null }, "github.synced_at"],
+    ["synced_at not a date", { ...GITHUB, synced_at: "not-a-date" }, "github.synced_at"],
+    ["synced_at impossible", { ...GITHUB, synced_at: "2026-13-45T00:00:00Z" }, "github.synced_at"],
+    ["synced_at without an offset", { ...GITHUB, synced_at: "2026-11-01T00:00:00" }, "github.synced_at"],
+    ["synced_at without a time", { ...GITHUB, synced_at: "2026-11-01" }, "github.synced_at"],
+  ])("%s hides the block, keeps the card and logs the field", async (_, github, field) => {
+    const profile = await read(github);
+
+    expect(profile?.other[0]).toEqual({ ...PROJECT, github: null });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(`Public project ${PROJECT.id}: invalid field ${field}`);
+  });
+
+  test("a date with an offset is a date", async () => {
+    const profile = await read({ ...GITHUB, synced_at: "2026-11-01T03:00:00.123+03:00" });
+
+    expect(profile?.other[0].github?.synced_at).toBe("2026-11-01T03:00:00.123+03:00");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("the log has no values", async () => {
+    await read({ ...GITHUB, full_name: ["SECRET-NAME"], relation: "SECRET-RELATION" });
+
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET");
+  });
+
+  test("several wrong fields of a project are one line", async () => {
+    await read({ ...GITHUB, full_name: 7, html_url: 7, relation: "NONE", synced_at: 7 });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  test("one line per project, featured included; a good neighbour keeps its block", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        ...PROFILE,
+        featured: [{ ...PROJECT, id: "a", github: "wrong", position: 1 }],
+        other: [
+          { ...PROJECT, id: "b", github: { ...GITHUB, relation: "NONE" } },
+          { ...PROJECT, id: "c", github: GITHUB },
+        ],
+      }),
+    );
+
+    const profile = await getPublicProfile("ann");
+
+    expect(warn.mock.calls).toEqual([
+      ["Public project a: invalid field github"],
+      ["Public project b: invalid field github.relation"],
+    ]);
+    expect(profile?.featured[0].github).toBeNull();
+    expect(profile?.other[0].github).toBeNull();
+    expect(profile?.other[1].github).toEqual(GITHUB_READ);
   });
 });

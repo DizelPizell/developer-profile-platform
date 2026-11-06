@@ -51,6 +51,39 @@ describe("languageShares", () => {
   test("an empty list", () => {
     expect(languageShares([])).toEqual({ shown: [], others: null });
   });
+
+  test("the number of chips can be given; the shares stay shares of the whole", () => {
+    const shares = languageShares(
+      [
+        language("A", 400),
+        language("B", 300),
+        language("C", 200),
+        language("D", 60),
+        language("E", 40),
+      ],
+      3,
+    );
+
+    expect(shares.shown).toEqual([
+      { name: "A", percent: 40 },
+      { name: "B", percent: 30 },
+      { name: "C", percent: 20 },
+    ]);
+    expect(shares.others).toEqual({ percent: 10 });
+  });
+
+  test("as many languages as chips make no «Другие»", () => {
+    const three = ["A", "B", "C"].map((name) => language(name, 10));
+
+    expect(languageShares(three, 3).shown).toHaveLength(3);
+    expect(languageShares(three, 3).others).toBeNull();
+  });
+
+  test("the default stays six when no number is given", () => {
+    const seven = ["A", "B", "C", "D", "E", "F", "G"].map((name) => language(name, 10));
+
+    expect(languageShares(seven).shown).toHaveLength(LANGUAGES_SHOWN);
+  });
 });
 
 describe("shareText", () => {

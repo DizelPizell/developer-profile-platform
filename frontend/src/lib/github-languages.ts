@@ -3,10 +3,10 @@ import type { GitHubLanguage } from "@/lib/api";
 /*
  * Languages of a repository as shares of GitHub's byte counts (ADR-019, DESIGN.md):
  * "доля кода в байтах, по данным GitHub". They are not skills and are never
- * levels or bars. The cabinet form uses this now, the public cards (F-GH2) later.
+ * levels or bars. The cabinet form shows 6 languages, a public card 3.
  */
 
-/** How many languages get their own chip; the rest make one «Другие». */
+/** How many languages get their own chip by default; the rest make one «Другие». */
 export const LANGUAGES_SHOWN = 6;
 
 export type LanguageShare = {
@@ -16,20 +16,23 @@ export type LanguageShare = {
 };
 
 export type LanguageShares = {
-  /** The first LANGUAGES_SHOWN languages, in the given order (bytes descending). */
+  /** The first languages, in the given order (bytes descending). */
   shown: LanguageShare[];
   /** The rest summed, or null when there is no rest. */
   others: { percent: number | null } | null;
 };
 
 /** Shares of the languages in the API's order. The shares are not rounded here. */
-export function languageShares(languages: GitHubLanguage[]): LanguageShares {
+export function languageShares(
+  languages: GitHubLanguage[],
+  shown: number = LANGUAGES_SHOWN,
+): LanguageShares {
   const total = languages.reduce((sum, language) => sum + language.bytes, 0);
   const percent = (bytes: number) => (total === 0 ? null : (bytes / total) * 100);
-  const rest = languages.slice(LANGUAGES_SHOWN);
+  const rest = languages.slice(shown);
   return {
     shown: languages
-      .slice(0, LANGUAGES_SHOWN)
+      .slice(0, shown)
       .map((language) => ({ name: language.name, percent: percent(language.bytes) })),
     others:
       rest.length === 0

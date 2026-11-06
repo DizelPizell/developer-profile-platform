@@ -282,6 +282,46 @@ describe("slug and errors", () => {
   });
 });
 
+describe("the GitHub block", () => {
+  const GITHUB = {
+    full_name: "ann/shop",
+    html_url: "https://github.com/ann/shop",
+    description: "A small shop",
+    languages: [{ name: "Python", bytes: 10 }],
+    pushed_at: "2020-02-03T04:05:06Z",
+    is_fork: false,
+    parent_full_name: null,
+    is_archived: false,
+    relation: "OWNER",
+    synced_at: "2026-11-01T00:00:00Z",
+  };
+
+  test("is in the server HTML of a card and a row, without pushed_at", async () => {
+    const html = await renderPage({
+      featured: [{ ...PROJECT, id: "a", github: GITHUB, position: 1 }],
+      other: [{ ...PROJECT, id: "b", github: GITHUB }],
+    });
+
+    const date = /Данные GitHub от <time dateTime="2026-11-01T00:00:00Z">01\.11\.2026/g;
+    expect(html.match(date)).toHaveLength(2);
+    expect(html).not.toContain("2020");
+  });
+
+  test("a wrong shape leaves the card and the profile working, with one log line", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const html = await renderPage({
+      other: [{ ...PROJECT, github: { ...GITHUB, synced_at: "x" } }],
+    });
+
+    expect(html).toContain("Ann Lee");
+    expect(html).toContain("Payments");
+    expect(html).not.toContain("Данные GitHub");
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+});
+
 describe("generateMetadata", () => {
   test("title is «display_name — headline», description the headline", async () => {
     fetchMock.mockResolvedValueOnce(Response.json(PROFILE));

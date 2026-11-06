@@ -7,10 +7,10 @@ import { SectionHeading } from "@/components/section-heading";
 import { Button } from "@/components/ui/button";
 import type { PublicFeaturedProject, PublicProfile, PublicProject } from "@/lib/api";
 
+import { CardGitHub, CHIP, RowGitHub } from "./project-github";
+
 /** Technology chips on a featured card (DESIGN.md). */
 const FEATURED_TECHNOLOGIES = 3;
-
-const CHIP = "border-2 border-outline bg-bg px-2 py-1 text-sm break-all";
 
 // Public profile per public-profile.png, only the blocks that have API data
 // (DESIGN.md). Every value is rendered as React text, never as HTML.
@@ -138,6 +138,7 @@ function FeaturedProjects({ projects }: { projects: PublicFeaturedProject[] }) {
               </ul>
             )}
             <p className="mt-auto text-sm break-words text-text-muted">Моя роль: {project.role}</p>
+            {project.github && <CardGitHub github={project.github} />}
           </li>
         ))}
       </ol>
@@ -146,7 +147,7 @@ function FeaturedProjects({ projects }: { projects: PublicFeaturedProject[] }) {
 }
 
 // On narrow screens the badge goes under the text, so a long technology name
-// does not squeeze the title.
+// does not squeeze the title. The GitHub block is a line of its own under the row.
 function OtherProjects({ projects }: { projects: PublicProject[] }) {
   return (
     <section aria-labelledby="other-title" className="flex flex-col gap-6">
@@ -155,17 +156,19 @@ function OtherProjects({ projects }: { projects: PublicProject[] }) {
       </SectionHeading>
       <ul className="flex flex-col gap-4">
         {projects.map((project) => (
-          <li
-            key={project.id}
-            className="flex flex-col items-start gap-3 bg-panel px-6 py-4 shadow-panel sm:flex-row sm:items-center sm:gap-4"
-          >
-            <div className="flex w-full min-w-0 grow flex-col gap-1 sm:w-auto">
-              <h3 className="text-lg break-words">{project.title}</h3>
-              <p className="truncate text-text-muted">{project.summary}</p>
+          <li key={project.id} className="flex flex-col gap-3 bg-panel px-6 py-4 shadow-panel">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex w-full min-w-0 grow flex-col gap-1 sm:w-auto">
+                <h3 className="text-lg break-words">{project.title}</h3>
+                <p className="truncate text-text-muted">{project.summary}</p>
+              </div>
+              {project.technologies.length > 0 && (
+                <span className={cn(CHIP, "shrink-0 sm:max-w-[40%]")}>
+                  {project.technologies[0]}
+                </span>
+              )}
             </div>
-            {project.technologies.length > 0 && (
-              <span className={cn(CHIP, "shrink-0 sm:max-w-[40%]")}>{project.technologies[0]}</span>
-            )}
+            {project.github && <RowGitHub github={project.github} />}
           </li>
         ))}
       </ul>

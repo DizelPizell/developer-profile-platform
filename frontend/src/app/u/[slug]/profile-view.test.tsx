@@ -1,7 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 
-import type { PublicFeaturedProject, PublicProfile, PublicProject } from "@/lib/api";
+import type {
+  PublicFeaturedProject,
+  PublicGitHub,
+  PublicProfile,
+  PublicProject,
+} from "@/lib/api";
 
 import { ProfileView } from "./profile-view";
 
@@ -17,6 +22,18 @@ const PROFILE: PublicProfile = {
   other: [],
 };
 
+const GITHUB: PublicGitHub = {
+  full_name: "ann/shop",
+  html_url: "https://github.com/ann/shop",
+  description: "A small shop",
+  languages: [{ name: "Python", bytes: 10 }],
+  is_fork: false,
+  parent_full_name: null,
+  is_archived: false,
+  relation: "OWNER",
+  synced_at: "2026-11-01T12:00:00Z",
+};
+
 function project(id: string, title: string, overrides: Partial<PublicProject> = {}): PublicProject {
   return {
     id,
@@ -24,6 +41,7 @@ function project(id: string, title: string, overrides: Partial<PublicProject> = 
     summary: `${title} summary`,
     role: `${title} role`,
     technologies: ["Python"],
+    github: null,
     ...overrides,
   };
 }
@@ -170,10 +188,73 @@ describe("sections", () => {
     expect(screen.queryByText("Другие проекты")).toBeNull();
   });
 
-  test("skills and GitHub data are not rendered", () => {
+  test("skills are not rendered", () => {
     renderView({ featured: [featured(1, "Shop")], other: [project("o1", "Bot")] });
 
     expect(screen.queryByText(/Скилы/i)).toBeNull();
-    expect(screen.queryByText(/Данные GitHub/i)).toBeNull();
+  });
+});
+
+describe("the GitHub block", () => {
+  function follows(later: Element, earlier: Element) {
+    return (earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  }
+
+  test("a featured card has the full block after «Моя роль»", () => {
+    renderView({ featured: [featured(1, "Shop", { github: GITHUB })] });
+
+    const card = within(cards("Главные проекты")[0]);
+    const source = card.getByText("Источник: GitHub");
+    expect(follows(source, card.getByText("Моя роль: Shop role"))).toBe(true);
+    expect(card.getByRole("link", { name: "ann/shop" })).toBeTruthy();
+    expect(card.getByText("A small shop")).toBeTruthy();
+    expect(card.getByRole("list", { name: "Языки" })).toBeTruthy();
+  });
+
+  test("the role stays pushed down with the block under it", () => {
+    renderView({ featured: [featured(1, "Shop", { github: GITHUB })] });
+
+    expect(screen.getByText("Моя роль: Shop role").className).toContain("mt-auto");
+  });
+
+  test("a row keeps its line and has the compact block under it", () => {
+    renderView({ other: [project("o1", "Bot", { github: GITHUB })] });
+
+    const row = cards("Другие проекты")[0];
+    const view = within(row);
+    expect(row.className).not.toContain("sm:flex-row");
+    expect(view.getByRole("heading", { level: 3 }).closest(".sm\\:flex-row")).not.toBeNull();
+    expect(follows(view.getByText("Источник: GitHub"), view.getByText("Python"))).toBe(true);
+    expect(view.getByRole("link", { name: "ann/shop" })).toBeTruthy();
+    expect(view.queryByText("A small shop")).toBeNull();
+    expect(view.queryByRole("list", { name: "Языки" })).toBeNull();
+  });
+
+  test("null shows no block in a card and in a row", () => {
+    renderView({ featured: [featured(1, "Shop")], other: [project("o1", "Bot")] });
+
+    expect(cards("Главные проекты")[0].textContent).not.toContain("GitHub");
+    expect(cards("Другие проекты")[0].textContent).not.toContain("GitHub");
+  });
+
+  test("each project has its own block", () => {
+    renderView({
+      featured: [
+        featured(1, "Shop", { github: GITHUB }),
+        featured(2, "Tracker"),
+        featured(3, "Blog", { github: { ...GITHUB, full_name: "ann/blog" } }),
+      ],
+    });
+
+    const items = cards("Главные проекты");
+    expect(within(items[0]).getByRole("link", { name: "ann/shop" })).toBeTruthy();
+    expect(items[1].textContent).not.toContain("GitHub");
+    expect(within(items[2]).getByRole("link", { name: "ann/blog" })).toBeTruthy();
+  });
+
+  test("the block is not marked as the author's", () => {
+    renderView({ featured: [featured(1, "Shop", { github: GITHUB })] });
+
+    expect(cards("Главные проекты")[0].textContent).not.toContain("От автора");
   });
 });
