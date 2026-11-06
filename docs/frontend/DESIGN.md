@@ -77,7 +77,7 @@ Rules that follow:
 
 - Placeholder text is written in square brackets: `[Пока без описания]`. Mockups use brackets for sample data; the implementation shows real values or hides the block.
 - No invented scores, ratings, levels, experience points or progress bars, even though the style is game-like (CLAUDE.md, ADR-007). «Класс» shows the developer's own `headline` and nothing else.
-- Blocks with GitHub data always carry a source mark «Источник: GitHub». This applies to `avatar_url` and `github_login`, which come from GitHub. On the public page, a block of developer-written text carries «От автора» (mockup `public-profile.png`), so the two sources stay distinguishable (CLAUDE.md); form fields in the cabinet have no mark.
+- Blocks with GitHub data always carry a source mark «Источник: GitHub». This applies to `avatar_url` and `github_login`, which come from GitHub. On the public page, a block of developer-written text carries «От автора» (mockup `public-profile.png`), so the two sources stay distinguishable (CLAUDE.md); form fields in the cabinet have no mark. On a public project card both meet: the section keeps «От автора» for the developer's fields, and the GitHub block inside the card carries its own «Источник: GitHub».
 - `bio` is plain text: line breaks are preserved, markdown is not interpreted, and it is never rendered as HTML (ADR-013).
 
 ## Routes
@@ -98,7 +98,7 @@ Rules that follow:
 
 ### Public profile — `/u/[slug]`
 
-Data: `GET /api/v1/public/profiles/{slug}` → `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`, and since Phase 3 `featured` and `other` (projects with `id`, `title`, `summary`, `role`, `technologies`, plus `position` in `featured`; ADR-015). Since backend step 6.7 each project also carries a nullable `github` object (ADR-019); the page ignores it until F-GH2.
+Data: `GET /api/v1/public/profiles/{slug}` → `slug`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`, and since Phase 3 `featured` and `other` (projects with `id`, `title`, `summary`, `role`, `technologies`, plus `position` in `featured`; ADR-015). Since backend step 6.7 each project also carries a nullable `github` object (ADR-019), shown since F-GH2 (see "GitHub on public cards").
 
 Blocks:
 
@@ -109,7 +109,7 @@ Blocks:
 | «О себе» | `bio` | Marked «От автора». Plain text with line breaks (`white-space: pre-line`). Empty `bio` hides the block. |
 | «Скилы» | — | Pending: no backend source yet, phase not assigned. A plain list in future; never levels or bars. |
 | «Главные проекты» | `featured` | Up to 3 cards in `position` order, marked «От автора». See "Projects on the public page". |
-| «Данные GitHub» | — | Stays a placeholder in V1 and is not built: GitHub data lives on project cards (the nullable `github` object) and on the project page, not in a profile-level block, and nothing is totalled across the profile (ADR-019). Any GitHub data is always marked «Источник: GitHub». |
+| «Данные GitHub» | — | The block drawn in `public-profile.png` is not built in V1: GitHub data lives on project cards (the nullable `github` object, see "GitHub on public cards") and on the project page, not in a profile-level block, and nothing is totalled across the profile (ADR-019). Any GitHub data is always marked «Источник: GitHub». |
 | «Другие проекты» | `other` | One row per project, in API order, marked «От автора». See "Projects on the public page". |
 
 `display_name` and `headline` are never empty here: a profile can be published only with both (ADR-013). If one is missing anyway, the name falls back to `@github_login` and the «Класс» line is hidden.
@@ -140,13 +140,13 @@ The page makes one API call per request. After an error Next.js renders the erro
 The layout comes from `public-profile.png`; only what the Phase 3 API provides is built. The mockup image still labels the cards «Избранное N»; the label is «Главный N», like «главные» in the cabinet.
 
 - The project area holds «Главные проекты» and then «Другие проекты», after «О себе». It has `id="projects"`.
-- Each section heading has the square marker (`label` for featured, `text-muted` for other), the title, a rule and «От автора» on the right: every project field is written by the developer (content rules).
+- Each section heading has the square marker (`label` for featured, `text-muted` for other), the title, a rule and «От автора» on the right: every project field is written by the developer (content rules). The GitHub block inside a card is the exception and has its own mark.
 - **«Главные проекты»** — a card per featured project, in `position` order (sorted when the response is read). One column on narrow screens, two from `sm`, three from `lg`:
   - the label «Главный N» (N = `position`), Press Start 2P on `label`;
   - `title` in Pixelify Sans, wrapped at any point when a word is too long;
   - `summary`, at most four lines (`line-clamp`), then cut;
   - up to three technology chips, in the developer's order; the rest are not shown;
-  - «Моя роль: {role}» at the bottom of the card.
+  - «Моя роль: {role}» at the bottom of the card, with the GitHub block, when there is one, under it. Cards of a line keep one height: the role and the block are pushed down together.
   - The mockup's striped image area and «Открыть проект ›» wait for Phase 4 (screenshots and the public project page) and are not rendered. No element links to a project.
 - **«Другие проекты»** — a row per project, in API order (newest first):
   - `title`, wrapped like on cards;
@@ -154,7 +154,31 @@ The layout comes from `public-profile.png`; only what the Phase 3 API provides i
   - a badge with the first technology (the developer's order, ADR-015). It sits on the right from `sm` (at most 40% of the row) and under the text on narrow screens, so a long name does not squeeze the title. A project without technologies cannot be public, but the row still renders without a badge.
 - An empty `featured` or `other` hides its section, heading included. With no public projects at all, the project area is not rendered.
 - The hero «Проекты» button (secondary) is an in-page link to `#projects`. It is rendered only when there is at least one public project.
-- Every value is rendered as text. `featured` and `other` are required in the response; a missing array or a project of the wrong shape is an unexpected body (error screen). Project fields outside the whitelist (`id`, `title`, `summary`, `role`, `technologies`, `position`) are dropped.
+- Every value is rendered as text. `featured` and `other` are required in the response; a missing array or a project of the wrong shape is an unexpected body (error screen). Project fields outside the whitelist (`id`, `title`, `summary`, `role`, `technologies`, `github`, `position`) are dropped. A wrong `github` does not count as a project of the wrong shape: it hides only the block (see below).
+
+#### GitHub on public cards (F-GH2)
+
+The layout comes from `public-cards.png`. The block is a Server Component (`app/u/[slug]/project-github.tsx`, no `"use client"`) with a `div` as its root, under a 4 px `outline` line. `github: null` shows nothing: no block, no line, no stub. `null` means no link, no complete sync, an unavailable repository or a lost relation (ADR-019), and the page does not say which. The maximum of featured projects stays 3; the six cards of the mockup only illustrate the states.
+
+A featured card, under «Моя роль», top to bottom:
+
+1. «Источник: GitHub», Press Start 2P on no background, `text-muted`.
+2. `full_name`, a link in `text-muted` opening `html_url` in a new tab (`rel="noopener noreferrer"`). Only a URL starting with `https://github.com/` is a link; anything else stays plain text.
+3. The relation in `text`: «Владелец репозитория» or «В списке контрибьюторов (по данным GitHub)». The API never sends `NONE` here.
+4. Chips, when they apply: «Форк {parent_full_name}» («Форк» when there is no parent) and «В архиве на GitHub».
+5. `description`, at most two lines, then cut. `null` or an empty text hides the line without a stub.
+6. The caption «Доля кода в байтах, по данным GitHub» over the languages: the first 3 as chips «Python 62 %», the rest as one «Другие — N %» in `text-muted`. Shares follow the cabinet's rules ("Languages" under F-GH1.5 below), from the same function. An empty list hides the languages and the caption, without the cabinet's placeholder.
+7. «Данные GitHub от 01.11.2026».
+
+A row of «Другие проекты» becomes a column: the former row, unchanged, and under it the line and one wrapping line of source, `full_name`, relation, chips and date. No description and no languages. The date wraps to the next line when the rest fills the row.
+
+Rules for both:
+
+- All chips use the chip style of the public page (`CHIP`: `bg-bg`, a 2 px `outline` border, `text-sm`), as in the mockup, not the cabinet's status badge.
+- The date is `synced_at` as the day in UTC, without the time (`Intl.DateTimeFormat` `ru-RU` with `timeZone: "UTC"`), in `<time dateTime={synced_at}>`. The server and the reader see the same text, so nothing depends on the time zone, and old data reads as old. The cabinet shows the same moment in the user's zone, so near midnight the two dates can differ.
+- `pushed_at` is in the contract, but it is not read and not shown on the public page.
+- Text from GitHub is rendered as text. Long names wrap at any point. No stars, forks, commit counts, bars or levels, and none of «подтверждено», «проверено», «верифицирован» (ADR-019).
+- `github` is read through a whitelist (`readPublicGitHub`). A wrong shape (not an object, a field of a wrong type or missing, a relation other than `OWNER` or `CONTRIBUTOR`, a wrong language, `synced_at` that is not a date-time with an offset) gives `github: null`: the card and the profile keep working. The block is an addition to the card, so unlike a broken project it does not take the error screen. A wrong shape writes one line to the server log per project per request, with the project's id and the name of the first wrong field, never a value. A `github` field missing altogether is `null` without a log.
 
 ### Cabinet — `/me`
 
@@ -327,7 +351,7 @@ Sync is not part of F-GH1.1–F-GH1.3 (FRONTEND_PLAN; F-GH1.4 is folded into F-G
 - Before the first successful sync (`synced_at = null`) the block shows an honest placeholder instead of languages: «Языки и другие данные появятся после первой синхронизации с GitHub. Сейчас данные ещё не загружены.» Nothing is guessed or filled in on the client.
 - Languages, once a sync has read them, are shares of GitHub's byte counts labelled «Доля кода в байтах, по данным GitHub» (ADR-019; F-GH1.5 below). They are not skills and are never levels, scales or bars.
 - No other numbers are shown: no stars, forks, commit counts or totals (CLAUDE.md, ADR-019).
-- `pushed_at` is «Обновлён: {date}», the date only in the user's time zone (`ru-RU`, `30.10.2026`). A `null` value hides the line.
+- `pushed_at` is «Обновлён: {date}», the date only in the user's time zone (`ru-RU`, `30.10.2026`). A `null` value hides the line. This is the cabinet only: the public page does not show it.
 - A `null` `description` is «У этого репозитория нет описания на GitHub». A long description is cut after two lines.
 - Text from GitHub (`full_name`, `description`, `parent_full_name`) is rendered as text, never as HTML.
 - `full_name` links to `html_url` in a new tab with `rel="noopener noreferrer"`, only when `html_url` starts with `https://github.com/`; otherwise it is plain text.
@@ -483,12 +507,13 @@ Languages (ADR-019):
 - An empty list with `synced_at` set: «GitHub не нашёл в репозитории кода на известных ему языках.» in the dashed box of the placeholder.
 - With `synced_at` `null` the existing placeholder stays, whatever the status.
 - Language names from GitHub are text; a long name wraps.
-- The shares are computed in `src/lib/github-languages.ts`, which the public cards of F-GH2 reuse.
+- The shares are computed in `src/lib/github-languages.ts`. The public cards use the same function with 3 chips instead of 6, in their own chip style ("GitHub on public cards").
 
 The data date:
 
 - «Данные GitHub от 01.11.2026, 12:30» from `synced_at`: the date and time in the user's time zone (`ru-RU`). It is shown whenever `synced_at` is set, also with `FAILED`, so old data reads as old (ADR-019). «Обновлён: {date}» stays the date of the last push (`pushed_at`).
 - `sync.last_success_at` holds the same time; the panel reads `synced_at`.
+- The public cards show the same `synced_at` as a day in UTC, without the time ("GitHub on public cards").
 
 «Обновить данные» (accent):
 
@@ -616,9 +641,10 @@ Mockups are added manually to `docs/frontend/mockups/`:
 - `repositories.png` (F-GH1)
 - `github-states.png` (F-GH1; the 429 `GITHUB_SYNC_TOO_SOON` card of F-GH1.5 is not in it yet, so the table above is the reference)
 - `repository-sync.png` (F-GH1.5: the sync states of the form block and the rules card)
+- `public-cards.png` (F-GH2: the GitHub block on public cards and rows; six featured cards only to show the states)
 
 The F-GH1 version of «Мои проекты» (with «Импорт из GitHub» and the GitHub label) is in the working tree as `my-projects.png.png`; the mockup owner decides whether it replaces `my-projects.png`.
 
-The project blocks of the public page follow `public-profile.png`, except the card label: the image shows «Избранное N», the guide says «Главный N».
+The project blocks of the public page follow `public-profile.png`, except the card label: the image shows «Избранное N», the guide says «Главный N». The profile-level «Данные GitHub» block of that image is not built; the GitHub block of the cards follows `public-cards.png`.
 
 If a mockup and this guide disagree, raise the conflict instead of silently picking one.

@@ -180,6 +180,27 @@ Backend running, signed in, a published profile with slug `<slug>`. Open the pub
 8. At 375 px wide (DevTools device mode) there is no horizontal scroll; cards are in one column, the row badge sits under the text.
 9. «Скрыть» on the profile in the cabinet → the public page gives «Профиль не найден» (404), the projects keep their states in the cabinet; publish the profile again → the projects are back.
 
+## Manual public GitHub check
+
+Backend, `github-worker` and frontend running, signed in, a published profile with slug `<slug>`. Open the public page in a private window (no session) and reload it after each change. A block appears only on a published public project with a linked repository after a complete sync (ADR-019): wait for «Данные GitHub от …» in the project form first. What GitHub answers for each repository below is an expectation, not something the tests prove.
+
+1. Link your own public repository to a published project, not featured → its row under «Другие проекты» keeps title, summary and technology, and under a line has «Источник: GitHub», the repository name, «Владелец репозитория» and «Данные GitHub от <date>», without description and languages.
+2. Make the project featured → under «Моя роль» the card has the line, «Источник: GitHub», the name, the relation, the description (at most two lines), «Доля кода в байтах, по данным GitHub» with the language chips, and the date without the time. The section heading still has «От автора».
+3. The name opens the repository on github.com in a new tab.
+4. The date is the day in UTC: the form shows the same sync in your time zone, so near midnight the two dates can differ by a day.
+5. A published project without a link → no block and no line. With three featured projects, one of them without a link, the role and the block stay at the bottom of their cards.
+6. A repository without a description (clear it on github.com, «Обновить данные») → no description line, no stub.
+7. Contributor: link someone else's public repository with your contributions → expected «В списке контрибьюторов (по данным GitHub)».
+8. Fork: link your own fork → expected the chip «Форк <parent>».
+9. Archive: archive a test repository on github.com, «Обновить данные» → expected the chip «В архиве на GitHub». Unarchive it afterwards.
+10. No languages: your own empty public repository → no caption and no chips, without the cabinet's placeholder.
+11. A repository with more than three languages → three chips and «Другие — N %»; the form shows up to six.
+12. A test repository with a long name → the name wraps inside the card and the row. At 375 px wide (DevTools device mode) there is no horizontal scroll, and the row's items wrap.
+13. `github: null`: step 12 of "Manual project sync check" makes the repository unavailable → the block disappears, the card stays.
+14. Without JavaScript (`curl -s http://localhost:3000/u/<slug>`) the repository name and the date are in the HTML. The last push date is nowhere on the page.
+
+Not checked by hand, only by tests: `relation: "NONE"` in the response, a `github` of the wrong shape and its log line, an unsafe `html_url` (`javascript:`, a look-alike host), a sum of 0 bytes, a fork without a parent.
+
 ## Checks
 
 ```bash

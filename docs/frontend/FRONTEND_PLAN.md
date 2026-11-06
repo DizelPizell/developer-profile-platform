@@ -459,12 +459,25 @@ After backend step 6.5 an unavailable repository's job ends `FAILED`, so the pan
 
 - **Opening the repository page for a specific project.** The form's «выберите из своего списка» opens `/me/repositories` without preselecting the project in the link dialog. A preselect (`?project={id}`) would save a step; it is left out of F-GH1 unless the owner asks for it.
 
+## F-GH2 — GitHub on public cards (M; after backend 6.7) [done; manual check pending]
+
+**Goal**: a visitor sees on a project's public card what GitHub says about its repository, with the source marked and kept apart from the developer's text (ADR-019).
+
+Screens, texts and rules: "GitHub on public cards" in `DESIGN.md`, mockup `public-cards.png`. The block on the public project page comes with that page in Phase 4.
+
+- Done: the shared texts moved from `app/me/github-texts.tsx` to `src/components/github-texts.tsx` (the source label, the relation labels, the languages caption, `isGitHubUrl`, `RepositoryName`), so the public page imports nothing from the cabinet. `RELATION_LABEL` holds the two public values, and the repository block checks `NONE` itself.
+- `readPublicGitHub` reads `github` through a whitelist without `pushed_at`. A wrong shape is `github: null` plus one line in the server log per project per request (project id and field name, no values); a missing field is `null` without a log. This differs from the cabinet readers, where a wrong shape is an unexpected body: on the public page the block must not take the profile down.
+- `languageShares(languages, shown = 6)` takes the number of chips, 3 on a card.
+- `project-github.tsx` holds `CardGitHub` and `RowGitHub`, Server Components. The date is the day in UTC, so there is no hydration mismatch and no client JS. A row became a column: the former row, then the block.
+- Decided with the owner: the mockup wins over the cabinet's badge style, so chips use `CHIP`; an empty language list hides the languages and their caption; a row follows the mockup (one wrapping line, the date wraps after the rest).
+- Checked with Vitest + RTL (633 tests, 0 skipped), 30 mutations, all failing tests, lint, typecheck and build. The date tests set `process.env.TZ` to `Asia/Tokyo` in `vi.hoisted`, before the formatter is built, with a test that the zone took effect: CI runs in UTC, where a formatter without `timeZone` would pass. Looked at in a browser against a stand-in API at 1200 and 375 px; the manual check against the backend is pending (`frontend/README.md`, "Manual public GitHub check").
+
 ## F7+ — Demos, GitHub data, contacts
 
 **Goal**: add project pages and technical evidence as the backend provides them.
 
 - The public project page `/u/{slug}/projects/{id}`, demos and screenshots — after backend Phase 4.
-- GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 is planned above. There is no profile-level «Данные GitHub» block in V1.
+- GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 and F-GH2 are planned above. There is no profile-level «Данные GitHub» block in V1.
 - Contacts on the cabinet and the public page — step C.2 in DEVELOPMENT_PLAN, after C.1.
 - Analytics — V1.1: steps 7.3 and 7.4 in DEVELOPMENT_PLAN, after the V1 launch.
 - Read-only IDE view — after V1 (decided by the owner on 2026-11-04): the file tree is deferred (ADR-018), and file content is still an open question (ADR-011).

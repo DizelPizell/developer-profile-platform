@@ -46,7 +46,7 @@ Never returned publicly: internal ids (`id`, `github_repo_id`, `owner_github_id`
 
 - The block carries «Источник: GitHub»; the developer's text keeps «От автора» (DESIGN.md).
 - The relation is stated as a fact: «Владелец репозитория» or «В списке контрибьюторов (по данным GitHub)». The word «подтверждено» is not used.
-- A fork always shows «Форк {parent_full_name}». An archived repository shows that it is archived.
+- A fork always shows «Форк {parent_full_name}», or «Форк» when GitHub gives no parent. An archived repository shows that it is archived.
 - Languages may be shown as shares of bytes, labelled as such («доля кода в байтах, по данным GitHub»). They are not skills and are not levels.
 - Not shown, on a card or the profile: totals of stars, forks or commits, activity graphs, contribution counts, any sorting by popularity.
 - `synced_at` is shown as the date of the data, so stale data is visible as stale.

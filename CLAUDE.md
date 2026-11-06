@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) is done in the backend: steps 6.1–6.7, with F-GH1.5 and F-GH1.6 in the frontend; F-GH2 is next.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) is done in the backend: steps 6.1–6.7, with F-GH1.5, F-GH1.6 and F-GH2 in the frontend.
 
 V1 was narrowed by the owner on 2026-11-04 (PRD "V1 scope", DEVELOPMENT_PLAN "V1 and the remaining work"), and this wins over the "V1 focuses on" list above: analytics is V1.1, right after the launch; the technical project workspace and experience, skills and education are after V1; minimal contacts are in V1.
 
@@ -892,6 +892,8 @@ backend Phase 6 step 6.6: the github-worker service in Compose on the backend im
 
 backend Phase 6 step 6.7: the nullable github object on public project cards with its ten-field whitelist, null without a link, without a success of every category, for an unavailable repository or a lost relation; one batched query, no GitHub call, no cache (ADR-019) (manual check pending)
 
+frontend F-GH2: the GitHub block on public project cards and rows, server rendered, with the date as a day in UTC; a wrong github object hides only the block, with one log line per project (ADR-019) (manual check pending)
+
 
 
 Not yet started:
@@ -900,7 +902,7 @@ Not yet started:
 
 the deployment skeleton — Phase 9 steps 9.1–9.3, before Phase 4
 
-demo, screenshots, file storage (MinIO/S3) and the public project page — Phase 4
+demo, screenshots, file storage (MinIO/S3) and the public project page with its GitHub block — Phase 4
 
 contacts — steps C.1–C.2
 
@@ -908,15 +910,13 @@ the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
 analytics — Phase 7, V1.1
 
-the GitHub block on public project cards — F-GH2 (the block on the project page comes with Phase 4)
-
 
 
 Current next goal:
 
 
 
-F-GH2 (DEVELOPMENT_PLAN), the GitHub block on public project cards (ADR-019). After it the deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
+The deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in DEVELOPMENT_PLAN, "V1 and the remaining work".
 
 Do not start a step before the previous one is merged.
 
