@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { RepositoryName } from "@/components/github-texts";
 import { Button } from "@/components/ui/button";
 import {
   ApiError,
@@ -27,7 +28,6 @@ import {
   NO_DESCRIPTION,
   pushedAtText,
   RepositoryLabels,
-  RepositoryName,
   SourceBadge,
 } from "../github-texts";
 import { importedProjectHref } from "../projects/imported-marker";

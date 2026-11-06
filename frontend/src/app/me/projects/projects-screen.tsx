@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { RepositoryName } from "@/components/github-texts";
 import { RequestErrorAlert } from "@/components/request-error";
 import { SectionHeading } from "@/components/section-heading";
 import { Alert } from "@/components/ui/alert";
@@ -37,7 +38,6 @@ import {
 } from "@/lib/api";
 
 import { CabinetPage, LoadErrorPanel, LoadingPanel, useAccount } from "../cabinet-page";
-import { RepositoryName } from "../github-texts";
 import {
   BADGE,
   FEATURED_LIMIT_TEXT,

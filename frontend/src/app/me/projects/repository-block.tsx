@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 
+import { RELATION_LABEL, RepositoryName } from "@/components/github-texts";
 import { RequestErrorAlert } from "@/components/request-error";
 import {
   AlertDialog,
@@ -39,10 +40,8 @@ import {
   NO_RELATION_WARNING,
   NOT_SYNCED_TEXT,
   pushedAtText,
-  RELATION_LABEL,
   RepositoryLabels,
   RepositoryLanguages,
-  RepositoryName,
   SourceBadge,
   syncedAtText,
   UNAVAILABLE_WARNING,
@@ -532,7 +531,7 @@ function LinkedRepository({
 }) {
   const pushedAt = pushedAtText(github.pushed_at);
   const syncedAt = syncedAtText(github.synced_at);
-  const relation = RELATION_LABEL[github.relation];
+  const relation = github.relation === "NONE" ? null : RELATION_LABEL[github.relation];
   return (
     <div
       ref={panel}
