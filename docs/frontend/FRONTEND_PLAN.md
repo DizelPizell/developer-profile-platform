@@ -343,13 +343,13 @@ Done in F-GH1.3:
   - Unlink errors use the cabinet alert (`RequestErrorAlert`): unlink does not read GitHub.
   - Focus: after a link it moves to the linked panel, after an unlink to the input, after «Заменить репозиторий» to the input; the unlink confirmation is an `AlertDialog` with the focus on «Отмена», like project deletion.
   - With `synced_at` set the placeholder is hidden and nothing replaces it until F-GH1.5.
-- Checked with Vitest + RTL (fetch mocked, fake timers; 481 tests), 16 mutations (all fail tests; the Enter mutation first survived because jsdom does not submit a form on Enter, so the test now checks that the key is cancelled), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual project repository check"; it has not been run yet.
+- Checked with Vitest + RTL (fetch mocked, fake timers; 481 tests), 16 mutations (all fail tests; the Enter mutation first survived because jsdom does not submit a form on Enter, so the test now checks that the key is cancelled), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual project repository check".
 
 ### F-GH1.4 — Waiting and failure states [folded]
 
 Folded on 2026-10-31 (the owner): the list page and the link dialog got these states in F-GH1.2, and the form block gets them in F-GH1.3 with the same component (`src/app/me/github-error.tsx`). Its tests and manual steps moved there.
 
-### F-GH1.5 — Sync status, languages and «Обновить данные» (M; after backend 6.4) [done; manual check pending]
+### F-GH1.5 — Sync status, languages and «Обновить данные» (M; after backend 6.4) [done]
 
 Screens, texts and rules: "Sync status, languages and «Обновить данные»" in `DESIGN.md`; mockup `repository-sync.png`. One PR, one commit per item below.
 
@@ -440,14 +440,14 @@ Done in F-GH1.5:
   - A late answer is dropped in two ways: a form or block request cancels the read in flight (abort plus a flag checked after `await`), and the updater compares `github_repo_id`. The second is defence in depth: the mutation that removes it survives, since every path that changes the repository runs a request and cancels the read first.
   - The pause from `next_manual_sync_at` and an error's countdown are separate: the button text shows the pause only while no error countdown runs, so the error card and the button never show two different numbers.
   - The `TOO_SOON` card is not in `github-states.png`; its text and tone follow `DESIGN.md` (a label like the other waits).
-- Checked with Vitest + RTL (fetch mocked, fake timers; 548 tests), 28 mutations (27 fail tests; the unmount mutation first survived, so a test now checks that a tab shown after the form is closed reads nothing; the `github_repo_id` check survives as described above), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual project sync check"; it has not been run yet.
+- Checked with Vitest + RTL (fetch mocked, fake timers; 548 tests), 28 mutations (27 fail tests; the unmount mutation first survived, so a test now checks that a tab shown after the form is closed reads nothing; the `github_repo_id` check survives as described above), and lint, typecheck, test and build in a clean clone. The manual check is the README's "Manual project sync check".
 
-### F-GH1.6 — The sync message of an unavailable repository (S; after backend 6.5) [done; manual check pending]
+### F-GH1.6 — The sync message of an unavailable repository (S; after backend 6.5) [done]
 
 After backend step 6.5 an unavailable repository's job ends `FAILED`, so the panel would show «Не удалось обновить данные с GitHub…» next to «Репозиторий недоступен…», and «Показаны данные от …» next to a warning that says the repository is gone. Decided with the owner on 2026-11-04: with `unavailable: true` a `FAILED` job shows no sync message (`DESIGN.md`, the message table). The stopped-polling messages and `QUEUED` stay. Tests: `FAILED` with and without `unavailable`, with and without `synced_at`.
 
 - Done: the condition sits in the `FAILED` branch of `syncMessage`, after the stop and active checks. The warning got a live region of its own, `aria-live="polite"`, mounted while empty, so it is still announced now that the message is gone (decided with the owner on 2026-11-05). The placeholder, the actions, polling and the pauses are unchanged, and no backend or mockup changed.
-- Checked with Vitest + RTL (554 tests), 10 mutations (9 fail tests; the one that moves `FAILED && unavailable` above the stop checks survives, as a stopped poll needs an active status, so the two never meet in the form), and lint, typecheck, test and build in a clean clone. The manual check is step 12 of the README's "Manual project sync check"; it has not been run yet.
+- Checked with Vitest + RTL (554 tests), 10 mutations (9 fail tests; the one that moves `FAILED && unavailable` above the stop checks survives, as a stopped poll needs an active status, so the two never meet in the form), and lint, typecheck, test and build in a clean clone. The manual check is step 12 of the README's "Manual project sync check".
 
 ### Decided
 
@@ -459,7 +459,7 @@ After backend step 6.5 an unavailable repository's job ends `FAILED`, so the pan
 
 - **Opening the repository page for a specific project.** The form's «выберите из своего списка» opens `/me/repositories` without preselecting the project in the link dialog. A preselect (`?project={id}`) would save a step; it is left out of F-GH1 unless the owner asks for it.
 
-## F-GH2 — GitHub on public cards (M; after backend 6.7) [done; manual check pending]
+## F-GH2 — GitHub on public cards (M; after backend 6.7) [done]
 
 **Goal**: a visitor sees on a project's public card what GitHub says about its repository, with the source marked and kept apart from the developer's text (ADR-019).
 
@@ -470,7 +470,7 @@ Screens, texts and rules: "GitHub on public cards" in `DESIGN.md`, mockup `publi
 - `languageShares(languages, shown = 6)` takes the number of chips, 3 on a card.
 - `project-github.tsx` holds `CardGitHub` and `RowGitHub`, Server Components. The date is the day in UTC, so there is no hydration mismatch and no client JS. A row became a column: the former row, then the block.
 - Decided with the owner: the mockup wins over the cabinet's badge style, so chips use `CHIP`; an empty language list hides the languages and their caption; a row follows the mockup (one wrapping line, the date wraps after the rest).
-- Checked with Vitest + RTL (633 tests, 0 skipped), 30 mutations, all failing tests, lint, typecheck and build. The date tests set `process.env.TZ` to `Asia/Tokyo` in `vi.hoisted`, before the formatter is built, with a test that the zone took effect: CI runs in UTC, where a formatter without `timeZone` would pass. Looked at in a browser against a stand-in API at 1200 and 375 px; the manual check against the backend is pending (`frontend/README.md`, "Manual public GitHub check").
+- Checked with Vitest + RTL (633 tests, 0 skipped), 30 mutations, all failing tests, lint, typecheck and build. The date tests set `process.env.TZ` to `Asia/Tokyo` in `vi.hoisted`, before the formatter is built, with a test that the zone took effect: CI runs in UTC, where a formatter without `timeZone` would pass. Looked at in a browser against a stand-in API at 1200 and 375 px. The manual check is the README's "Manual public GitHub check".
 
 ## F7+ — Demos, GitHub data, contacts
 

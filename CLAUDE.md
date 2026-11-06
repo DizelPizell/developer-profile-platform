@@ -872,7 +872,7 @@ frontend F-GH1.1: the API client and types for the GitHub endpoints, with whitel
 
 frontend F-GH1.2: the repository page /me/repositories (list, paging, import, the link dialog, the GitHub error states with the countdown) and «Проект создан» in the project form (manual check against the backend pending)
 
-frontend F-GH1.3 (with the former F-GH1.4): the repository block in the project form (link by name, replace, unlink, the GitHub error states with the countdown), the GitHub label on «Мои проекты» and the login note (manual check against the backend pending)
+frontend F-GH1.3 (with the former F-GH1.4): the repository block in the project form (link by name, replace, unlink, the GitHub error states with the countdown), the GitHub label on «Мои проекты» and the login note
 
 backend Phase 6 step 6.1: the sync tables github_sync_jobs and github_sync_category_status, schema and migration only; links made before it have no job and stay NOT_SYNCED (ADR-018)
 
@@ -882,17 +882,17 @@ backend Phase 6 step 6.3: the worker core — claim with SKIP LOCKED, the outcom
 
 backend Phase 6 step 6.4: the processor — metadata by id and languages, each in its own short transaction with its category status, the relation of every link recomputed from up to 5 contributor pages; python -m app.github.worker, run by hand until 6.6 (ADR-018)
 
-frontend F-GH1.5: the sync status, the language chips with shares and the data date in the project form, «Обновить данные» with the pause, and polling every 5 seconds while a job is active (visible tab only, at most 2 minutes) (manual check against the worker pending)
+frontend F-GH1.5: the sync status, the language chips with shares and the data date in the project form, «Обновить данные» with the pause, and polling every 5 seconds while a job is active (visible tab only, at most 2 minutes)
 
-frontend F-GH1.6: one warning for an unavailable repository, without the failed sync message, announced from its own live region (manual check pending)
+frontend F-GH1.6: one warning for an unavailable repository, without the failed sync message, announced from its own live region
 
-backend Phase 6 step 6.5: periodic syncs queued in the worker's iteration (at most once a minute, 30 jobs at a time, repositories of PUBLISHED projects with no job in 24 hours, nothing during a hold), the two-404 rule with unavailable_since keeping its first date (ADR-018) (manual check pending)
+backend Phase 6 step 6.5: periodic syncs queued in the worker's iteration (at most once a minute, 30 jobs at a time, repositories of PUBLISHED projects with no job in 24 hours, nothing during a hold), the two-404 rule with unavailable_since keeping its first date (ADR-018)
 
-backend Phase 6 step 6.6: the github-worker service in Compose on the backend image, always on, updated only with the whole stack (docker compose up -d --build), and a CI workflow that checks it (ADR-018) (manual check pending)
+backend Phase 6 step 6.6: the github-worker service in Compose on the backend image, always on, updated only with the whole stack (docker compose up -d --build), and a CI workflow that checks it (ADR-018)
 
-backend Phase 6 step 6.7: the nullable github object on public project cards with its ten-field whitelist, null without a link, without a success of every category, for an unavailable repository or a lost relation; one batched query, no GitHub call, no cache (ADR-019) (manual check pending)
+backend Phase 6 step 6.7: the nullable github object on public project cards with its ten-field whitelist, null without a link, without a success of every category, for an unavailable repository or a lost relation; one batched query, no GitHub call, no cache (ADR-019)
 
-frontend F-GH2: the GitHub block on public project cards and rows, server rendered, with the date as a day in UTC; a wrong github object hides only the block, with one log line per project (ADR-019) (manual check pending)
+frontend F-GH2: the GitHub block on public project cards and rows, server rendered, with the date as a day in UTC; a wrong github object hides only the block, with one log line per project (ADR-019)
 
 
 

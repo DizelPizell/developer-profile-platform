@@ -201,6 +201,18 @@ Backend, `github-worker` and frontend running, signed in, a published profile wi
 
 Not checked by hand, only by tests: `relation: "NONE"` in the response, a `github` of the wrong shape and its log line, an unsafe `html_url` (`javascript:`, a look-alike host), a sum of 0 bytes, a fork without a parent.
 
+## Notes for manual checks
+
+Observed by the developer, not proven causes:
+
+- After switching commits the cabinet showed «Не удалось связаться с сервером» with the backend alive. Stop the dev server, remove `frontend/.next` and start again (PowerShell, from `frontend`):
+
+  ```powershell
+  Remove-Item -Recurse -Force .next; npm run dev
+  ```
+
+- «Maximum call stack size exceeded» with `<anonymous>` and `Object.getOwnPropertyDescriptor` frames in the dev overlay on a cabinet page looked like the work of a browser extension: it did not appear in an incognito window or in another browser.
+
 ## Checks
 
 ```bash
