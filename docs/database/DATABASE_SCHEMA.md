@@ -120,16 +120,18 @@ CHECK `ck_profiles_published_complete`: публикация возможна т
 |---|---|---|
 | `id` | UUID PK | |
 | `profile_id` | UUID FK → profiles | ON DELETE CASCADE |
-| `type` | ENUM | `email`, `phone`, `telegram`, `linkedin`, `website`, `github` |
-| `value` | TEXT NOT NULL | |
-| `is_public` | BOOLEAN NOT NULL DEFAULT true | |
-| `display_order` | SMALLINT | |
-| `created_at` | TIMESTAMPTZ NOT NULL | |
-| `updated_at` | TIMESTAMPTZ NOT NULL | |
+| `type` | VARCHAR(20) NOT NULL | `EMAIL` / `TELEGRAM` / `LINKEDIN` / `PHONE` / `OTHER` (`ck_profile_contacts_type`) |
+| `value` | TEXT NOT NULL | Нормализованное значение: адрес, имя Telegram, slug LinkedIn, номер E.164 или URL для `OTHER` |
+| `label` | TEXT | Название; обязательно для `OTHER`, `NULL` для остальных (`ck_profile_contacts_label_presence`); ≤ 40, не пустое (`ck_profile_contacts_label`) |
+| `position` | SMALLINT NOT NULL | 1..7 (`ck_profile_contacts_position`), порядок в списке |
+| `created_at` | TIMESTAMP NOT NULL | |
 
-UNIQUE `(profile_id, type)` — один контакт каждого типа на профиль.
+- `ck_profile_contacts_value`: не пустое и длина по типу — `EMAIL` ≤ 254, `TELEGRAM` 5–32, `LINKEDIN` 3–100, `PHONE` 9–16, `OTHER` ≤ 2048.
+- UNIQUE `(profile_id, position)` (`uq_profile_contacts_position`) вместе с диапазоном позиций ограничивает профиль семью контактами.
+- Частичный уникальный индекс `uq_profile_contacts_type` на `(profile_id, type) WHERE type <> 'OTHER'` — один стандартный контакт каждого типа. Лимит 3 `OTHER` — только в domain-слое.
+- `updated_at` у контакта нет: список заменяется целиком (`DELETE`, затем `INSERT`), меняется `profiles.updated_at`.
 
-`email` и `phone` не включаются в публичный ответ как plaintext — только через `GET /api/v1/profiles/{slug}/contacts/reveal`. Подробнее: ADR-0020.
+Ссылку (`url`) строит сервер при чтении, в таблице её нет. `EMAIL` и `PHONE` в публичном профиле — без значения; значение — через `GET /api/v1/public/profiles/{slug}/contacts?type=EMAIL|PHONE`. Подробнее: [ADR-0020](../release/v1/adr/0020-contacts-separate-table.md).
 
 ---
 
@@ -302,7 +304,7 @@ UNIQUE `(github_repository_id, category)`. `last_error` и `last_error_at` ус�
 | Репозиторий — разделяемый ресурс; `unique(owner_id, repo_id)` в привязке | [ADR-0017](../release/v1/adr/0017-repository-linking.md) |
 | Одна активная джоба через partial unique index | [ADR-0009](../release/v1/adr/0009-sync-worker-skip-locked.md) |
 | `unavailable_since` — факт репозитория, не статус джобы | [ADR-0018](../release/v1/adr/0018-github-sync-v1.md) |
-| Контакты в отдельной таблице; email/phone скрыты | [ADR-0020](../release/v1/adr/0020-contacts-storage.md) |
+| Контакты в отдельной таблице; один стандартный тип через partial unique index; email/phone отдаются по клику | [ADR-0020](../release/v1/adr/0020-contacts-separate-table.md) |
 
 ## Статус миграций
 
@@ -312,7 +314,7 @@ UNIQUE `(github_repository_id, category)`. `last_error` и `last_error_at` ус�
 | `0002_projects` | `projects`, `technologies`, `project_technologies`, `featured_projects` | нет |
 | `0003_github` | `github_accounts`, `github_repositories`, `project_repositories` | нет |
 | `0004_sync` | `github_sync_jobs`, `github_sync_category_status` | нет |
-| `0005_contacts` | `profile_contacts` | нет |
+| `b7e2d4c81a3f_profile_contacts` | `profile_contacts` | нет |
 
 ## Аналитика
 
@@ -325,6 +327,7 @@ V1.1: таблица `analytics_events` не существует в V1. Пол�
 - `auth_sessions.user_id`
 - `profiles.slug` UNIQUE
 - `profiles.user_id` UNIQUE
+- `profile_contacts.(profile_id, position)` UNIQUE; `profile_contacts.(profile_id, type) WHERE type <> 'OTHER'` UNIQUE
 - `projects.owner_id`
 - `technologies.lower(name)` UNIQUE
 - `project_technologies.(project_id, position)` UNIQUE

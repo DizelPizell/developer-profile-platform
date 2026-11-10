@@ -18,7 +18,7 @@ GET  /auth/me
 | `POST /auth/logout` | 204, deletes the session and clears the cookie | 403 `CSRF_ORIGIN_INVALID`; 500 `INTERNAL_ERROR` |
 | `GET /auth/me` | 200 `MeResponse` | 401 `UNAUTHORIZED`; 500 `INTERNAL_ERROR` |
 
-The session is an HttpOnly cookie set by the callback (ADR-012). Its name comes from `SESSION_COOKIE_NAME`: `developer_session` in `.env.example`, `session` when the variable is unset. OpenAPI declares it as the `cookieAuth` security scheme. Login, callback, logout and `GET /public/profiles/{slug}` need no session (logout clears one if present); every other implemented endpoint requires it and answers 401 `UNAUTHORIZED` without it.
+The session is an HttpOnly cookie set by the callback (ADR-012). Its name comes from `SESSION_COOKIE_NAME`: `developer_session` in `.env.example`, `session` when the variable is unset. OpenAPI declares it as the `cookieAuth` security scheme. Login, callback, logout, `GET /public/profiles/{slug}` and `GET /public/profiles/{slug}/contacts` need no session (logout clears one if present); every other implemented endpoint requires it and answers 401 `UNAUTHORIZED` without it.
 
 The callback deletes the `oauth_state` cookie on every response, including errors.
 
@@ -73,11 +73,24 @@ Every endpoint may also return 500 `INTERNAL_ERROR`.
   "display_name": "string (≤ 100) | null",
   "headline": "string (≤ 160) | null",
   "bio": "string (≤ 2000, plain text) | null",
-  "location": "string (≤ 100) | null"
+  "location": "string (≤ 100) | null",
+  "contacts": [{"type": "EMAIL | TELEGRAM | LINKEDIN | PHONE | OTHER", "value": "string", "label": "string (≤ 40) | null"}]
 }
 ```
 
-`OwnProfileResponse`:
+`contacts` (ADR-020) follows the rules of `technologies`: absent keeps the list, a list replaces it whole in the given order (`position` 1..7), `[]` clears it, `null` gives 422 `list_type`. `profiles.updated_at` changes only when the normalized list differs from the stored one. An item accepts only `type`, `value` and `label` (`url` and anything else give `extra_forbidden`). The server stores the normalized value and builds `url` itself:
+
+| `type` | Accepted `value` | Stored | `url` | Error type |
+|---|---|---|---|---|
+| `EMAIL` | ASCII address `^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$`, ≤ 254 | domain in lower case | `mailto:{value}` | `invalid_email` |
+| `TELEGRAM` | `name`, `@name`, `t.me/name`, `https://t.me/name`, optional trailing `/`; name 5–32 of `A-Za-z0-9_`, not a reserved path (`joinchat`, `addstickers`, `proxy`, … — the list is in ADR-020) | `name` as entered | `https://t.me/{name}` | `invalid_telegram` |
+| `LINKEDIN` | `[https://][www.\|xx.]linkedin.com/in/{slug}[/]`, slug `^[A-Za-z0-9-]{3,100}$`; the host is compared exactly | `slug` | `https://www.linkedin.com/in/{slug}` | `invalid_linkedin` |
+| `PHONE` | `+` and digits; spaces, `-`, `(`, `)` removed; `^\+[1-9]\d{7,14}$` | E.164 | `tel:{value}` | `invalid_phone` |
+| `OTHER` | `http`/`https` URL, host with a dot, no login, whitespace, backslash or control characters, ≤ 2048; `label` required | URL, scheme in lower case | the stored URL | `invalid_url`; `label`: `missing` |
+
+A blank `value` gives `string_too_short`; a `label` on a standard type gives `label_not_allowed`; `label` is plain text (trimmed, ≤ 40, no control characters). List errors have `loc` `["body", "contacts"]`: more than 7 items (`too_long`), a repeated standard type (`duplicate_contact_type`), more than 3 `OTHER` (`too_many_other_contacts`). Item errors have `loc` `["body", "contacts", <index>, "value" | "label" | "type"]`. Input values are never echoed.
+
+`OwnProfileResponse` (also the response of publish and unpublish):
 
 ```json
 {
@@ -88,7 +101,8 @@ Every endpoint may also return 500 `INTERNAL_ERROR`.
   "bio": "string | null",
   "location": "string | null",
   "avatar_url": "string | null",
-  "github_login": "string"
+  "github_login": "string",
+  "contacts": [{"type": "string", "value": "string", "label": "string | null", "url": "string"}]
 }
 ```
 
@@ -98,15 +112,21 @@ Every endpoint may also return 500 `INTERNAL_ERROR`.
 
 ```http
 GET /public/profiles/{slug}
+GET /public/profiles/{slug}/contacts?type=EMAIL|PHONE
 ```
 
 | Endpoint | Success | Errors |
 |---|---|---|
 | `GET /public/profiles/{slug}` | 200 `PublicProfileResponse` | 404 `NOT_FOUND`; 500 `INTERNAL_ERROR` |
+| `GET /public/profiles/{slug}/contacts` | 200 `{type, value, url}`, `Cache-Control: no-store` | 404 `NOT_FOUND`; 422 `VALIDATION_ERROR` (`type` missing or not `EMAIL`/`PHONE`, `loc` `["query", "type"]`); 500 `INTERNAL_ERROR` |
 
-No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A private profile, a missing profile and a malformed slug return the same 404 body as an unknown URL (only `request_id` differs).
+No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A private profile, a missing profile and a malformed slug return the same 404 body as an unknown URL (only `request_id` differs). The contacts endpoint returns that same 404 when the profile has no contact of the requested type. It has no rate limit until step 8.3 (ADR-020).
 
-`PublicProfileResponse` (whitelist — never `users.email`, internal user/profile ids or status). Contacts that the developer enters are a separate thing: step C.1 adds them to this contract under ADR-020.
+```json
+{"type": "EMAIL | PHONE", "value": "string", "url": "mailto:… | tel:…"}
+```
+
+`PublicProfileResponse` (whitelist — never `users.email`, internal user/profile ids or status). `contacts` are the ones the developer entered (ADR-020), in their order; `EMAIL` and `PHONE` appear with `value`, `label` and `url` equal to `null`, so the page knows they exist and requests the value on a click. The response takes one query for any number of contacts.
 
 ```json
 {
@@ -117,6 +137,7 @@ No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A pr
   "location": "string | null",
   "avatar_url": "string | null",
   "github_login": "string",
+  "contacts": [{"type": "string", "value": "string | null", "label": "string | null", "url": "string | null"}],
   "featured": [
     {
       "id": "uuid",

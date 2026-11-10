@@ -45,7 +45,7 @@
 | 0017 | Репозиторий — разделяемый ресурс | [ADR-0017](release/v1/adr/0017-repository-linking.md) |
 | 0018 | V1 синхронизирует только метаданные и языки | [ADR-0018](release/v1/adr/0018-github-sync-v1.md) |
 | 0019 | GitHub на карточках проектов, без агрегатов | [ADR-0019](release/v1/adr/0019-public-github-on-cards.md) |
-| 0020 | Контакты — отдельная таблица, email скрыт | [ADR-0020](release/v1/adr/0020-contacts-storage.md) |
+| 0020 | Контакты — отдельная таблица, email и телефон по клику | [ADR-0020](release/v1/adr/0020-contacts-separate-table.md) |
 
 ---
 

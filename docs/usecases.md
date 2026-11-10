@@ -34,22 +34,29 @@
 ### UC-B1. Редактирование профиля
 
 - **Актор:** аутентифицированный владелец профиля. **С релиза:** v1.
-- **Поток:** `PATCH /api/v1/me/profile` с JSON-телом → Origin-проверка → валидация полей → обновление только переданных полей → `200` с обновлённым профилем.
-- **Отклонения:** недопустимый Origin → `403 CSRF_VALIDATION_FAILED`; невалидные поля → `422 VALIDATION_ERROR`; не аутентифицирован → `401`.
+- **Поток:** `PATCH /api/v1/profile` с JSON-телом → Origin-проверка → валидация полей → обновление только переданных полей → `200` с обновлённым профилем.
+- **Отклонения:** недопустимый Origin → `403 CSRF_ORIGIN_INVALID`; невалидные поля → `422 VALIDATION_ERROR`; не аутентифицирован → `401`.
 - **ADR:** [ADR-0013](release/v1/adr/0013-profile-patch-origin-check.md).
 
 ### UC-B2. Публикация профиля
 
 - **Актор:** аутентифицированный владелец профиля. **С релиза:** v1.
-- **Поток:** `POST /api/v1/me/profile/publish` → проверяет наличие `display_name` и `headline` → устанавливает `status = PUBLISHED` → `200`.
+- **Поток:** `POST /api/v1/profile/publish` → проверяет наличие `display_name` и `headline` → устанавливает `status = PUBLISHED` → `200`.
 - **Отклонения:** профиль неполный → `422 PROFILE_INCOMPLETE`; уже опубликован → `200` (идемпотентно).
 - **ADR:** [ADR-0005](release/v1/adr/0005-project-lifecycle-visibility.md).
 
 ### UC-B3. Снятие профиля с публикации
 
 - **Актор:** аутентифицированный владелец профиля. **С релиза:** v1.
-- **Поток:** `POST /api/v1/me/profile/unpublish` → устанавливает `status = PRIVATE` → `200`.
+- **Поток:** `POST /api/v1/profile/unpublish` → устанавливает `status = PRIVATE` → `200`.
 - **Отклонения:** уже `PRIVATE` → `200` (идемпотентно).
+
+### UC-B4. Контакты профиля
+
+- **Актор:** аутентифицированный владелец профиля. **С релиза:** v1 (бэкенд — C.1; кабинет — C.2).
+- **Поток:** `PATCH /api/v1/profile` с `contacts: [{type, value, label}]` → Origin-проверка → нормализация каждого значения (`EMAIL`, `TELEGRAM`, `LINKEDIN`, `PHONE`, `OTHER` с названием) → под блокировкой профиля список заменяется целиком (`DELETE`, затем `INSERT`, `position` — по порядку) → `200` с `contacts: [{type, value, label, url}]`, `url` построен сервером. Поле отсутствует — список не меняется; `[]` — очищает. `profiles.updated_at` меняется, только если нормализованный список другой.
+- **Отклонения:** `422 VALIDATION_ERROR` — `null` вместо списка; больше 7 контактов (`too_long`), больше 3 `OTHER` (`too_many_other_contacts`), повтор стандартного типа (`duplicate_contact_type`) — `loc` `["body","contacts"]`; неверное значение (`invalid_email`, `invalid_telegram`, `invalid_linkedin`, `invalid_phone`, `invalid_url`, `string_too_short`, `string_too_long`) или название (`missing`, `label_not_allowed`) — `loc` `["body","contacts",i,"value"|"label"]`; присланный `url` — `extra_forbidden`. Введённые значения в ответ не попадают. Недопустимый Origin → `403 CSRF_ORIGIN_INVALID`.
+- **ADR:** [ADR-0020](release/v1/adr/0020-contacts-separate-table.md).
 
 ---
 
@@ -132,9 +139,9 @@
 ### UC-E1. Просмотр публичного профиля
 
 - **Актор:** любой посетитель. **С релиза:** v1.
-- **Поток:** `GET /api/v1/profiles/{slug}` → проверяет `status = PUBLISHED` → возвращает публичный DTO: профиль, список проектов (`PUBLISHED + PUBLIC`), витрина, данные GitHub (если синхронизированы) — батчевым запросом без вызова GitHub API.
-- **Отклонения:** профиль не найден или `PRIVATE` → `404 PROFILE_NOT_FOUND`.
-- **ADR:** [ADR-0019](release/v1/adr/0019-public-github-on-cards.md), [ADR-0013](release/v1/adr/0013-profile-patch-origin-check.md).
+- **Поток:** `GET /api/v1/public/profiles/{slug}` → проверяет `status = PUBLISHED` → возвращает публичный DTO: профиль, контакты (`EMAIL` и `PHONE` — без `value` и `url`), список проектов (`PUBLISHED + PUBLIC`), витрина, данные GitHub (если синхронизированы) — батчевыми запросами без вызова GitHub API.
+- **Отклонения:** профиль не найден, `PRIVATE` или slug некорректный → `404 NOT_FOUND`, одинаковый для всех случаев.
+- **ADR:** [ADR-0019](release/v1/adr/0019-public-github-on-cards.md), [ADR-0013](release/v1/adr/0013-profile-patch-origin-check.md), [ADR-0020](release/v1/adr/0020-contacts-separate-table.md).
 
 ### UC-E2. Данные GitHub на карточке проекта
 
@@ -142,3 +149,10 @@
 - **Поток:** объект `github` возвращается в составе `UC-E1`; содержит 10 полей (full_name, html_url, description, stars, forks, open_issues, is_fork, is_archived, languages, synced_at); равен `null` если нет привязки, синхронизация не завершена, репозиторий недоступен или привязка разорвана.
 - **Отклонения:** `github = null` — нормальное состояние, UI обрабатывает молча (одна строка в лог на проект).
 - **ADR:** [ADR-0019](release/v1/adr/0019-public-github-on-cards.md).
+
+### UC-E3. Email или телефон по клику
+
+- **Актор:** любой посетитель. **С релиза:** v1 (бэкенд — C.1; кнопки «Показать email» и «Показать телефон» — C.2).
+- **Поток:** `GET /api/v1/public/profiles/{slug}/contacts?type=EMAIL|PHONE` без сессии → профиль `PUBLISHED` и контакт этого типа есть → `200 {type, value, url}` с `Cache-Control: no-store`.
+- **Отклонения:** профиль не найден, `PRIVATE`, slug некорректный или контакта нет → тот же `404 NOT_FOUND`, что у UC-E1; другой `type` или его нет → `422 VALIDATION_ERROR`. Rate limit — шаг 8.3, до него ручка не ограничена.
+- **ADR:** [ADR-0020](release/v1/adr/0020-contacts-separate-table.md).
