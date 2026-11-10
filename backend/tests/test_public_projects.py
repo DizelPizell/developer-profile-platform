@@ -214,8 +214,13 @@ class TestQueryCount:
         _feature(client, *projects[:3])
         body = _public(visitor, slug)
         assert len(body["featured"]) == 3 and len(body["other"]) == 27
+        contacts = [{"type": "TELEGRAM", "value": "ann_dev"}, {"type": "EMAIL", "value": "a@b.cc"}]
+        contacts += [
+            {"type": "OTHER", "value": f"https://e{n}.example", "label": "x"} for n in (1, 2)
+        ]
+        assert client.patch("/api/v1/profile", json={"contacts": contacts}).status_code == 200
 
         thirty = self._count(visitor, slug, db_session)
-        # Profile, projects, technologies, GitHub data: also rules out a listener that
-        # never fired.
-        assert thirty == one == 4
+        # Profile, contacts, projects, technologies, GitHub data: also rules out a
+        # listener that never fired.
+        assert thirty == one == 5

@@ -119,6 +119,42 @@ def test_migrations_apply_to_empty_database(db_engine, monkeypatch):
             assert "WHERE" in job_indexes["ix_github_sync_jobs_claim"]
             assert "ix_github_sync_jobs_repository_created" in job_indexes
 
+            # ADR-020: contacts of a profile.
+            assert {c["name"] for c in schema.get_columns("profile_contacts")} == {
+                "id",
+                "profile_id",
+                "type",
+                "value",
+                "label",
+                "position",
+                "created_at",
+            }
+            assert {
+                "ck_profile_contacts_type",
+                "ck_profile_contacts_value",
+                "ck_profile_contacts_label_presence",
+                "ck_profile_contacts_label",
+                "ck_profile_contacts_position",
+            } <= {c["name"] for c in schema.get_check_constraints("profile_contacts")}
+            assert "uq_profile_contacts_position" in {
+                u["name"] for u in schema.get_unique_constraints("profile_contacts")
+            }
+            contact_fk = schema.get_foreign_keys("profile_contacts")[0]
+            assert contact_fk["referred_table"] == "profiles"
+            assert contact_fk["options"]["ondelete"] == "CASCADE"
+            with engine.connect() as conn:
+                contact_type_index = conn.execute(
+                    text(
+                        "SELECT indexdef FROM pg_indexes "
+                        "WHERE indexname = 'uq_profile_contacts_type'"
+                    )
+                ).scalar_one()
+            assert "UNIQUE" in contact_type_index
+            assert "'OTHER'" in contact_type_index
+
+            alembic_command.downgrade(cfg, "9cef1f7367c5")
+            assert "profile_contacts" not in set(inspect(engine).get_table_names())
+
             alembic_command.downgrade(cfg, "818c44e09940")
             tables = set(inspect(engine).get_table_names())
             assert not {"github_sync_jobs", "github_sync_category_status"} & tables

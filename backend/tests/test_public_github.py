@@ -621,7 +621,8 @@ class TestNoGitHubAndNoWrites:
             event.remove(connection, "before_cursor_execute", record)
 
         assert resp.status_code == 200, resp.text
-        assert len(statements) == 4
+        # Profile, contacts, projects, technologies, GitHub data.
+        assert len(statements) == 5
         assert all(statement.lstrip().upper().startswith("SELECT") for statement in statements)
         assert db_session.scalar(select(func.count()).select_from(GitHubSyncJob)) == jobs
 
@@ -660,5 +661,5 @@ class TestQueryCount:
         assert sum(card["github"] is None for card in cards.values()) == 15
         thirty_mixed = self._statements(env, visitor, db_session, slug)
 
-        # Profile, projects, technologies, GitHub data.
-        assert one == thirty_linked == thirty_mixed == 4
+        # Profile, contacts, projects, technologies, GitHub data.
+        assert one == thirty_linked == thirty_mixed == 5
