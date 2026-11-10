@@ -80,6 +80,8 @@ paths:
         unknown fields (including slug, status, avatar_url) are rejected. Values
         are trimmed, blank becomes null, control characters are rejected (bio
         allows newlines); single-line fields also reject U+2028 and U+2029.
+        `contacts` replaces the whole list; absent keeps it, [] clears it,
+        null is rejected (ADR-020).
       requestBody:
         required: true
         content:
@@ -127,6 +129,7 @@ paths:
         and malformed slugs return the same 404 as an unknown URL. Includes the
         profile's PUBLISHED + PUBLIC projects as `featured` and `other`
         (ADR-015); each project carries a nullable `github` object (ADR-019).
+        `contacts` lists EMAIL and PHONE without value and url (ADR-020).
       parameters:
         - name: slug
           in: path
@@ -143,6 +146,41 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /public/profiles/{slug}/contacts:
+    get:
+      operationId: getPublicProfileContact
+      security: []
+      summary: Get the email or phone of a public profile
+      description: >-
+        The value of one EMAIL or PHONE contact, requested by a click (ADR-020).
+        No session; Cache-Control no-store. A private, missing or malformed
+        profile, or a profile without that contact, returns the same 404 as
+        GET /public/profiles/{slug}. No rate limit until step 8.3.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: {type: string}
+        - name: type
+          in: query
+          required: true
+          schema: {type: string, enum: [EMAIL, PHONE]}
+      responses:
+        "200":
+          description: The contact value
+          headers:
+            Cache-Control:
+              schema: {type: string, enum: [no-store]}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicContactValue"}
+        "404":
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422": {$ref: "#/components/responses/ValidationError"}
         "500": {$ref: "#/components/responses/InternalError"}
   /projects:
     get:
@@ -613,9 +651,77 @@ components:
         headline: {type: string, maxLength: 160, nullable: true}
         bio: {type: string, maxLength: 2000, nullable: true, description: Plain text; newlines allowed}
         location: {type: string, maxLength: 100, nullable: true}
+        contacts:
+          type: array
+          maxItems: 7
+          description: >-
+            Absent keeps the list, a list replaces it whole in the given order,
+            [] clears it, null is rejected. One contact of each standard type,
+            at most 3 OTHER (ADR-020). Errors: loc [body, contacts] with
+            too_long, duplicate_contact_type or too_many_other_contacts; loc
+            [body, contacts, i, value|label] for an item.
+          items: {$ref: "#/components/schemas/ContactWrite"}
+    ContactWrite:
+      type: object
+      additionalProperties: false
+      required: [type, value]
+      description: >-
+        One contact (ADR-020). The server stores a normalized value and builds
+        the link; a URL is never accepted as a field. Errors of value:
+        invalid_email, invalid_telegram, invalid_linkedin, invalid_phone,
+        invalid_url, string_too_short (blank), string_too_long.
+      properties:
+        type: {type: string, enum: [EMAIL, TELEGRAM, LINKEDIN, PHONE, OTHER]}
+        value:
+          type: string
+          description: >-
+            EMAIL — an ASCII address (the domain is stored in lower case);
+            TELEGRAM — name, @name, t.me/name or https://t.me/name (5–32 of
+            A-Z, a-z, 0-9, _; no invites or reserved paths); LINKEDIN —
+            [https://][www.|xx.]linkedin.com/in/{slug}, the slug is stored;
+            PHONE — + and 8–15 digits, spaces, hyphens and parentheses removed;
+            OTHER — an http or https URL whose host has a dot, without a login,
+            whitespace or backslash, up to 2048.
+        label:
+          type: string
+          maxLength: 40
+          nullable: true
+          description: >-
+            Plain text name; required for OTHER (missing), not allowed for the
+            other types (label_not_allowed).
+    Contact:
+      type: object
+      required: [type, value, label, url]
+      properties:
+        type: {type: string, enum: [EMAIL, TELEGRAM, LINKEDIN, PHONE, OTHER]}
+        value: {type: string, description: The normalized value}
+        label: {type: string, nullable: true, description: The name of an OTHER contact}
+        url:
+          type: string
+          description: >-
+            Built by the server: mailto:, https://t.me/,
+            https://www.linkedin.com/in/, tel:; for OTHER equal to value.
+    PublicContact:
+      type: object
+      description: >-
+        Public contact whitelist (ADR-020). value and url are null for EMAIL
+        and PHONE; they come from GET /public/profiles/{slug}/contacts.
+      required: [type, value, label, url]
+      properties:
+        type: {type: string, enum: [EMAIL, TELEGRAM, LINKEDIN, PHONE, OTHER]}
+        value: {type: string, nullable: true}
+        label: {type: string, nullable: true}
+        url: {type: string, nullable: true}
+    PublicContactValue:
+      type: object
+      required: [type, value, url]
+      properties:
+        type: {type: string, enum: [EMAIL, PHONE]}
+        value: {type: string}
+        url: {type: string, description: "mailto: or tel: link"}
     OwnProfileResponse:
       type: object
-      required: [slug, status, display_name, headline, bio, location, avatar_url, github_login]
+      required: [slug, status, display_name, headline, bio, location, avatar_url, github_login, contacts]
       properties:
         slug: {type: string}
         status: {type: string, enum: [PRIVATE, PUBLISHED]}
@@ -625,9 +731,13 @@ components:
         location: {type: string, nullable: true}
         avatar_url: {type: string, nullable: true}
         github_login: {type: string}
+        contacts:
+          type: array
+          description: Contacts in the developer's order.
+          items: {$ref: "#/components/schemas/Contact"}
     PublicProfileResponse:
       type: object
-      required: [slug, display_name, headline, bio, location, avatar_url, github_login, featured, other]
+      required: [slug, display_name, headline, bio, location, avatar_url, github_login, contacts, featured, other]
       properties:
         slug: {type: string}
         display_name: {type: string, nullable: true}
@@ -636,6 +746,11 @@ components:
         location: {type: string, nullable: true}
         avatar_url: {type: string, nullable: true}
         github_login: {type: string}
+        contacts:
+          type: array
+          description: >-
+            Contacts in the developer's order; never users.email (ADR-020).
+          items: {$ref: "#/components/schemas/PublicContact"}
         featured:
           type: array
           maxItems: 3
