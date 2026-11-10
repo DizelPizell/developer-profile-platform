@@ -1,11 +1,12 @@
 import re
+import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import Row, delete, insert, select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models.identity import GitHubAccount, Profile, User
+from app.models.identity import GitHubAccount, Profile, ProfileContact, User
 
 PRIVATE = "PRIVATE"
 PUBLISHED = "PUBLISHED"
@@ -40,14 +41,57 @@ def get_own_profile(db: Session, user: User, *, for_update: bool = False) -> Pro
     return db.execute(stmt).scalar_one()
 
 
-def update_profile(db: Session, profile: Profile, changes: dict[str, str | None]) -> None:
+def contacts(db: Session, profile_id: uuid.UUID) -> list[Row]:
+    """(type, value, label) of the profile's contacts, in position order."""
+    return list(
+        db.execute(
+            select(ProfileContact.type, ProfileContact.value, ProfileContact.label)
+            .where(ProfileContact.profile_id == profile_id)
+            .order_by(ProfileContact.position)
+        )
+    )
+
+
+def _replace_contacts(db: Session, profile: Profile, items: list[dict]) -> bool:
+    """Replaces the list whole; False when the normalized list equals the stored one.
+    The caller holds the profile row lock."""
+    new = [(item["type"], item["value"], item["label"]) for item in items]
+    if [tuple(row) for row in contacts(db, profile.id)] == new:
+        return False
+    # DELETE before INSERT explicitly: left to the unit of work, the inserts could
+    # run first and break uq_profile_contacts_position (ADR-020).
+    db.execute(delete(ProfileContact).where(ProfileContact.profile_id == profile.id))
+    if new:
+        db.execute(
+            insert(ProfileContact),
+            [
+                {
+                    "profile_id": profile.id,
+                    "type": contact_type,
+                    "value": value,
+                    "label": label,
+                    "position": position,
+                }
+                for position, (contact_type, value, label) in enumerate(new, start=1)
+            ],
+        )
+    return True
+
+
+def update_profile(
+    db: Session,
+    profile: Profile,
+    changes: dict[str, str | None],
+    contact_items: list[dict] | None = None,
+) -> None:
+    """contact_items None keeps the contacts; a list replaces them."""
     if profile.status == PUBLISHED:
         resulting = {f: changes.get(f, getattr(profile, f)) for f in REQUIRED_FOR_PUBLICATION}
         missing = _missing_for_publication(resulting)
         if missing:
             raise _incomplete(missing)
 
-    changed = False
+    changed = contact_items is not None and _replace_contacts(db, profile, contact_items)
     for field, value in changes.items():
         if getattr(profile, field) != value:
             setattr(profile, field, value)
@@ -88,3 +132,12 @@ def get_public_profile(db: Session, slug: str) -> tuple[Profile, User, GitHubAcc
         .where(Profile.slug == slug, Profile.status == PUBLISHED)
     ).first()
     return (row[0], row[1], row[2]) if row else None
+
+
+def contact_value(db: Session, profile_id: uuid.UUID, contact_type: str) -> str | None:
+    """The stored value of one standard contact, or None."""
+    return db.execute(
+        select(ProfileContact.value).where(
+            ProfileContact.profile_id == profile_id, ProfileContact.type == contact_type
+        )
+    ).scalar_one_or_none()
