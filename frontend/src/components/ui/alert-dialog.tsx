@@ -40,7 +40,7 @@ function AlertDialogTitle({
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn("font-heading text-xs leading-normal text-error uppercase", className)}
+      className={cn("caps-label text-error", className)}
       {...props}
     />
   )

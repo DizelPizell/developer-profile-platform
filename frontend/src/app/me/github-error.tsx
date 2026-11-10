@@ -248,7 +248,7 @@ export function GitHubErrorAlert({
       {message.title && (
         <p
           className={cn(
-            "font-heading text-xs leading-normal uppercase",
+            "caps-label",
             message.tone === "label" ? "text-label" : "text-error",
           )}
         >

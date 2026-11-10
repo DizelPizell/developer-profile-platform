@@ -23,12 +23,12 @@ export function MessageScreen({
         {code && (
           <p
             aria-hidden="true"
-            className="font-heading text-6xl text-accent text-shadow-[4px_4px_0_var(--color-outline)]"
+            className="font-heading text-[4rem] text-accent text-shadow-[4px_4px_0_var(--color-outline)]"
           >
             {code}
           </p>
         )}
-        <h1 className="font-heading text-xl leading-relaxed uppercase">{title}</h1>
+        <h1 className="font-heading text-2xl leading-relaxed text-balance uppercase">{title}</h1>
         {text && <p className="text-xl leading-relaxed">{text}</p>}
         <div className="flex flex-wrap justify-center gap-4">{children}</div>
       </section>

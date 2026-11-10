@@ -59,10 +59,15 @@ Rules that follow:
 
 ## Typography
 
-- **Press Start 2P**: only short headings and labels (section titles, the «Класс» label, form labels, status badges). Not for sentences, form values or long names.
-- **Pixelify Sans**: body text, form fields, buttons, names.
-- **Decision**: buttons with an important action (sign-in) are written in normal case, in Pixelify Sans, at a large size. Uppercase in Press Start 2P reads poorly.
-- Both fonts must include the Cyrillic subset; check this when the fonts are added (F1).
+- **Press Start 2P** (`font-heading`): only large headings — «DEV.PROFILE», section titles, page titles, the 404 code. Not for sentences, labels, form values or long names.
+  - The face is drawn on an 8 px grid and is crisp only at multiples of 8: section titles and the brand mark 16 px (`text-base`), page and screen titles 24 px (`text-2xl`), the 404 code 64 px. Other sizes give uneven strokes.
+- **Tektur** (`font-sans`): body text, form fields, buttons, names, and small labels.
+  - Small labels — the «Класс» label, «От автора», «Главный N», «Источник: GitHub», form labels, status and state badges, dialog and message titles — use the `caps-label` utility (`globals.css`): Tektur, 16 px, uppercase, letter spacing 0.04em.
+- **Decision (2026-11-10)**: Tektur replaced Pixelify Sans. Pixelify Sans draws Cyrillic «д», «в», «з», «ы», «ь» close to Latin «a», «б», «э», «bl», «b», so «делал» read as «аелал» at every size. Tektur is a smooth face with a game, sci-fi character, so the pixel world stays in the headings and the hard shadows while text reads cleanly. Tiny5, a pixel face, was tried first and rejected by the owner as too pixel. Small labels moved from Press Start 2P to Tektur: at 10–12 px Press Start 2P is off its grid and hard to read.
+- **Decision**: buttons with an important action (sign-in) are written in normal case, in Tektur, at a large size. Uppercase in Press Start 2P reads poorly.
+- Type scale: 14 px (`text-sm`) for metadata and hints, 16 px (`text-base`) body, 18 px (`text-lg`) larger body, 20 px (`text-xl`) card titles and the sign-in text, 24 px headings, 36 px the profile name. Nothing below 14 px.
+- Long text keeps a readable measure: «О себе» on the public page is at most 70 characters wide.
+- Both fonts must include the Cyrillic subset (`fonts.test.ts` checks it).
 
 ## Borders, shadows and states
 
@@ -105,7 +110,7 @@ Blocks:
 | Block | Data | Notes |
 |---|---|---|
 | Header | — | «DEV.PROFILE» and «Войти через GitHub», a link to `/login` (the mockup's top bar). |
-| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Pixelify Sans (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. «Проекты» (secondary) links to the project area and is shown only when there is a public project (see "Projects on the public page"). |
+| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Tektur (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. «Проекты» (secondary) links to the project area and is shown only when there is a public project (see "Projects on the public page"). |
 | «О себе» | `bio` | Marked «От автора». Plain text with line breaks (`white-space: pre-line`). Empty `bio` hides the block. |
 | «Скилы» | — | Pending: no backend source yet, phase not assigned. A plain list in future; never levels or bars. |
 | «Главные проекты» | `featured` | Up to 3 cards in `position` order, marked «От автора». See "Projects on the public page". |
@@ -142,8 +147,8 @@ The layout comes from `public-profile.png`; only what the Phase 3 API provides i
 - The project area holds «Главные проекты» and then «Другие проекты», after «О себе». It has `id="projects"`.
 - Each section heading has the square marker (`label` for featured, `text-muted` for other), the title, a rule and «От автора» on the right: every project field is written by the developer (content rules). The GitHub block inside a card is the exception and has its own mark.
 - **«Главные проекты»** — a card per featured project, in `position` order (sorted when the response is read). One column on narrow screens, two from `sm`, three from `lg`:
-  - the label «Главный N» (N = `position`), Press Start 2P on `label`;
-  - `title` in Pixelify Sans, wrapped at any point when a word is too long;
+  - the label «Главный N» (N = `position`), `caps-label` on `label`;
+  - `title` in Tektur, wrapped at any point when a word is too long;
   - `summary`, at most four lines (`line-clamp`), then cut;
   - up to three technology chips, in the developer's order; the rest are not shown;
   - «Моя роль: {role}» at the bottom of the card, with the GitHub block, when there is one, under it. Cards of a line keep one height: the role and the block are pushed down together.
@@ -162,7 +167,7 @@ The layout comes from `public-cards.png`. The block is a Server Component (`app/
 
 A featured card, under «Моя роль», top to bottom:
 
-1. «Источник: GitHub», Press Start 2P on no background, `text-muted`.
+1. «Источник: GitHub», `caps-label` on no background, `text-muted`.
 2. `full_name`, a link in `text-muted` opening `html_url` in a new tab (`rel="noopener noreferrer"`). Only a URL starting with `https://github.com/` is a link; anything else stays plain text.
 3. The relation in `text`: «Владелец репозитория» or «В списке контрибьюторов (по данным GitHub)». The API never sends `NONE` here.
 4. Chips, when they apply: «Форк {parent_full_name}» («Форк» when there is no parent) and «В архиве на GitHub».
@@ -187,7 +192,7 @@ Data: `GET /api/v1/profile` → `slug`, `status`, `display_name`, `headline`, `b
 The mockup `cabinet.png` sets the layout and texts. Where it differs from the rules above, the decisions are:
 
 - the cabinet labels `headline` «Заголовок»; the public page keeps «Класс»;
-- buttons stay in Pixelify Sans, normal case (Typography decision), with the mockup's colors: «Сохранить» accent, «Опубликовать» `label` fill with `outline` text, «Скрыть» panel;
+- buttons stay in Tektur, normal case (Typography decision), with the mockup's colors: «Сохранить» accent, «Опубликовать» `label` fill with `outline` text, «Скрыть» panel;
 - the header keeps «Источник: GitHub» under the login, although the mockup omits it;
 - the mockup's «Состояния статуса» legend is an annotation and is not built; its sentence sits under the public address.
 
@@ -197,7 +202,7 @@ Blocks:
 |---|---|---|
 | Header | `avatar_url`, `github_login` | «DEV.PROFILE» on the left. On the right: round avatar (`null` → default pixel avatar), `@github_login` with «Источник: GitHub», «Выйти» (secondary). While loading or after a load error only «Выйти» is shown. |
 | «Мой профиль» | `slug`, `status` | «Публичный адрес: /u/{slug} (не меняется)» and «Опубликованный профиль видят все по этой ссылке.» The address is a link to the public page only while `PUBLISHED`. On the right «Статус» and a badge: `PRIVATE` → «Черновик · PRIVATE» (`label`), `PUBLISHED` → «В сети · PUBLISHED» (`success`). |
-| Form | `display_name`, `headline`, `bio`, `location` | Fields in mockup order, labels in Press Start 2P uppercase, required ones marked «*» (required for publication, not for saving). Each has a hint and a counter «N / limit». Buttons «Сохранить», «Опубликовать», «Скрыть» and the saved message. |
+| Form | `display_name`, `headline`, `bio`, `location` | Fields in mockup order, labels in `caps-label` (Tektur uppercase), required ones marked «*» (required for publication, not for saving). Each has a hint and a counter «N / limit». Buttons «Сохранить», «Опубликовать», «Скрыть» and the saved message. |
 
 Fields:
 
@@ -237,7 +242,7 @@ States and errors:
 
 ### Projects in the cabinet — `/me/projects` (F5)
 
-Mockups `my-projects.png` (list) and `project-form.png` (form) set the layout and texts. The general rules above (tokens, typography, focus, content rules) apply. Where the mockups differ from them, the cabinet decisions hold: buttons in Pixelify Sans, normal case; the header keeps «Источник: GitHub».
+Mockups `my-projects.png` (list) and `project-form.png` (form) set the layout and texts. The general rules above (tokens, typography, focus, content rules) apply. Where the mockups differ from them, the cabinet decisions hold: buttons in Tektur, normal case; the header keeps «Источник: GitHub».
 
 Data: `GET /api/v1/projects` for the list, `GET /api/v1/projects/{id}` for editing, and the actions in `docs/api/API_CONTRACT.md` (ADR-015). The header (avatar, login, «Выйти») comes from `GET /profile`, as on `/me`.
 
@@ -335,7 +340,7 @@ States and errors (list and form):
 
 Mockups: `repositories.png` (the repository list), `github-states.png` (messages and confirmations), the «Репозиторий GitHub» block of `project-form.png`, and the «Импорт из GitHub» button and GitHub label of the updated «Мои проекты» mockup. API: the GitHub section of `docs/api/API_CONTRACT.md` (ADR-016, ADR-017, ADR-018). Where a mockup differs from the contract, the contract wins; the differences are listed for the mockup owner, not built.
 
-The general cabinet rules apply: tokens, typography, buttons in Pixelify Sans in normal case, the header from `GET /profile` with «Источник: GitHub», focus, a second click during a request sends nothing.
+The general cabinet rules apply: tokens, typography, buttons in Tektur in normal case, the header from `GET /profile` with «Источник: GitHub», focus, a second click during a request sends nothing.
 
 Sync is not part of F-GH1.1–F-GH1.3 (FRONTEND_PLAN; F-GH1.4 is folded into F-GH1.3). The sync status, the languages, «Обновить данные» with its pause and polling while `QUEUED` or `SYNCING` are F-GH1.5 ("Sync status, languages and «Обновить данные»" below). The public «Данные GitHub» data on project cards is F-GH2.
 
@@ -542,7 +547,7 @@ A card of a project whose `github` (in `GET /projects`, backend step 5.6) is not
 
 #### Responses → message → user action
 
-The code in small type above a message in `github-states.png` is a mockup annotation and is not shown to the user. Titles are Press Start 2P, texts Pixelify Sans.
+The code in small type above a message in `github-states.png` is a mockup annotation and is not shown to the user. Titles are `caps-label`, texts Tektur.
 
 | Code | Can come from | Title and text | User action |
 |---|---|---|---|
@@ -579,7 +584,7 @@ Blocks (mockup `login.png`):
 - the title «Новая игра» (Press Start 2P, shown in uppercase);
 - «Профиль разработчика с проектами и данными из GitHub. Войдите, чтобы создать свой.»;
 - the error block, when there is one;
-- the button «Войти через GitHub» (Pixelify Sans, normal case, large);
+- the button «Войти через GitHub» (Tektur, normal case, large);
 - the note «Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и публичные репозитории, которые вы привяжете к проектам. Доступа к приватным репозиториям нет.» The mockup omits the email; the backend stores a public email (ADR-012), so the text names it. The repositories are named because Phase 5 reads them with the app's credentials, without any access granted by the user (ADR-016). The code has used this text since F-GH1.3.
 
 The mockup's link «Посмотреть пример профиля» is left out until a public page (F4) and an example profile exist.
@@ -619,7 +624,7 @@ Logout (from the cabinet): `POST /api/v1/auth/logout` → 204 → redirect to `/
 
 ### 404
 
-Two screens with the layout of `not-found.png`: «DEV.PROFILE» above a panel with a large «404», a title (Press Start 2P), one line of text and buttons (Pixelify Sans, normal case, as all buttons). HTTP status 404.
+Two screens with the layout of `not-found.png`: «DEV.PROFILE» above a panel with a large «404», a title (Press Start 2P), one line of text and buttons (Tektur, normal case, as all buttons). HTTP status 404.
 
 | Case | Title | Text | Buttons |
 |---|---|---|---|

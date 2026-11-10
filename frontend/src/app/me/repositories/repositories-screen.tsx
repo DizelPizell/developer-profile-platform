@@ -140,7 +140,7 @@ export function RepositoriesScreen({ page }: { page: number }) {
 
       <section className="flex flex-col gap-4 bg-panel px-6 py-6 shadow-panel sm:px-8">
         <div className="flex flex-wrap items-center gap-4">
-          <h1 className="font-heading text-lg leading-relaxed uppercase">Репозитории GitHub</h1>
+          <h1 className="font-heading text-2xl leading-relaxed text-balance uppercase">Репозитории GitHub</h1>
           <SourceBadge />
         </div>
         <p className="text-lg">
@@ -335,7 +335,7 @@ function RepositoryList({
               tabIndex={-1}
               className="flex flex-col gap-3 border-4 border-success bg-bg px-4 py-4"
             >
-              <p className="font-heading text-xs leading-normal text-success uppercase">
+              <p className="caps-label text-success">
                 Репозиторий привязан
               </p>
               <p className="break-words">

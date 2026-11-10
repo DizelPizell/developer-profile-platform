@@ -22,7 +22,7 @@ export function SectionHeading({
         aria-hidden="true"
         className={cn("size-4 shrink-0", marker === "label" ? "bg-label" : "bg-text-muted")}
       />
-      <h2 id={id} className="font-heading text-sm leading-normal uppercase">
+      <h2 id={id} className="font-heading text-base leading-normal uppercase">
         {children}
       </h2>
       <span aria-hidden="true" className="h-1 grow bg-frame" />

@@ -47,7 +47,16 @@
 /* Font variables are set by next/font on <html> (src/app/fonts.ts). */
 @theme inline {
   --font-heading: var(--font-press-start-2p);
-  --font-sans: var(--font-pixelify-sans);
+  --font-sans: var(--font-tektur);
+}
+
+/* A short uppercase label in the body face (Tektur): badges, form labels, source marks. */
+@utility caps-label {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /* Stepped hover: transitions jump in steps instead of easing. */
