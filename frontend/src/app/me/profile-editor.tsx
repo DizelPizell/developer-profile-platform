@@ -187,7 +187,7 @@ export function ProfileEditor({ initialProfile }: { initialProfile: OwnProfileRe
     <>
       <section className="flex flex-col gap-6 bg-panel px-8 py-8 shadow-panel sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-3">
-          <h1 className="font-heading text-lg leading-relaxed uppercase">Мой профиль</h1>
+          <h1 className="font-heading text-2xl leading-relaxed text-balance uppercase">Мой профиль</h1>
           <p className="text-lg break-all">
             Публичный адрес:{" "}
             {published ? (
@@ -204,7 +204,7 @@ export function ProfileEditor({ initialProfile }: { initialProfile: OwnProfileRe
           </p>
         </div>
         <div className="flex flex-col items-start gap-3 sm:items-end">
-          <p className="font-heading text-xs leading-normal text-label uppercase">Статус</p>
+          <p className="caps-label text-label">Статус</p>
           <StatusBadge status={saved.status} />
         </div>
       </section>
@@ -273,8 +273,8 @@ function StatusBadge({ status }: { status: ProfileStatus }) {
     <span
       className={
         published
-          ? "border-4 border-success px-3 py-2 font-heading text-xs leading-normal text-success uppercase"
-          : "border-4 border-label px-3 py-2 font-heading text-xs leading-normal text-label uppercase"
+          ? "border-4 border-success px-3 py-2 caps-label text-success"
+          : "border-4 border-label px-3 py-2 caps-label text-label"
       }
     >
       {published ? "В сети · PUBLISHED" : "Черновик · PRIVATE"}
@@ -288,12 +288,12 @@ function IncompleteAlert({ action, fields }: { action: Action; fields: ProfileFi
     <Alert className="flex gap-4">
       <span
         aria-hidden="true"
-        className="flex size-8 shrink-0 items-center justify-center bg-error font-heading text-sm text-outline"
+        className="flex size-8 shrink-0 items-center justify-center bg-error font-heading text-base text-outline"
       >
         !
       </span>
       <div className="flex flex-col gap-2">
-        <p className="font-heading text-xs leading-normal uppercase">
+        <p className="caps-label">
           {action === "save" ? "Нельзя сохранить" : "Нельзя опубликовать"}
         </p>
         <p className="text-text">

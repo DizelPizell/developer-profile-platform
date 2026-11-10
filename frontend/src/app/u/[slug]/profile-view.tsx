@@ -53,7 +53,7 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
             </p>
             {profile.headline && (
               <p className="flex flex-wrap items-center gap-3 text-lg">
-                <span className="bg-label px-2 py-1 font-heading text-xs leading-normal text-outline uppercase">
+                <span className="bg-label px-2 py-1 caps-label text-outline">
                   Класс
                 </span>
                 <span className="break-words">{profile.headline}</span>
@@ -84,12 +84,12 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
         {profile.bio && (
           <section aria-labelledby="about-title" className="flex flex-col gap-4 bg-panel px-8 py-8 shadow-panel">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 id="about-title" className="font-heading text-sm leading-normal uppercase">
+              <h2 id="about-title" className="font-heading text-base leading-normal uppercase">
                 О себе
               </h2>
               <AuthorMark />
             </div>
-            <p className="text-lg leading-relaxed break-words whitespace-pre-line">{profile.bio}</p>
+            <p className="max-w-[70ch] text-lg leading-relaxed text-pretty break-words whitespace-pre-line">{profile.bio}</p>
           </section>
         )}
 
@@ -107,7 +107,7 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
 /** The developer is the source of these blocks (DESIGN.md, content rules). */
 function AuthorMark() {
   return (
-    <span className="shrink-0 border-2 border-text-muted px-2 py-1 font-heading text-[10px] leading-normal text-text-muted uppercase">
+    <span className="shrink-0 border-2 border-text-muted px-2 py-1 caps-label text-text-muted">
       От автора
     </span>
   );
@@ -123,7 +123,7 @@ function FeaturedProjects({ projects }: { projects: PublicFeaturedProject[] }) {
       <ol className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((project) => (
           <li key={project.id} className="flex min-w-0 flex-col gap-4 bg-panel px-6 py-6 shadow-panel">
-            <span className="self-start border-2 border-outline bg-label px-2 py-1 font-heading text-[10px] leading-normal text-outline uppercase">
+            <span className="self-start border-2 border-outline bg-label px-2 py-1 caps-label text-outline">
               Главный {project.position}
             </span>
             <h3 className="text-xl break-words">{project.title}</h3>

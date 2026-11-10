@@ -283,7 +283,7 @@ export function ProjectEditor({
   return (
     <>
       <section className="flex flex-col gap-4 bg-panel px-6 py-6 shadow-panel sm:flex-row sm:items-center sm:justify-between sm:px-8">
-        <h1 className="font-heading text-lg leading-relaxed uppercase">
+        <h1 className="font-heading text-2xl leading-relaxed text-balance uppercase">
           {saved ? "Проект" : "Новый проект"}
         </h1>
         <div className="flex flex-wrap items-center gap-4">
@@ -294,7 +294,7 @@ export function ProjectEditor({
 
       {importNotice !== null && (
         <div role="status" className="flex flex-col gap-3 border-4 border-success bg-bg px-4 py-4">
-          <p className="font-heading text-xs leading-normal text-success uppercase">
+          <p className="caps-label text-success">
             Проект создан
           </p>
           <p className="break-words">{importNotice}</p>
@@ -407,12 +407,12 @@ function IncompleteAlert({ action, fields }: { action: Action; fields: ProjectFi
     <Alert className="flex gap-4">
       <span
         aria-hidden="true"
-        className="flex size-8 shrink-0 items-center justify-center bg-error font-heading text-sm text-outline"
+        className="flex size-8 shrink-0 items-center justify-center bg-error font-heading text-base text-outline"
       >
         !
       </span>
       <div className="flex flex-col gap-2">
-        <p className="font-heading text-xs leading-normal uppercase">
+        <p className="caps-label">
           {action === "save" ? "Нельзя сохранить" : "Нельзя опубликовать"}
         </p>
         <p className="text-text">

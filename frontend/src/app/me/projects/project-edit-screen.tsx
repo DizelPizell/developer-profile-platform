@@ -82,7 +82,7 @@ export function ProjectEditScreen({
       {loaded.status === "error" && <LoadErrorPanel error={loaded.error} onRetry={retry} />}
       {loaded.status === "not-found" && (
         <section className="flex flex-col items-start gap-6 bg-panel px-8 py-10 shadow-panel">
-          <h1 className="font-heading text-lg leading-relaxed uppercase">Проект не найден</h1>
+          <h1 className="font-heading text-2xl leading-relaxed text-balance uppercase">Проект не найден</h1>
           <p className="text-lg">Такого проекта нет среди ваших.</p>
           <Button asChild>
             <Link href="/me/projects">Мои проекты</Link>

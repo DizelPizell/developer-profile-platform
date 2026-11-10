@@ -213,7 +213,7 @@ function ProjectsBoard({ initialProjects }: { initialProjects: ProjectSummary[] 
     <>
       <section className="flex flex-col gap-4 bg-panel px-6 py-6 shadow-panel sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <div className="flex flex-col gap-3">
-          <h1 className="font-heading text-lg leading-relaxed uppercase">Мои проекты</h1>
+          <h1 className="font-heading text-2xl leading-relaxed text-balance uppercase">Мои проекты</h1>
           <p className="text-base text-text-muted">
             Проектов: {projects.length} из {PROJECTS_MAX} · Главных: {featured.length} из{" "}
             {FEATURED_MAX}
@@ -265,7 +265,7 @@ function ProjectsBoard({ initialProjects }: { initialProjects: ProjectSummary[] 
                 <div className="flex min-w-0 grow items-center gap-4">
                   <span
                     aria-hidden="true"
-                    className="flex size-10 shrink-0 items-center justify-center border-4 border-outline bg-label font-heading text-xs text-outline"
+                    className="flex size-10 shrink-0 items-center justify-center border-4 border-outline bg-label font-heading text-base text-outline"
                   >
                     {project.featured_position}
                   </span>

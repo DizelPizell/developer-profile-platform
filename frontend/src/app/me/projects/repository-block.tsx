@@ -504,7 +504,7 @@ function RepositorySection({ children }: { children: ReactNode }) {
       className="flex flex-col gap-4 border-t-4 border-outline pt-6"
     >
       <div className="flex flex-wrap items-center gap-3">
-        <h2 id="repository-heading" className="font-heading text-xs leading-normal uppercase">
+        <h2 id="repository-heading" className="caps-label">
           Репозиторий GitHub
         </h2>
         <SourceBadge />

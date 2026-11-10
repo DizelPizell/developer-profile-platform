@@ -17,7 +17,7 @@ export const CHIP = "border-2 border-outline bg-bg px-2 py-1 text-sm break-all";
 /** Language chips on a card; the rest make one «Другие». */
 const CARD_LANGUAGES = 3;
 
-const SOURCE = "font-heading text-[10px] leading-normal text-text-muted uppercase";
+const SOURCE = "caps-label text-text-muted";
 const DIVIDER = "border-t-4 border-outline";
 
 /** «01.11.2026», the day in UTC; the time is not shown. */
