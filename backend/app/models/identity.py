@@ -1,7 +1,19 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, String, Text, func, text
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -111,6 +123,81 @@ class Profile(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="profile")
+
+
+# ADR-020: contacts of a profile. Value lengths (min, max) per type; the stored
+# value is normalized (see app/profile/contacts.py).
+CONTACT_VALUE_LIMITS: dict[str, tuple[int, int]] = {
+    "EMAIL": (1, 254),
+    "TELEGRAM": (5, 32),
+    "LINKEDIN": (3, 100),
+    "PHONE": (9, 16),
+    "OTHER": (1, 2048),
+}
+CONTACT_TYPES: tuple[str, ...] = tuple(CONTACT_VALUE_LIMITS)
+CONTACT_LABEL_MAX_LENGTH = 40
+CONTACTS_PER_PROFILE = 7
+OTHER_CONTACTS_PER_PROFILE = 3
+
+_CONTACT_VALUE_CHECK = (
+    "btrim(value) <> '' AND ("
+    + " OR ".join(
+        f"(type = '{kind}' AND char_length(value) BETWEEN {low} AND {high})"
+        for kind, (low, high) in CONTACT_VALUE_LIMITS.items()
+    )
+    + ")"
+)
+
+
+class ProfileContact(Base):
+    __tablename__ = "profile_contacts"
+    __table_args__ = (
+        CheckConstraint(
+            "type IN (" + ", ".join(f"'{kind}'" for kind in CONTACT_TYPES) + ")",
+            name="ck_profile_contacts_type",
+        ),
+        CheckConstraint(_CONTACT_VALUE_CHECK, name="ck_profile_contacts_value"),
+        # A name for OTHER only.
+        CheckConstraint(
+            "(type = 'OTHER') = (label IS NOT NULL)", name="ck_profile_contacts_label_presence"
+        ),
+        CheckConstraint(
+            f"label IS NULL OR (char_length(label) <= {CONTACT_LABEL_MAX_LENGTH} "
+            "AND btrim(label) <> '')",
+            name="ck_profile_contacts_label",
+        ),
+        # With the position range this caps a profile at 7 contacts.
+        UniqueConstraint("profile_id", "position", name="uq_profile_contacts_position"),
+        CheckConstraint(
+            f"position BETWEEN 1 AND {CONTACTS_PER_PROFILE}", name="ck_profile_contacts_position"
+        ),
+        # One standard contact of each type; the 3 OTHER are a domain rule only.
+        Index(
+            "uq_profile_contacts_type",
+            "profile_id",
+            "type",
+            unique=True,
+            postgresql_where=text("type <> 'OTHER'"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    type: Mapped[str] = mapped_column(String(20), nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
 
 
 class AuthSession(Base):
