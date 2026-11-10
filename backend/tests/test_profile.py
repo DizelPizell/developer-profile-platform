@@ -16,7 +16,16 @@ LIMITS = {"display_name": 100, "headline": 160, "bio": 2000, "location": 100}
 # Line separator, paragraph separator, next line: line breaks other than \n.
 UNICODE_LINE_BREAKS = [" ", " ", "\x85"]
 UNICODE_LINE_BREAK_IDS = ["U+2028", "U+2029", "U+0085"]
-PUBLIC_KEYS = {"slug", "display_name", "headline", "bio", "location", "avatar_url", "github_login"}
+PUBLIC_KEYS = {
+    "slug",
+    "display_name",
+    "headline",
+    "bio",
+    "location",
+    "avatar_url",
+    "github_login",
+    "contacts",
+}
 
 
 def _error(resp, status: int, code: str) -> dict:
@@ -332,6 +341,7 @@ class TestPublicProfile:
             "location": "Berlin",
             "avatar_url": "https://avatars.githubusercontent.com/u/10001?v=4",
             "github_login": "testuser",
+            "contacts": [],
             "featured": [],
             "other": [],
         }
