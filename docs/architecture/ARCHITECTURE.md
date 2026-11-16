@@ -42,9 +42,10 @@ flowchart LR
     GitHub["GitHub API"]
     Worker["GitHub Sync Worker"]
 
-    Browser --> Nginx
-    Nginx --> Frontend
-    Nginx --> API
+    Browser -->|HTTPS 443| Nginx
+    Nginx -->|"/api/v1/*"| API
+    Nginx -->|everything else| Frontend
+    Frontend -->|"SSR, internal network"| API
 
     API --> DB
     API --> Storage
@@ -55,21 +56,21 @@ flowchart LR
 
 The Worker claims queued jobs from PostgreSQL via polling and `SELECT ... FOR UPDATE SKIP LOCKED` — it is not Kafka or an Outbox relay. See ADR-008-no-kafka-outbox-v1.md and ADR-009-github-sync-worker-execution-model.md.
 
+Production runs on one host with Docker Compose and one origin (ADR-0021, [0021-single-origin-behind-nginx.md](../release/v1/adr/0021-single-origin-behind-nginx.md)): Nginx terminates TLS and is the only container with public ports (80, 443); PostgreSQL, the API, the frontend and the worker are reachable only on the internal network. Object storage stays internal; public media are served from the same origin (details in Phase 4).
+
 ## 4. Synchronous flow
 
+Public pages (server rendering):
+
 ```text
-Browser
-  ↓
-Nginx
-  ↓
-Next.js
-  ↓
-FastAPI
-  ↓
-PostgreSQL
+Browser → Nginx → Next.js → FastAPI (internal network, bypasses Nginx) → PostgreSQL
 ```
 
-Used for normal CRUD operations.
+Cabinet and other browser calls (same origin, no CORS in production):
+
+```text
+Browser → Nginx (/api/v1/*) → FastAPI → PostgreSQL
+```
 
 ## 5. Asynchronous GitHub flow
 
