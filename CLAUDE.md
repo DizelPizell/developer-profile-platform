@@ -840,7 +840,7 @@ Current development stage
 
 
 
-The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) is done in the backend: steps 6.1–6.7, with F-GH1.5, F-GH1.6 and F-GH2 in the frontend. The contacts backend (C.1) is done.
+The repository has completed Phase 3 (projects). Phase 5 (GitHub repositories) is done, ahead of Phase 4: steps 5.1–5.6. Phase 6 (GitHub sync) is done in the backend: steps 6.1–6.7, with F-GH1.5, F-GH1.6 and F-GH2 in the frontend. Contacts are done: the backend (C.1) and the frontend (C.2).
 
 V1 was narrowed by the owner on 2026-11-04 (PRD "V1 scope", docs/release/v1/scope/scope-v1.md), and this wins over the "V1 focuses on" list above: analytics is V1.1, right after the launch; the technical project workspace and experience, skills and education are after V1; minimal contacts are in V1.
 
@@ -896,13 +896,13 @@ frontend F-GH2: the GitHub block on public project cards and rows, server render
 
 backend C.1: contacts of the profile — the profile_contacts table and migration; contacts in PATCH /profile, replaced whole under the profile lock, normalized per type with links built by the server; contacts in both profile responses, EMAIL and PHONE public without values; GET /public/profiles/{slug}/contacts?type=EMAIL|PHONE with Cache-Control: no-store, no rate limit until 8.3 (ADR-020)
 
+frontend C.2: the «Контакты» section of the public page with the hero button, links rendered only after a check by type, email and phone requested on a click by one client component that gets the type and the slug; the contacts block in the profile form, the list sent whole and only when it changed, server errors placed by the index of the sent list (ADR-020; manual check against the backend pending)
+
 
 
 Not yet started:
 
 
-
-contacts — the mockup and C.2 (ADR-020)
 
 the deployment skeleton — Phase 9 steps 9.1–9.3, before Phase 4
 
@@ -918,7 +918,7 @@ Current next goal:
 
 
 
-The contacts mockup (the section on the public page and the block in the profile form), then C.2, the contacts frontend (ADR-020). After them the deployment skeleton (9.1–9.3), then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+The deployment skeleton — Phase 9 steps 9.1–9.3 (the ADR on the production topology, Docker images with Nginx and HTTPS, the production Compose with storage and secrets). Then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
