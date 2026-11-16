@@ -900,13 +900,15 @@ frontend C.2: the «Контакты» section of the public page with the hero 
 
 deployment Phase 9 step 9.1: the production topology ADR — one origin behind Nginx (/api/v1/* → FastAPI, the rest → Next.js, SSR to the API on the internal network), TLS on Nginx with Let's Encrypt, X-Forwarded-For replaced by Nginx and trusted only from it, only Nginx on 80/443, one host with Compose; documents only, no code (ADR-0021)
 
+deployment Phase 9 step 9.2: the frontend image (Next.js standalone, built for one address), the nginx image (one origin, 80 → https except the ACME challenge, HSTS, X-Forwarded-For replaced, other hosts dropped, a self-signed certificate until Let's Encrypt issues one, reload every 6 hours), the certbot service, docker-compose.prod.yml with a fixed Nginx address that uvicorn trusts through FORWARDED_ALLOW_IPS, DEPLOY.md and CI checks of both images (ADR-0021)
+
 
 
 Not yet started:
 
 
 
-the deployment skeleton — Phase 9 steps 9.2–9.3, before Phase 4 (9.1, the topology ADR, is done: one origin behind Nginx on one host with Compose, ADR-0021)
+the deployment skeleton — Phase 9 step 9.3, before Phase 4 (9.1 and 9.2 are done)
 
 demo, screenshots, file storage (MinIO/S3) and the public project page with its GitHub block — Phase 4
 
@@ -920,7 +922,7 @@ Current next goal:
 
 
 
-The deployment skeleton — Phase 9 steps 9.2–9.3 (Docker images with Nginx and HTTPS, the production Compose with secrets; storage in 9.3 is an open question for the owner), following ADR-0021: one origin, /api/v1/* → FastAPI, the rest → Next.js, only Nginx on 80/443, X-Forwarded-* trusted only from Nginx. Then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+The deployment skeleton — Phase 9 step 9.3 (the production Compose: secrets, an env file per service, no published ports but Nginx; storage comes with Phase 4, decided 2026-11-17), completing docker-compose.prod.yml and DEPLOY.md from 9.2 (ADR-0021). Then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

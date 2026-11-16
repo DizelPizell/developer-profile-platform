@@ -4,12 +4,16 @@ on:
   push:
     paths:
       - "docker-compose.yml"
+      - "docker-compose.prod.yml"
+      - "nginx/**"
       - ".env.example"
       - ".github/workflows/compose.yml"
       - ".github/scripts/check_compose.py"
   pull_request:
     paths:
       - "docker-compose.yml"
+      - "docker-compose.prod.yml"
+      - "nginx/**"
       - ".env.example"
       - ".github/workflows/compose.yml"
       - ".github/scripts/check_compose.py"
@@ -33,3 +37,11 @@ jobs:
 
       - name: Check the worker service
         run: python3 .github/scripts/check_compose.py
+
+      - name: Validate with the production file
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+
+      - name: Check the Nginx configuration
+        run: |
+          docker build -t nginx-check nginx
+          docker run --rm -e SERVER_NAME=example.com nginx-check nginx -t
