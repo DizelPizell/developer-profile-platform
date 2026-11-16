@@ -4,7 +4,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { ApiError, NetworkError } from "./errors";
-import { getPublicProfile, PUBLIC_PROFILE_TIMEOUT_MS } from "./public-profile";
+import { getPublicProfile, PUBLIC_PROFILE_TIMEOUT_MS, revealContact } from "./public-profile";
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -16,6 +16,7 @@ const PROFILE = {
   location: null,
   avatar_url: "https://avatars.githubusercontent.com/u/1",
   github_login: "ann",
+  contacts: [],
   featured: [],
   other: [],
 };
@@ -345,5 +346,118 @@ describe("github on a public project", () => {
     expect(profile?.featured[0].github).toBeNull();
     expect(profile?.other[0].github).toBeNull();
     expect(profile?.other[1].github).toEqual(GITHUB_READ);
+  });
+});
+
+describe("contacts of a public profile", () => {
+  // A spy of its own: the github block above restores the shared one when it ends.
+  let warn: ReturnType<typeof vi.spyOn>;
+  const TELEGRAM = { type: "TELEGRAM", value: "ann_dev", label: null, url: "https://t.me/ann_dev" };
+  const OTHER = { type: "OTHER", value: "https://a.example/", label: "Blog", url: "https://a.example/" };
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  function read(contacts: unknown) {
+    fetchMock.mockResolvedValue(Response.json({ ...PROFILE, contacts }));
+    return getPublicProfile("ann");
+  }
+
+  test("a missing field is no contacts, without a log", async () => {
+    const profile = await read(undefined);
+
+    expect(profile?.contacts).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("are read in API order; unknown fields are dropped", async () => {
+    const email = { type: "EMAIL", value: null, label: null, url: null };
+    const profile = await read([{ ...OTHER, id: 7 }, email, TELEGRAM]);
+
+    expect(profile?.contacts).toEqual([OTHER, email, TELEGRAM]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("EMAIL and PHONE never keep a value, whatever the body holds", async () => {
+    const profile = await read([
+      { type: "EMAIL", value: "SECRET@example.com", label: "SECRET", url: "mailto:SECRET@example.com" },
+      { type: "PHONE", value: "+70000000000", label: null, url: "tel:+70000000000" },
+    ]);
+
+    expect(profile?.contacts).toEqual([
+      { type: "EMAIL", value: null, label: null, url: null },
+      { type: "PHONE", value: null, label: null, url: null },
+    ]);
+    expect(JSON.stringify(profile)).not.toMatch(/SECRET|\+7000/);
+  });
+
+  test.each<[string, unknown, string]>([
+    ["null", null, "contacts"],
+    ["an object", {}, "contacts"],
+    ["a string item", ["SECRET"], "contacts.type"],
+    ["an unknown type", [{ ...TELEGRAM, type: "SKYPE" }], "contacts.type"],
+    ["a null value", [{ ...TELEGRAM, value: null }], "contacts.value"],
+    ["a number url", [TELEGRAM, { ...TELEGRAM, url: 7 }], "contacts.url"],
+    ["OTHER without a label", [{ ...OTHER, label: null }], "contacts.label"],
+  ])("%s gives no contacts, keeps the profile and logs the field once", async (_, body, field) => {
+    const profile = await read(body);
+
+    expect(profile).toEqual(PROFILE);
+    expect(warn.mock.calls).toEqual([[`Public profile ann: invalid field ${field}`]]);
+  });
+
+  test("the log has no values", async () => {
+    await read([{ ...TELEGRAM, value: ["SECRET"] }, { ...OTHER, url: { SECRET: 1 } }]);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET");
+  });
+});
+
+describe("revealContact", () => {
+  test("GET with the type, not cached, returns the checked value", async () => {
+    const body = { type: "EMAIL", value: "ann@example.com", url: "mailto:ann@example.com" };
+    fetchMock.mockResolvedValue(Response.json({ ...body, extra: 1 }));
+
+    await expect(revealContact("ann", "EMAIL")).resolves.toEqual(body);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://backend.internal:8000/api/v1/public/profiles/ann/contacts?type=EMAIL");
+    expect(init?.cache).toBe("no-store");
+  });
+
+  test("a phone has a tel: link", async () => {
+    const body = { type: "PHONE", value: "+79123456789", url: "tel:+79123456789" };
+    fetchMock.mockResolvedValue(Response.json(body));
+
+    await expect(revealContact("ann", "PHONE")).resolves.toEqual(body);
+  });
+
+  test.each([
+    ["another type", { type: "PHONE", value: "a@b.co", url: "mailto:a@b.co" }],
+    ["a link that is not mailto: + value", { type: "EMAIL", value: "a@b.co", url: "mailto:x@b.co" }],
+    ["a javascript: link", { type: "EMAIL", value: "a@b.co", url: "javascript:alert(1)" }],
+    ["an https link", { type: "EMAIL", value: "a@b.co", url: "https://evil.example" }],
+    ["an empty value", { type: "EMAIL", value: "", url: "mailto:" }],
+    ["a null value", { type: "EMAIL", value: null, url: null }],
+    ["an array", []],
+  ])("%s is an ApiError", async (_name, body) => {
+    fetchMock.mockResolvedValue(Response.json(body));
+
+    await expect(revealContact("ann", "EMAIL")).rejects.toMatchObject({
+      constructor: ApiError,
+      code: "INVALID_RESPONSE",
+    });
+  });
+
+  test("404 is an ApiError", async () => {
+    fetchMock.mockResolvedValue(errorResponse(404, "NOT_FOUND"));
+
+    await expect(revealContact("ann", "EMAIL")).rejects.toMatchObject({ status: 404 });
   });
 });

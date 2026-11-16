@@ -3,14 +3,20 @@ export { apiFetch, type ApiRequestInit } from "./client";
 export { ApiConfigError, apiUrl } from "./config";
 export { ApiError, NetworkError } from "./errors";
 export {
+  CONTACT_TYPES,
   getProfile,
   missingProfileFields,
   PROFILE_FIELD_MAX_LENGTH,
   PROFILE_FIELDS,
+  profileContactErrors,
   profileFieldErrors,
   publishProfile,
   unpublishProfile,
   updateProfile,
+  type Contact,
+  type ContactItemError,
+  type ContactType,
+  type ContactWrite,
   type OwnProfileResponse,
   type ProfileField,
   type ProfileStatus,
@@ -43,9 +49,12 @@ export {
 export {
   getPublicProfile,
   PUBLIC_PROFILE_TIMEOUT_MS,
+  revealContact,
+  type PublicContact,
   type PublicFeaturedProject,
   type PublicProfile,
   type PublicProject,
+  type RevealedContact,
 } from "./public-profile";
 export {
   archiveProject,

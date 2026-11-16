@@ -4,6 +4,7 @@ import { ApiError, NetworkError } from "./errors";
 import {
   getProfile,
   missingProfileFields,
+  profileContactErrors,
   profileFieldErrors,
   publishProfile,
   unpublishProfile,
@@ -178,5 +179,41 @@ describe("profileFieldErrors", () => {
     ["a plain error", new Error("x")],
   ])("is empty for %s", (_name, error) => {
     expect(profileFieldErrors(error)).toEqual({});
+  });
+});
+
+describe("profileContactErrors", () => {
+  test("reads item errors with their index and the first list error", () => {
+    const error = apiError("VALIDATION_ERROR", {
+      fields: [
+        { loc: ["body", "contacts", 1, "value"], type: "invalid_phone" },
+        { loc: ["body", "contacts", 3, "label"], type: "missing" },
+        { loc: ["body", "contacts", 5, "type"], type: "literal_error" },
+        { loc: ["body", "contacts"], type: "too_many_other_contacts" },
+        { loc: ["body", "contacts"], type: "too_long" },
+        { loc: ["body", "contacts", 0, "url"], type: "extra_forbidden" },
+        { loc: ["body", "contacts", "0", "value"], type: "invalid_email" },
+        { loc: ["query", "contacts", 0, "value"], type: "invalid_email" },
+        { loc: ["body", "headline"], type: "string_too_long" },
+      ],
+    });
+
+    expect(profileContactErrors(error)).toEqual({
+      items: [
+        { index: 1, field: "value", type: "invalid_phone" },
+        { index: 3, field: "label", type: "missing" },
+        { index: 5, field: "type", type: "literal_error" },
+      ],
+      list: "too_many_other_contacts",
+    });
+    // The four profile fields are read as before, without the contact entries.
+    expect(profileFieldErrors(error)).toEqual({ headline: "string_too_long" });
+  });
+
+  test.each([
+    ["another code", apiError("PROFILE_INCOMPLETE", { fields: [] })],
+    ["a plain error", new Error("x")],
+  ])("is empty for %s", (_name, error) => {
+    expect(profileContactErrors(error)).toEqual({ items: [], list: null });
   });
 });
