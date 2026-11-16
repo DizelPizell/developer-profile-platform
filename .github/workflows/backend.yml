@@ -53,7 +53,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: pip install --no-cache-dir ".[dev]"
+        run: pip install --no-cache-dir -c requirements.lock ".[dev]"
 
       - name: Lint (ruff)
         run: ruff check .

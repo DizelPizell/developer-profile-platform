@@ -7,7 +7,8 @@ COPY app/ ./app/
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
 
-RUN pip install --no-cache-dir .
+COPY requirements.lock ./
+RUN pip install --no-cache-dir -c requirements.lock .
 
 RUN groupadd --system app \
     && useradd --system --gid app --no-create-home app \
