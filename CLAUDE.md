@@ -896,7 +896,7 @@ frontend F-GH2: the GitHub block on public project cards and rows, server render
 
 backend C.1: contacts of the profile — the profile_contacts table and migration; contacts in PATCH /profile, replaced whole under the profile lock, normalized per type with links built by the server; contacts in both profile responses, EMAIL and PHONE public without values; GET /public/profiles/{slug}/contacts?type=EMAIL|PHONE with Cache-Control: no-store, no rate limit until 8.3 (ADR-020)
 
-frontend C.2: the «Контакты» section of the public page with the hero button, links rendered only after a check by type, email and phone requested on a click by one client component that gets the type and the slug; the contacts block in the profile form, the list sent whole and only when it changed, server errors placed by the index of the sent list (ADR-020; manual check against the backend pending)
+frontend C.2: the «Контакты» section of the public page with the hero button, links rendered only after a check by type, email and phone requested on a click by one client component that gets the type and the slug; the contacts block in the profile form, the list sent whole and only when it changed, server errors placed by the index of the sent list (ADR-020)
 
 
 
