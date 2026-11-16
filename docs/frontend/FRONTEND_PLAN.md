@@ -483,7 +483,7 @@ Screens, texts and rules: "Contacts on the public page" and "Contacts in the pro
 - Done, cabinet: `app/me/profile-contacts.tsx` with the block and the pure functions `contactsForm`, `buildContacts` and `contactErrorTexts`; `ProfileEditor` adds `contacts` to the PATCH only when the built list changed. `FormField` got the optional `counter` flag.
 - Decided with the owner (2026-11-16): the place of the section, the order, the phone as E.164, no counter on contact fields, the fields show the response and keep «Сохранено как: …» (`DESIGN.md`). List errors have no texts of their own: the form cannot produce them, so they fall to the generic error.
 - Checked with Vitest + RTL (686 tests), lint, typecheck and build.
-- Not checked by hand: the local stack predates C.1 (no `profile_contacts` table) and the check needs a GitHub sign-in. The steps are the README's "Manual contacts check".
+- Checked by hand on 2026-11-16 against the local stack, all steps of the README's "Manual contacts check": errors under their fields, normalized values with «Сохранено как», no `contacts` in a PATCH without contact changes, a second save with LinkedIn, the limit of 3, no email or phone in the page HTML or the profile JSON, the reveal with the focus on the link, the error and «Повторить» with the backend stopped, a private profile (404), clearing to `[]`, and the layout at 800 and 1280 px.
 
 ## F7+ — Demos, GitHub data, contacts
 

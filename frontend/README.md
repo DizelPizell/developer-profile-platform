@@ -168,7 +168,7 @@ Backend running, a published profile with slug `<slug>`. Use a private window (n
 
 ## Manual contacts check
 
-Backend running with the C.1 migration applied (`profile_contacts` exists), signed in, a profile with slug `<slug>`. Not run yet: see `FRONTEND_PLAN.md`, C.2.
+Backend running with the C.1 migration applied (`profile_contacts` exists), signed in, a profile with slug `<slug>`. Last run on 2026-11-16 (`FRONTEND_PLAN.md`, C.2). The profile's real contacts are replaced by these steps; step 11 clears them.
 
 1. `/me`, profile `PRIVATE` → the block «Контакты» with the note «Контакты станут видны на публичной странице после публикации профиля…» and «Добавлено 0 из 3»; «Сохранить» is disabled.
 2. Fill Email, Telegram (`t.me/<name>`), LinkedIn (`linkedin.com/in/<slug>`), Телефон (`+7 (999) 123-45-67`) and one «Другой способ» (name and an `https` link), save → «Сохранено»; the fields show the normalized values and «Сохранено как: …»; «Сохранить» is disabled again.
