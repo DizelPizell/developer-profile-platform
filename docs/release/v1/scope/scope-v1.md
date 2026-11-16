@@ -92,9 +92,10 @@ V1 — первый рабочий релиз платформы. Разрабо
 
 ## Контакты
 
-- [ ] C.1: `profile_contacts`, миграция, `PATCH /profile`, `GET /public/profiles/{slug}/contacts`
-  - Ручки: `PATCH /api/v1/profile` — добавлено поле `contacts`; `GET /api/v1/public/profiles/{slug}/contacts?type=EMAIL|PHONE`
-  - Коды ошибок: `422 VALIDATION_ERROR`; 404 при отсутствии/приватном профиле или без запрошенного контакта
+- [x] C.1: `profile_contacts`, миграция, `PATCH /profile`, `GET /public/profiles/{slug}/contacts` ([0020](../adr/0020-contacts-separate-table.md))
+  - Ручки (по факту): `PATCH /api/v1/profile` — поле `contacts` (отсутствует — без изменений, список — замена, `[]` — очистка, `null` — 422); `GET /api/v1/public/profiles/{slug}/contacts?type=EMAIL|PHONE` — без сессии, `Cache-Control: no-store`
+  - Коды ошибок: `422 VALIDATION_ERROR`; `404 NOT_FOUND` — тот же, что у публичного профиля, при отсутствии/приватном профиле или без запрошенного контакта
+  - Rate limit ручки раскрытия — шаг 8.3
 - [ ] Макет: секция на публичной странице и в форме кабинета
 - [ ] C.2: контакты в кабинете и на публичной странице; `email` и `phone` на клик
 
