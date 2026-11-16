@@ -898,13 +898,15 @@ backend C.1: contacts of the profile — the profile_contacts table and migratio
 
 frontend C.2: the «Контакты» section of the public page with the hero button, links rendered only after a check by type, email and phone requested on a click by one client component that gets the type and the slug; the contacts block in the profile form, the list sent whole and only when it changed, server errors placed by the index of the sent list (ADR-020)
 
+deployment Phase 9 step 9.1: the production topology ADR — one origin behind Nginx (/api/v1/* → FastAPI, the rest → Next.js, SSR to the API on the internal network), TLS on Nginx with Let's Encrypt, X-Forwarded-For replaced by Nginx and trusted only from it, only Nginx on 80/443, one host with Compose; documents only, no code (ADR-0021)
+
 
 
 Not yet started:
 
 
 
-the deployment skeleton — Phase 9 steps 9.1–9.3, before Phase 4
+the deployment skeleton — Phase 9 steps 9.2–9.3, before Phase 4 (9.1, the topology ADR, is done: one origin behind Nginx on one host with Compose, ADR-0021)
 
 demo, screenshots, file storage (MinIO/S3) and the public project page with its GitHub block — Phase 4
 
@@ -918,7 +920,7 @@ Current next goal:
 
 
 
-The deployment skeleton — Phase 9 steps 9.1–9.3 (the ADR on the production topology, Docker images with Nginx and HTTPS, the production Compose with storage and secrets). Then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+The deployment skeleton — Phase 9 steps 9.2–9.3 (Docker images with Nginx and HTTPS, the production Compose with secrets; storage in 9.3 is an open question for the owner), following ADR-0021: one origin, /api/v1/* → FastAPI, the rest → Next.js, only Nginx on 80/443, X-Forwarded-* trusted only from Nginx. Then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
