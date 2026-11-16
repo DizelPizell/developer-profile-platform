@@ -7,6 +7,7 @@ import { SectionHeading } from "@/components/section-heading";
 import { Button } from "@/components/ui/button";
 import type { PublicFeaturedProject, PublicProfile, PublicProject } from "@/lib/api";
 
+import { ProfileContacts } from "./profile-contacts";
 import { CardGitHub, CHIP, RowGitHub } from "./project-github";
 
 /** Technology chips on a featured card (DESIGN.md). */
@@ -18,6 +19,7 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
   // Only an https avatar is loaded; anything else falls back to the pixel avatar.
   const avatarUrl = profile.avatar_url?.startsWith("https://") ? profile.avatar_url : null;
   const hasProjects = profile.featured.length > 0 || profile.other.length > 0;
+  const hasContacts = profile.contacts.length > 0;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 p-6">
@@ -77,20 +79,38 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
                   <a href="#projects">Проекты</a>
                 </Button>
               )}
+              {hasContacts && (
+                <Button asChild variant="secondary">
+                  <a href="#contacts">Контакты</a>
+                </Button>
+              )}
             </div>
           </div>
         </section>
 
-        {profile.bio && (
-          <section aria-labelledby="about-title" className="flex flex-col gap-4 bg-panel px-8 py-8 shadow-panel">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 id="about-title" className="font-heading text-base leading-normal uppercase">
-                О себе
-              </h2>
-              <AuthorMark />
-            </div>
-            <p className="max-w-[70ch] text-lg leading-relaxed text-pretty break-words whitespace-pre-line">{profile.bio}</p>
-          </section>
+        {/* «О себе» on the left and «Контакты» on the right from lg; stacked below it. */}
+        {(profile.bio || hasContacts) && (
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+            {profile.bio && (
+              <section aria-labelledby="about-title" className="flex min-w-0 grow flex-col gap-4 bg-panel px-8 py-8 shadow-panel">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 id="about-title" className="font-heading text-base leading-normal uppercase">
+                    О себе
+                  </h2>
+                  <AuthorMark />
+                </div>
+                <p className="max-w-[70ch] text-lg leading-relaxed text-pretty break-words whitespace-pre-line">{profile.bio}</p>
+              </section>
+            )}
+            {hasContacts && (
+              <ProfileContacts
+                contacts={profile.contacts}
+                slug={profile.slug}
+                className={profile.bio ? "lg:w-80 lg:shrink-0" : "grow"}
+                mark={<AuthorMark />}
+              />
+            )}
+          </div>
         )}
 
         {hasProjects && (
