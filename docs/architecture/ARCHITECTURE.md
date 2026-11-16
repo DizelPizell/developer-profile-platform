@@ -54,7 +54,7 @@ flowchart LR
     Worker --> GitHub
 ```
 
-The Worker claims queued jobs from PostgreSQL via polling and `SELECT ... FOR UPDATE SKIP LOCKED` — it is not Kafka or an Outbox relay. See ADR-008-no-kafka-outbox-v1.md and ADR-009-github-sync-worker-execution-model.md.
+The Worker claims queued jobs from PostgreSQL via polling and `SELECT ... FOR UPDATE SKIP LOCKED` — it is not Kafka or an Outbox relay. See docs/release/v1/adr/0008-no-kafka-v1.md and docs/release/v1/adr/0009-sync-worker-skip-locked.md.
 
 Production runs on one host with Docker Compose and one origin (ADR-0021, [0021-single-origin-behind-nginx.md](../release/v1/adr/0021-single-origin-behind-nginx.md)): Nginx terminates TLS and is the only container with public ports (80, 443); PostgreSQL, the API, the frontend and the worker are reachable only on the internal network. Object storage stays internal; public media are served from the same origin (details in Phase 4).
 
@@ -86,7 +86,7 @@ PostgreSQL (sync status: SYNCING -> SYNCED / FAILED)
 GitHub API
 ```
 
-GitHub synchronization does not use Kafka or an Outbox pattern in V1. See ADR-008-no-kafka-outbox-v1.md and ADR-009-github-sync-worker-execution-model.md.
+GitHub synchronization does not use Kafka or an Outbox pattern in V1. See docs/release/v1/adr/0008-no-kafka-v1.md and docs/release/v1/adr/0009-sync-worker-skip-locked.md.
 
 ## 6. Project and Profile lifecycle
 
@@ -111,16 +111,16 @@ PRIVATE <-> PUBLISHED
 
 Unpublishing a profile returns it to PRIVATE. There is no separate UNPUBLISHED state.
 
-See ADR-005-project-lifecycle-and-visibility.md.
+See docs/release/v1/adr/0005-project-lifecycle-visibility.md.
 
 ## 7. Architectural constraints
 
 - Modular monolith.
 - No microservices in V1.
-- No Kafka or Outbox pattern in V1 (see ADR-008-no-kafka-outbox-v1.md).
+- No Kafka or Outbox pattern in V1 (see docs/release/v1/adr/0008-no-kafka-v1.md).
 - No Redis, Kubernetes or other distributed infrastructure without a separate decision.
 - PostgreSQL is the source of truth.
 - GitHub data is synchronized and cached rather than fetched from GitHub for every public page.
 - GitHub synchronization is asynchronous and idempotent; the worker is a separate process using PostgreSQL polling and `SKIP LOCKED` (ADR-009).
-- GitHub Evidence V1 splits into snapshot data (reconciled: upsert + delete-missing) and history data (append-only commits) — see ADR-010-github-evidence-data-model-v1.md.
+- GitHub Evidence V1 splits into snapshot data (reconciled: upsert + delete-missing) and history data (append-only commits) — see docs/release/v1/adr/0010-github-evidence-model.md.
 - Arbitrary code execution is not part of V1.

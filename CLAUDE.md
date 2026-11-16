@@ -160,7 +160,7 @@ External integration:
 
 
 
-Redis, Kafka and Kubernetes are NOT part of V1 unless a concrete requirement appears. Kafka and an Outbox pattern were evaluated for GitHub synchronization and explicitly rejected for V1 — see ADR-008-no-kafka-outbox-v1.md.
+Redis, Kafka and Kubernetes are NOT part of V1 unless a concrete requirement appears. Kafka and an Outbox pattern were evaluated for GitHub synchronization and explicitly rejected for V1 — see docs/release/v1/adr/0008-no-kafka-v1.md.
 
 
 
@@ -288,7 +288,7 @@ PRIVATE
 
 PUBLISHED
 
-Unpublishing a profile returns it to PRIVATE. There is no separate UNPUBLISHED state in V1. See ADR-005-project-lifecycle-and-visibility.md.
+Unpublishing a profile returns it to PRIVATE. There is no separate UNPUBLISHED state in V1. See docs/release/v1/adr/0005-project-lifecycle-visibility.md.
 
 
 
@@ -314,7 +314,7 @@ PUBLIC
 
 PRIVATE
 
-Lifecycle describes whether the project is being prepared, published or archived. Visibility describes whether a published project is publicly exposed. Invalid combinations must be rejected in the domain layer. See ADR-005-project-lifecycle-and-visibility.md.
+Lifecycle describes whether the project is being prepared, published or archived. Visibility describes whether a published project is publicly exposed. Invalid combinations must be rejected in the domain layer. See docs/release/v1/adr/0005-project-lifecycle-visibility.md.
 
 
 
@@ -398,15 +398,15 @@ GitHub sync must be idempotent.
 
 
 
-GitHub synchronization is asynchronous but does not use Kafka, Outbox or Redis in V1. The worker is a separate process using PostgreSQL polling and SKIP LOCKED. See ADR-008-no-kafka-outbox-v1.md and ADR-009-github-sync-worker-execution-model.md.
+GitHub synchronization is asynchronous but does not use Kafka, Outbox or Redis in V1. The worker is a separate process using PostgreSQL polling and SKIP LOCKED. See docs/release/v1/adr/0008-no-kafka-v1.md and docs/release/v1/adr/0009-sync-worker-skip-locked.md.
 
 
 
-GitHub Evidence V1 scope (snapshot data vs history data, and reconciliation rules) is defined in ADR-010-github-evidence-data-model-v1.md.
+GitHub Evidence V1 scope (snapshot data vs history data, and reconciliation rules) is defined in docs/release/v1/adr/0010-github-evidence-model.md.
 
 ADR-010 is narrowed for V1 by ADR-018: contributors, commits, README and the file tree are deferred (not fetched or stored in V1); only repository metadata and languages are synced.
 
-GitHub V1 decisions: ADR-016-github-access-v1.md (public data only, app credentials, no user token), ADR-017-repository-linking-and-import.md (shared repositories, linking, import, relation), ADR-018-github-sync-v1.md (sync scope and schedule), ADR-019-public-github-data.md (what is shown publicly).
+GitHub V1 decisions: docs/release/v1/adr/0016-github-public-only.md (public data only, app credentials, no user token), docs/release/v1/adr/0017-repository-linking.md (shared repositories, linking, import, relation), docs/release/v1/adr/0018-github-sync-v1.md (sync scope and schedule), docs/release/v1/adr/0019-public-github-on-cards.md (what is shown publicly).
 
 
 

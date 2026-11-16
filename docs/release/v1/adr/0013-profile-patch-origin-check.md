@@ -10,6 +10,8 @@
 
 ## Решение
 
+_Правка 2026-11-17: по факту настройки `ALLOWED_ORIGINS` нет — Origin-проверка и CORS разрешают один origin, вычисленный из `FRONTEND_URL` (`backend/app/main.py`, `origin_check.py`); ответ на недопустимый `Origin` — `403 CSRF_ORIGIN_INVALID`. Пути — `PATCH /api/v1/profile`, `POST /api/v1/profile/publish`, `POST /api/v1/profile/unpublish`, `GET /api/v1/public/profiles/{slug}`. Продакшн — один origin ([0021](0021-single-origin-behind-nginx.md))._
+
 CSRF-защита через проверку заголовка `Origin` на всех state-changing запросах (POST, PATCH, DELETE, PUT).
 
 Допустимые origins задаются через `ALLOWED_ORIGINS` в `Settings`. Запрос без `Origin` или с недопустимым `Origin` → `403 Forbidden`.

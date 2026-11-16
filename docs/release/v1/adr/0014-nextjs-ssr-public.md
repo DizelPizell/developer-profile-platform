@@ -10,6 +10,8 @@
 
 ## Решение
 
+_Правка 2026-11-17: публичный профиль — `GET /api/v1/public/profiles/{slug}`. Server Components ходят в API по `API_INTERNAL_URL` (в продакшне — внутри сети Compose, мимо Nginx), браузер — по `NEXT_PUBLIC_API_URL` ([0021](0021-single-origin-behind-nginx.md))._
+
 Next.js App Router. TypeScript. Tailwind CSS + shadcn/ui.
 
 Публичные страницы (`/u/[slug]`, `/u/[slug]/projects/[id]`) — Server Components, рендерятся на сервере. Данные запрашиваются в Server Components напрямую из бэкенд-API. Нет client-side fetch на первый render.
