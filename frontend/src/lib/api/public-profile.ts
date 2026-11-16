@@ -1,6 +1,21 @@
 import { apiFetch } from "./client";
 import { ApiError } from "./errors";
 import { type PublicGitHub, readPublicGitHub } from "./github";
+import { CONTACT_TYPES, type ContactType } from "./profile";
+
+/**
+ * A contact of the public profile (ADR-020). EMAIL and PHONE only say that they
+ * exist: their value comes from revealContact on a click.
+ */
+export type PublicContact = {
+  type: ContactType;
+  value: string | null;
+  label: string | null;
+  url: string | null;
+};
+
+/** The answer of the reveal endpoint, checked against the requested type. */
+export type RevealedContact = { type: "EMAIL" | "PHONE"; value: string; url: string };
 
 /** PublicProject from API_CONTRACT.md: a PUBLISHED + PUBLIC project (ADR-015). */
 export type PublicProject = {
@@ -26,6 +41,8 @@ export type PublicProfile = {
   location: string | null;
   avatar_url: string | null;
   github_login: string;
+  /** In API order; [] when the field is missing or wrong. */
+  contacts: PublicContact[];
   /** Sorted by position. */
   featured: PublicFeaturedProject[];
   /** Newest first (API order). */
@@ -98,6 +115,44 @@ function toList<T>(value: unknown, convert: (item: unknown) => T | null): T[] | 
   return items;
 }
 
+/**
+ * The `contacts` field, like `github` of a project: a wrong shape gives no contacts,
+ * names the first wrong field and leaves the profile working. A missing field is not
+ * a fault. EMAIL and PHONE never keep a value, whatever the body holds, so it cannot
+ * reach the HTML or the props of a client component.
+ */
+function readContacts(value: unknown): { contacts: PublicContact[]; fault: string | null } {
+  if (value === undefined) {
+    return { contacts: [], fault: null };
+  }
+  if (!Array.isArray(value)) {
+    return { contacts: [], fault: "contacts" };
+  }
+  const contacts: PublicContact[] = [];
+  for (const item of value) {
+    const type = isRecord(item) ? CONTACT_TYPES.find((known) => known === item.type) : undefined;
+    if (!isRecord(item) || type === undefined) {
+      return { contacts: [], fault: "contacts.type" };
+    }
+    if (type === "EMAIL" || type === "PHONE") {
+      contacts.push({ type, value: null, label: null, url: null });
+      continue;
+    }
+    const { value: text, label, url } = item;
+    if (typeof text !== "string") {
+      return { contacts: [], fault: "contacts.value" };
+    }
+    if (typeof url !== "string") {
+      return { contacts: [], fault: "contacts.url" };
+    }
+    if (type === "OTHER" && typeof label !== "string") {
+      return { contacts: [], fault: "contacts.label" };
+    }
+    contacts.push({ type, value: text, label: type === "OTHER" ? (label as string) : null, url });
+  }
+  return { contacts, fault: null };
+}
+
 /** Copies only the known fields; anything else in the body is dropped. */
 function toPublicProfile(body: unknown): PublicProfile | null {
   if (!isRecord(body)) {
@@ -111,9 +166,15 @@ function toPublicProfile(body: unknown): PublicProfile | null {
   if (featured === null || other === null) {
     return null;
   }
+  const { contacts, fault } = readContacts(body.contacts);
+  if (fault !== null) {
+    // One line per profile per request: the first wrong field, never a value.
+    console.warn(`Public profile ${body.slug}: invalid field ${fault}`);
+  }
   const profile: PublicProfile = {
     slug: body.slug,
     github_login: body.github_login,
+    contacts,
     display_name: null,
     headline: null,
     bio: null,
@@ -159,13 +220,37 @@ export async function getPublicProfile(
   }
   const profile = toPublicProfile(body);
   if (!profile) {
-    throw new ApiError({
-      status: 200,
-      code: "INVALID_RESPONSE",
-      message: "Unexpected public profile body",
-      details: {},
-      requestId: null,
-    });
+    throw invalidResponse("Unexpected public profile body");
   }
   return profile;
+}
+
+function invalidResponse(message: string): ApiError {
+  return new ApiError({ status: 200, code: "INVALID_RESPONSE", message, details: {}, requestId: null });
+}
+
+/**
+ * Asks for the email or the phone of a published profile, from the browser on a click
+ * (ADR-020). The answer must be of the requested type with the link the server builds
+ * from the value; anything else is an ApiError, so a wrong body is never shown or linked.
+ */
+export async function revealContact(
+  slug: string,
+  type: RevealedContact["type"],
+): Promise<RevealedContact> {
+  const body = await apiFetch<unknown>(
+    `/public/profiles/${encodeURIComponent(slug)}/contacts?type=${type}`,
+    { cache: "no-store" },
+  );
+  const scheme = type === "EMAIL" ? "mailto:" : "tel:";
+  if (
+    !isRecord(body) ||
+    body.type !== type ||
+    typeof body.value !== "string" ||
+    body.value === "" ||
+    body.url !== scheme + body.value
+  ) {
+    throw invalidResponse("Unexpected contact body");
+  }
+  return { type, value: body.value, url: body.url };
 }

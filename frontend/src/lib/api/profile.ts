@@ -15,6 +15,16 @@ export const PROFILE_FIELD_MAX_LENGTH: Record<ProfileField, number> = {
   location: 100,
 };
 
+/** Contact types of ADR-020; one of each standard type, up to 3 OTHER. */
+export const CONTACT_TYPES = ["EMAIL", "TELEGRAM", "LINKEDIN", "PHONE", "OTHER"] as const;
+export type ContactType = (typeof CONTACT_TYPES)[number];
+
+/** A stored contact: the normalized value and the link the server built. */
+export type Contact = { type: ContactType; value: string; label: string | null; url: string };
+
+/** An item of ProfileUpdate.contacts; label only for OTHER, never url. */
+export type ContactWrite = { type: ContactType; value: string; label?: string };
+
 export type OwnProfileResponse = {
   slug: string;
   status: ProfileStatus;
@@ -24,10 +34,14 @@ export type OwnProfileResponse = {
   location: string | null;
   avatar_url: string | null;
   github_login: string;
+  /** In the order of position. */
+  contacts: Contact[];
 };
 
-/** A present field changes; null clears it. */
-export type ProfileUpdate = Partial<Record<ProfileField, string | null>>;
+/** A present field changes; null clears it. contacts replaces the whole list. */
+export type ProfileUpdate = Partial<Record<ProfileField, string | null>> & {
+  contacts?: ContactWrite[];
+};
 
 export function getProfile(init: { signal?: AbortSignal } = {}) {
   return apiFetch<OwnProfileResponse>("/profile", { signal: init.signal });
@@ -68,25 +82,60 @@ export function missingProfileFields(error: unknown): ProfileField[] {
  */
 export function profileFieldErrors(error: unknown): Partial<Record<ProfileField, string>> {
   const result: Partial<Record<ProfileField, string>> = {};
-  if (!(error instanceof ApiError) || error.code !== "VALIDATION_ERROR") {
-    return result;
-  }
-  const fields = error.details.fields;
-  if (!Array.isArray(fields)) {
-    return result;
-  }
-  for (const entry of fields) {
-    if (typeof entry !== "object" || entry === null) {
-      continue;
-    }
-    const { loc, type } = entry as { loc?: unknown; type?: unknown };
-    if (!Array.isArray(loc) || loc.length !== 2 || loc[0] !== "body") {
-      continue;
-    }
+  for (const { loc, type } of bodyErrors(error)) {
     const field = loc[1];
-    if (isProfileField(field) && typeof type === "string" && !(field in result)) {
+    if (loc.length === 2 && isProfileField(field) && !(field in result)) {
       result[field] = type;
     }
   }
   return result;
+}
+
+/** The entries of a VALIDATION_ERROR (details.fields) under "body". */
+function bodyErrors(error: unknown): { loc: unknown[]; type: string }[] {
+  if (!(error instanceof ApiError) || error.code !== "VALIDATION_ERROR") {
+    return [];
+  }
+  const fields = error.details.fields;
+  if (!Array.isArray(fields)) {
+    return [];
+  }
+  return fields.filter((entry): entry is { loc: unknown[]; type: string } => {
+    if (typeof entry !== "object" || entry === null) {
+      return false;
+    }
+    const { loc, type } = entry as { loc?: unknown; type?: unknown };
+    return Array.isArray(loc) && loc[0] === "body" && typeof type === "string";
+  });
+}
+
+export type ContactItemError = { index: number; field: "value" | "label" | "type"; type: string };
+
+/**
+ * Contact errors of a VALIDATION_ERROR. loc ["body", "contacts", <index>, <field>]
+ * is an item, where the index is the place in the list that was sent;
+ * ["body", "contacts"] is the list itself (the first one wins).
+ */
+export function profileContactErrors(error: unknown): {
+  items: ContactItemError[];
+  list: string | null;
+} {
+  const items: ContactItemError[] = [];
+  let list: string | null = null;
+  for (const { loc, type } of bodyErrors(error)) {
+    if (loc[1] !== "contacts") {
+      continue;
+    }
+    const [, , index, field] = loc;
+    if (loc.length === 2) {
+      list ??= type;
+    } else if (
+      loc.length === 4 &&
+      typeof index === "number" &&
+      (field === "value" || field === "label" || field === "type")
+    ) {
+      items.push({ index, field, type });
+    }
+  }
+  return { items, list };
 }
