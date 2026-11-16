@@ -55,7 +55,7 @@ POST  /profile/publish
 POST  /profile/unpublish
 ```
 
-All four require a session and act on the current user's profile; there is no id in the path. See ADR-013-profile-editing-and-origin-check.md.
+All four require a session and act on the current user's profile; there is no id in the path. See docs/release/v1/adr/0013-profile-patch-origin-check.md.
 
 | Endpoint | Success | Errors |
 |---|---|---|
@@ -196,7 +196,7 @@ POST   /projects/{id}/archive
 POST   /projects/{id}/visibility
 ```
 
-All require a session and act only on the current user's projects. A missing project, another user's project and a malformed id all return the same 404 `NOT_FOUND` as an unknown URL (only `request_id` differs). A project id is accepted only in the canonical form `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (hex, either case); anything else, including forms without hyphens, in braces or with a `urn:uuid:` prefix, is malformed. See ADR-015-project-model.md.
+All require a session and act only on the current user's projects. A missing project, another user's project and a malformed id all return the same 404 `NOT_FOUND` as an unknown URL (only `request_id` differs). A project id is accepted only in the canonical form `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (hex, either case); anything else, including forms without hyphens, in braces or with a `urn:uuid:` prefix, is malformed. See docs/release/v1/adr/0015-project-entities.md.
 
 | Endpoint | Success | Errors |
 |---|---|---|
