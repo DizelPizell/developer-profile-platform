@@ -472,13 +472,26 @@ Screens, texts and rules: "GitHub on public cards" in `DESIGN.md`, mockup `publi
 - Decided with the owner: the mockup wins over the cabinet's badge style, so chips use `CHIP`; an empty language list hides the languages and their caption; a row follows the mockup (one wrapping line, the date wraps after the rest).
 - Checked with Vitest + RTL (633 tests, 0 skipped), 30 mutations, all failing tests, lint, typecheck and build. The date tests set `process.env.TZ` to `Asia/Tokyo` in `vi.hoisted`, before the formatter is built, with a test that the zone took effect: CI runs in UTC, where a formatter without `timeZone` would pass. Looked at in a browser against a stand-in API at 1200 and 375 px. The manual check is the README's "Manual public GitHub check".
 
+## C.2 — Contacts in the cabinet and on the public page (M; after backend C.1) [done]
+
+**Goal**: a developer enters contacts in the profile form, and a visitor reaches them from the public page; the email and the phone are requested only on a click (ADR-0020).
+
+Screens, texts and rules: "Contacts on the public page" and "Contacts in the profile form" in `DESIGN.md`, mockup `profile-contacts.png`. The backend, OpenAPI and migrations did not change.
+
+- Done, API layer: `Contact`, `ContactWrite` and `contacts` in `OwnProfileResponse` and `ProfileUpdate`; `profileContactErrors` for `loc` `["body", "contacts", <index>, <field>]` and `["body", "contacts"]`, next to `profileFieldErrors`, whose behavior did not change. `readContacts` in the public reader (a wrong shape is `[]` and one log line; `EMAIL` and `PHONE` always lose their values). `revealContact` checks the answer: the requested type and `url` equal to `mailto:` or `tel:` plus the value.
+- Done, public page: `profile-contacts.tsx` (Server Component: the section and the link checks) and `contact-reveal.tsx` (client: props `type` and `slug`, four states, a live region, the focus moves to the link). The hero button «Контакты».
+- Done, cabinet: `app/me/profile-contacts.tsx` with the block and the pure functions `contactsForm`, `buildContacts` and `contactErrorTexts`; `ProfileEditor` adds `contacts` to the PATCH only when the built list changed. `FormField` got the optional `counter` flag.
+- Decided with the owner (2026-11-16): the place of the section, the order, the phone as E.164, no counter on contact fields, the fields show the response and keep «Сохранено как: …» (`DESIGN.md`). List errors have no texts of their own: the form cannot produce them, so they fall to the generic error.
+- Checked with Vitest + RTL (686 tests), lint, typecheck and build.
+- Not checked by hand: the local stack predates C.1 (no `profile_contacts` table) and the check needs a GitHub sign-in. The steps are the README's "Manual contacts check".
+
 ## F7+ — Demos, GitHub data, contacts
 
 **Goal**: add project pages and technical evidence as the backend provides them.
 
 - The public project page `/u/{slug}/projects/{id}`, demos and screenshots — after backend Phase 4.
 - GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 and F-GH2 are planned above. There is no profile-level «Данные GitHub» block in V1.
-- Contacts on the cabinet and the public page — step C.2 in DEVELOPMENT_PLAN, after C.1.
+- Contacts on the cabinet and the public page — step C.2, done above.
 - Analytics — V1.1: steps 7.3 and 7.4 in DEVELOPMENT_PLAN, after the V1 launch.
 - Read-only IDE view — after V1 (decided by the owner on 2026-11-04): the file tree is deferred (ADR-018), and file content is still an open question (ADR-011).
 

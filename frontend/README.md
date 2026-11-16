@@ -166,6 +166,22 @@ Backend running, a published profile with slug `<slug>`. Use a private window (n
 8. «Скрыть» in the cabinet, reload the public page → the same «Профиль не найден» as for a missing slug.
 9. Stop the backend, reload a profile → «Не удалось загрузить профиль», status 500; start it again, «Повторить» → the profile.
 
+## Manual contacts check
+
+Backend running with the C.1 migration applied (`profile_contacts` exists), signed in, a profile with slug `<slug>`. Not run yet: see `FRONTEND_PLAN.md`, C.2.
+
+1. `/me`, profile `PRIVATE` → the block «Контакты» with the note «Контакты станут видны на публичной странице после публикации профиля…» and «Добавлено 0 из 3»; «Сохранить» is disabled.
+2. Fill Email, Telegram (`t.me/<name>`), LinkedIn (`linkedin.com/in/<slug>`), Телефон (`+7 (999) 123-45-67`) and one «Другой способ» (name and an `https` link), save → «Сохранено»; the fields show the normalized values and «Сохранено как: …»; «Сохранить» is disabled again.
+3. Change only «Имя», save → in DevTools the PATCH body has no `contacts`. Change only Телефон, save → 200, not a 422 on LinkedIn.
+4. Email `dev@пример.рф`, Телефон `89991234567`, a row with the link `javascript:alert(1)` and no name, the Telegram field empty → each error under its own field, none under Telegram.
+5. Add rows up to three → the button is disabled, «Максимум 3 других способа связи».
+6. `/u/<slug>` while `PRIVATE` → «Профиль не найден». Publish → the note becomes «Профиль опубликован: сохранённые контакты сразу видны…».
+7. `/u/<slug>` in a private window → the hero button «Контакты» jumps to the section; Telegram, LinkedIn and «Название · хост» are links that open a new tab.
+8. `curl -s http://localhost:3000/u/<slug>` and `curl -s http://localhost:8000/api/v1/public/profiles/<slug>` → neither holds the email or the phone.
+9. «Показать email» → «Загрузка…» → a `mailto:` link with the focus on it; the same for the phone with `tel:`.
+10. Stop the backend on an open page, «Показать телефон» → «Не удалось получить телефон.» and «Повторить»; start the backend, «Повторить» → the number.
+11. Remove every contact in the cabinet, save → the PATCH body is `{"contacts": []}`; the public page has no section and no hero button.
+
 ## Manual public projects check
 
 Backend running, signed in, a published profile with slug `<slug>`. Open the public page in a private window (no session) and reload it after each change in the cabinet.

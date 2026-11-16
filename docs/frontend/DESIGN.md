@@ -110,7 +110,8 @@ Blocks:
 | Block | Data | Notes |
 |---|---|---|
 | Header | — | «DEV.PROFILE» and «Войти через GitHub», a link to `/login` (the mockup's top bar). |
-| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Tektur (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. «Проекты» (secondary) links to the project area and is shown only when there is a public project (see "Projects on the public page"). |
+| Hero | `avatar_url`, `display_name`, `headline`, `location`, `github_login` | Round avatar, loaded only when `avatar_url` starts with `https://`; otherwise (including `null`) the default pixel avatar. `display_name` in Tektur (a long name, Typography rule), `@github_login` under it. `headline` follows the badge «Класс». «Локация: …»; empty `location` is hidden. Avatar and login each carry «Источник: GitHub». The «GitHub» button links to `https://github.com/{github_login}` in a new tab with `rel="noopener noreferrer"`. «Проекты» (secondary) links to the project area and is shown only when there is a public project (see "Projects on the public page"). «Контакты» (secondary) links to `#contacts` and is shown only when there is a contact (see "Contacts on the public page"). |
+| «Контакты» | `contacts` | Marked «От автора», next to «О себе». No contacts: no section. See "Contacts on the public page". |
 | «О себе» | `bio` | Marked «От автора». Plain text with line breaks (`white-space: pre-line`). Empty `bio` hides the block. |
 | «Скилы» | — | Pending: no backend source yet, phase not assigned. A plain list in future; never levels or bars. |
 | «Главные проекты» | `featured` | Up to 3 cards in `position` order, marked «От автора». See "Projects on the public page". |
@@ -185,9 +186,37 @@ Rules for both:
 - Text from GitHub is rendered as text. Long names wrap at any point. No stars, forks, commit counts, bars or levels, and none of «подтверждено», «проверено», «верифицирован» (ADR-019).
 - `github` is read through a whitelist (`readPublicGitHub`). A wrong shape (not an object, a field of a wrong type or missing, a relation other than `OWNER` or `CONTRIBUTOR`, a wrong language, `synced_at` that is not a date-time with an offset) gives `github: null`: the card and the profile keep working. The block is an addition to the card, so unlike a broken project it does not take the error screen. A wrong shape writes one line to the server log per project per request, with the project's id and the name of the first wrong field, never a value. A `github` field missing altogether is `null` without a log.
 
+#### Contacts on the public page (C.2)
+
+The layout and texts come from `profile-contacts.png` (seven states and a rules card). Data: `contacts` of the profile response, and `GET /public/profiles/{slug}/contacts?type=EMAIL|PHONE` on a click (ADR-0020).
+
+- The section is «Контакты» with «От автора», `id="contacts"`. Without contacts there is no section, no hero button and no empty block.
+- Each contact is a small `text-muted` caption («Telegram», «LinkedIn», «Email», «Телефон», «Другое») over its value, in API order. The cabinet sends Telegram, LinkedIn, Email, Телефон, then «Другое», the order of the mockup.
+- Rendered on the server (`app/u/[slug]/profile-contacts.tsx`): Telegram as «@name», LinkedIn as «in/slug», «Другое» as «Название · хост». The host is `new URL(url).host`, so an IDN reads as punycode and the name cannot hide where the link leads.
+- A value is a link only after its check, otherwise it stays text: Telegram — `url` starts with `https://t.me/`; LinkedIn — with `https://www.linkedin.com/in/`; «Другое» — the URL parses and its protocol is `http:` or `https:` (no host is shown otherwise).
+- Links open a new tab with `rel="noopener noreferrer nofollow ugc"`. `mailto:` and `tel:` links have no `target`.
+- Email and phone are one client component (`contact-reveal.tsx`) with the props `type` and `slug` only: the value is never in the HTML or the props. States:
+
+| State | Shown |
+|---|---|
+| Rest | The button «Показать email» / «Показать телефон» (secondary) |
+| Loading | The button reads «Загрузка…» and is disabled |
+| Shown | A link `mailto:` / `tel:` with the value as its text; it takes the focus, since the button is gone |
+| Error | «Не удалось получить email.» / «Не удалось получить телефон.» (`error`) and «Повторить» |
+
+- The loading and error texts sit in a live region (`role="status"`). The answer is checked before it is shown: the type is the requested one and `url` equals `mailto:` or `tel:` plus the value; anything else is the error state. The browser log names only the field (`Contact EMAIL: request failed`).
+- Long values wrap at any point (state 7). Every value is React text.
+- `contacts` is read through a whitelist (`readContacts`), like `github` of a project: a missing field is `[]` without a log; a wrong shape (not a list, an unknown type, a public contact without `value` or `url`, «Другое» without a name) is `[]` and one server log line per profile with the first wrong field, never a value. The profile keeps working. For `EMAIL` and `PHONE` the reader always sets `value`, `label` and `url` to `null`, whatever the body holds.
+
+Decisions where the mockup differs (the owner, 2026-11-16):
+
+- **Place.** The mockup puts the block in a right column under «Инвентарь», which the page does not have. From `lg` «О себе» is on the left and «Контакты» on the right (20rem); below `lg` the section goes under «О себе»; without `bio` it takes the row alone.
+- **Hero button.** The mockup draws no hero; ADR-0020 requires the button.
+- **Phone.** The mockup shows «+7 999 123-45-67»; the page shows the E.164 value as the API returns it. Formatting international numbers without a library would be a guess.
+
 ### Cabinet — `/me`
 
-Data: `GET /api/v1/profile` → `slug`, `status`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`. The cabinet does not call `/auth/me`: the profile response carries everything it shows, and its 401 means there is no session.
+Data: `GET /api/v1/profile` → `slug`, `status`, `display_name`, `headline`, `bio`, `location`, `avatar_url`, `github_login`, `contacts`. The cabinet does not call `/auth/me`: the profile response carries everything it shows, and its 401 means there is no session.
 
 The mockup `cabinet.png` sets the layout and texts. Where it differs from the rules above, the decisions are:
 
@@ -239,6 +268,50 @@ States and errors:
 | Network error or API unreachable | «Не удалось связаться с сервером.»; entered data is kept and the action can be repeated |
 | 500 `INTERNAL_ERROR`, other errors | «Что-то пошло не так. Попробуйте ещё раз.» and «Код запроса: <request_id>» from the error body (or `X-Request-ID`) when present |
 | Saved | «Сохранено» in `success` |
+
+#### Contacts in the profile form (C.2)
+
+Mockup `profile-contacts.png`, states A–D. The block «Контакты» sits inside the profile form, above the buttons, and is saved by the same «Сохранить» (ADR-0020).
+
+The note at the top follows the status:
+
+- `PRIVATE`: «Контакты станут видны на публичной странице после публикации профиля. Email и телефон показываются только по клику.»
+- `PUBLISHED`: «Профиль опубликован: сохранённые контакты сразу видны на публичной странице. Email и телефон показываются только по клику.»
+
+Fields, in this order:
+
+| Type | Label | Placeholder | Hint | `maxLength` |
+|---|---|---|---|---|
+| `EMAIL` | «Email» | «name@example.com» | «Латиницей, без пробелов» | 254 |
+| `TELEGRAM` | «Telegram» | «@username» | «Имя пользователя или ссылка t.me/…» | 64 |
+| `LINKEDIN` | «LinkedIn» | «linkedin.com/in/…» | «Ссылка на профиль вида linkedin.com/in/имя» | 150 |
+| `PHONE` | «Телефон» | «+79991234567» | «Формат: +79991234567, пробелы и скобки уберём» | 32 |
+
+- `maxLength` is wider than the stored limit where the field also takes a link. The server's validation is not repeated on the client.
+- Contact fields have no counter «N / limit» (`FormField` with `counter={false}`), as in the mockup.
+- «+ Другие способы связи» adds a row «Другой способ N»: «Название» (placeholder «Например: Мой блог», hint «До 40 символов»), «Ссылка» (hint «Только http и https») and «Удалить». Under the button «Добавлено N из 3»; with three rows the button is disabled and the text is «Максимум 3 других способа связи» (`label`).
+- The list is built by one function (`buildContacts`): an empty standard field and a fully empty row are not sent; the order is Telegram, LinkedIn, Email, Телефон, then the rows. `contacts` goes into the PATCH only when this list differs from the same list built from the stored contacts, so an untouched form is never "changed". Clearing everything sends `[]`.
+- After a save the fields show the response: Email and Телефон — `value`, Telegram — «@» and `value`, LinkedIn — `url`, a row — `label` and `url`. LinkedIn takes `url` because the server stores the slug but accepts only `linkedin.com/in/{slug}`: a slug in the field would fail the next save.
+- A stored standard contact shows «Сохранено как: …» (the email, «@name», «in/slug», the number) instead of the hint while its field is untouched; an edited field shows the usual hint again.
+- Errors: the index in `loc` is the place in the list that was sent, so the form keeps the form key of every sent item and puts the error under that field or row, with the red outline, `aria-invalid` and `aria-describedby`.
+
+| Error | Text |
+|---|---|
+| `invalid_email` | «Укажите адрес латиницей: кириллические домены пока не поддерживаются.» |
+| `invalid_telegram` | «Нужно имя пользователя или ссылка на профиль, а не приглашение.» |
+| `invalid_linkedin` | «Нужна ссылка на профиль вида linkedin.com/in/имя.» |
+| `invalid_phone` | «Укажите номер с плюсом, например +79991234567.» |
+| `invalid_url` | «Допустимы только ссылки http и https.» |
+| `string_too_short` on a link (a row with a name only) | «Укажите ссылку.» |
+| `missing` on a name | «Укажите название.» |
+| `string_too_long` on a name | «Не больше 40 символов.» |
+| `control_characters` on a name | «Недопустимые символы.» |
+| Any other type on a field | «Некорректное значение.» |
+| A list error (`too_many_other_contacts`, `duplicate_contact_type`, `too_long`) | The generic error with «Код запроса»: the form cannot send such a list |
+
+- Adding or removing a row clears the contact errors: row errors are kept by place.
+
+Decision where the mockup differs (the owner, 2026-11-16): state B keeps the typed text in the field and the normalized value only in the caption; the form shows the value from the response, like its other fields, and keeps the caption.
 
 ### Projects in the cabinet — `/me/projects` (F5)
 
@@ -647,6 +720,7 @@ Mockups are added manually to `docs/frontend/mockups/`:
 - `github-states.png` (F-GH1; the 429 `GITHUB_SYNC_TOO_SOON` card of F-GH1.5 is not in it yet, so the table above is the reference)
 - `repository-sync.png` (F-GH1.5: the sync states of the form block and the rules card)
 - `public-cards.png` (F-GH2: the GitHub block on public cards and rows; six featured cards only to show the states)
+- `profile-contacts.png` (C.2: the contacts section of the public page, the block of the profile form and the rules card)
 
 The F-GH1 version of «Мои проекты» (with «Импорт из GitHub» and the GitHub label) is in the working tree as `my-projects.png.png`; the mockup owner decides whether it replaces `my-projects.png`.
 
