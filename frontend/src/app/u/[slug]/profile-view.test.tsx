@@ -18,6 +18,7 @@ const PROFILE: PublicProfile = {
   location: null,
   avatar_url: null,
   github_login: "ann-gh",
+  contacts: [],
   featured: [],
   other: [],
 };
@@ -256,5 +257,86 @@ describe("the GitHub block", () => {
     renderView({ featured: [featured(1, "Shop", { github: GITHUB })] });
 
     expect(cards("Главные проекты")[0].textContent).not.toContain("От автора");
+  });
+});
+
+describe("contacts", () => {
+  const TELEGRAM = { type: "TELEGRAM", value: "ann_dev", label: null, url: "https://t.me/ann_dev" } as const;
+  const LINKEDIN = {
+    type: "LINKEDIN",
+    value: "ann-dev",
+    label: null,
+    url: "https://www.linkedin.com/in/ann-dev",
+  } as const;
+  const OTHER = {
+    type: "OTHER",
+    value: "https://a.example/blog",
+    label: "Blog",
+    url: "https://a.example/blog",
+  } as const;
+  const EMAIL = { type: "EMAIL", value: null, label: null, url: null } as const;
+  const PHONE = { type: "PHONE", value: null, label: null, url: null } as const;
+
+  test("without contacts there is no section and no hero button", () => {
+    const { container } = renderView({ bio: "Hello" });
+
+    expect(container.querySelector("#contacts")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Контакты" })).toBeNull();
+    expect(screen.queryByText("Контакты")).toBeNull();
+  });
+
+  test("the section is marked «От автора» and the hero button leads to it", () => {
+    const { container } = renderView({ contacts: [TELEGRAM] });
+
+    expect(container.querySelector("#contacts")).toBe(section("Контакты"));
+    expect(within(section("Контакты")).getByText("От автора")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Контакты" }).getAttribute("href")).toBe("#contacts");
+  });
+
+  test("public links are rendered in API order, in a new tab with the full rel", () => {
+    renderView({ contacts: [OTHER, TELEGRAM, LINKEDIN] });
+
+    const view = within(section("Контакты"));
+    const links = view.getAllByRole("link");
+    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Blog", "https://a.example/blog"],
+      ["@ann_dev", "https://t.me/ann_dev"],
+      ["in/ann-dev", "https://www.linkedin.com/in/ann-dev"],
+    ]);
+    for (const link of links) {
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toBe("noopener noreferrer nofollow ugc");
+    }
+    expect(section("Контакты").textContent).toContain("Blog · a.example");
+  });
+
+  test.each([
+    ["a Telegram link to another host", { ...TELEGRAM, url: "https://t.me.evil.example/ann_dev" }, "@ann_dev"],
+    ["a LinkedIn link to another path", { ...LINKEDIN, url: "https://www.linkedin.com/company/x" }, "in/ann-dev"],
+    ["a javascript: link", { ...OTHER, url: "javascript:alert(1)" }, "Blog"],
+    ["an ftp link", { ...OTHER, url: "ftp://a.example/" }, "Blog"],
+    ["a broken link", { ...OTHER, url: "not a url" }, "Blog"],
+  ])("%s stays text", (_name, contact, text) => {
+    renderView({ contacts: [contact] });
+
+    const view = within(section("Контакты"));
+    expect(view.queryByRole("link")).toBeNull();
+    expect(view.getByText(text)).toBeTruthy();
+    expect(section("Контакты").textContent).not.toContain("·");
+  });
+
+  test("email and phone are buttons; the markup holds no value and no link for them", () => {
+    const { container } = renderView({ contacts: [EMAIL, PHONE] });
+
+    expect(screen.getByRole("button", { name: "Показать email" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Показать телефон" })).toBeTruthy();
+    expect(container.innerHTML).not.toMatch(/mailto:|tel:/);
+    expect(within(section("Контакты")).queryByRole("link")).toBeNull();
+  });
+
+  test("long values wrap", () => {
+    renderView({ contacts: [{ ...TELEGRAM, value: "a".repeat(32) }] });
+
+    expect(within(section("Контакты")).getByRole("link").className).toContain("break-all");
   });
 });
