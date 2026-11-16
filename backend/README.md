@@ -14,7 +14,7 @@ docker compose up -d postgres
 
 ```bash
 cd backend
-pip install -e ".[dev]"
+pip install -c requirements.lock -e ".[dev]"
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
