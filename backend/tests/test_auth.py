@@ -6,11 +6,12 @@ TestMeHTTP, TestLogoutHTTP) are skipped automatically when PostgreSQL is not
 available (they depend on db_session which depends on db_engine).
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import httpx
 import pytest
 
+from app.clock import utcnow
 from app.identity.github_client import GitHubOAuthClient
 from app.identity.service import (
     _find_user_by_github_id,
@@ -205,7 +206,7 @@ class TestSessionLifecycle:
         session_row = db_session.execute(
             select(AuthSession).where(AuthSession.token_hash == token_hash)
         ).scalar_one()
-        session_row.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=1)
+        session_row.expires_at = utcnow() - timedelta(seconds=1)
         db_session.flush()
 
         assert get_session_user(db_session, token) is None

@@ -6,10 +6,11 @@ these dependencies with fresh instances and a mock transport.
 """
 
 from collections.abc import Generator
-from datetime import UTC, datetime
+from datetime import datetime
 
 import httpx
 
+from app.clock import utcnow
 from app.github.budget import UserRequestBudget, user_request_budget
 from app.github.client import GitHubApiClient, backend_pause, rate_limit_state
 from app.github.page_cache import RepositoryPageCache, repository_page_cache
@@ -17,8 +18,8 @@ from app.settings import settings
 
 
 def get_now() -> datetime:
-    """Naive UTC, as stored in the database."""
-    return datetime.now(UTC).replace(tzinfo=None)
+    """Naive UTC, as stored in the database; a dependency, so tests can fix the time."""
+    return utcnow()
 
 
 def get_github_api_client() -> Generator[GitHubApiClient]:

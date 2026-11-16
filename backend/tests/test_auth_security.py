@@ -1,7 +1,7 @@
 """Security properties of the login flow: sessions, cookies and GitHub error paths."""
 
 import hashlib
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from http.cookies import Morsel, SimpleCookie
 
 import httpx
@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 
 import app.models  # noqa: F401 — registers all tables on Base.metadata
+from app.clock import utcnow
 from app.database import Base
 from app.identity import service
 from app.models.identity import AuthSession
@@ -286,7 +287,7 @@ class TestMeResponse:
         token = _login(auth_client)
         row = _session_row(db_session, token)
         assert row is not None
-        row.expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=1)
+        row.expires_at = utcnow() - timedelta(seconds=1)
         db_session.flush()
 
         _assert_error(auth_client.get(ME), 401, "UNAUTHORIZED")

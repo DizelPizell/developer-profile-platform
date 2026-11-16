@@ -3,13 +3,13 @@ ownership, limits, featured side effects, session, Origin and CORS."""
 
 import threading
 import uuid
-from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from app.clock import utcnow
 from app.main import app, frontend_origin
 from app.models.identity import Profile, User
 from app.models.projects import PROJECT_TEXT_LIMITS, Project, ProjectShowcase, Technology
@@ -140,9 +140,9 @@ class TestCreate:
 
     def test_timestamps_are_naive_utc(self, client, db_session):
         # Like the other tables: timestamp without time zone holding UTC.
-        before = datetime.now(UTC).replace(tzinfo=None)
+        before = utcnow()
         created = _create(client)
-        after = datetime.now(UTC).replace(tzinfo=None)
+        after = utcnow()
         row = db_session.get(Project, uuid.UUID(created["id"]))
         assert row.created_at.tzinfo is None
         assert before <= row.created_at <= after

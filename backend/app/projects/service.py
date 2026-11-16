@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import Row, bindparam, case, delete, func, insert, select, text, update
 from sqlalchemy.dialects.postgresql import ARRAY, TEXT
@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.canonical_uuid import parse_canonical_uuid
+from app.clock import utcnow
 from app.errors import AppError
 from app.github import service as github_service
 from app.models.identity import Profile, User
@@ -34,10 +35,6 @@ _TECHNOLOGY_IDS = text(
     "SELECT t.id FROM unnest(:names) WITH ORDINALITY AS n(name, ord) "
     "JOIN technologies t ON lower(t.name) = lower(n.name) ORDER BY n.ord"
 ).bindparams(bindparam("names", type_=ARRAY(TEXT)))
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _not_found() -> AppError:
@@ -365,7 +362,7 @@ def create_project(
 ) -> Project:
     """The caller holds the owner's profile lock, so the limit check is stable."""
     check_project_limit(db, user)
-    now = _utcnow()
+    now = utcnow()
     # Timestamps from the application, not now(): they differ between projects
     # created in one transaction, which keeps "newest first" well defined.
     project = Project(
@@ -422,7 +419,7 @@ def update_project(
             _replace_technologies(db, project, new_ids)
             changed = True
     if changed:
-        project.updated_at = _utcnow()
+        project.updated_at = utcnow()
         db.flush()
 
 
@@ -438,7 +435,7 @@ def publish(db: Session, project: Project) -> None:
         raise _incomplete(missing)
     project.status = PUBLISHED
     project.visibility = PUBLIC
-    project.updated_at = _utcnow()
+    project.updated_at = utcnow()
     db.flush()
 
 
@@ -454,7 +451,7 @@ def archive(db: Session, project: Project) -> None:
     _remove_from_featured(db, project)
     project.status = ARCHIVED
     project.visibility = PRIVATE
-    project.updated_at = _utcnow()
+    project.updated_at = utcnow()
     db.flush()
 
 
@@ -470,7 +467,7 @@ def change_visibility(db: Session, project: Project, visibility: str) -> None:
     if visibility == PRIVATE:
         _remove_from_featured(db, project)
     project.visibility = visibility
-    project.updated_at = _utcnow()
+    project.updated_at = utcnow()
     db.flush()
 
 

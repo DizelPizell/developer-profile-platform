@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
+from app.clock import utcnow
 from app.github.constants import (
     GITHUB_API,
     GITHUB_HTML_URL_PREFIX,
@@ -41,10 +42,6 @@ MAX_RATE_LIMIT_WAIT = timedelta(hours=1)
 MIN_RATE_LIMIT_WAIT = timedelta(seconds=1)
 
 _MOVED_TO = re.compile(re.escape(GITHUB_API) + r"/repositories/([1-9][0-9]{0,18})(?:[/?#].*)?")
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class InvalidGitHubInput(ValueError):
@@ -392,7 +389,7 @@ class GitHubApiClient:
         *,
         rate_limits: RateLimitState,
         pause: RateLimitPause,
-        now: Callable[[], datetime] = _utcnow,
+        now: Callable[[], datetime] = utcnow,
     ) -> None:
         self._client = http_client
         token = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode("ascii")

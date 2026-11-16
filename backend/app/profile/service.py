@@ -1,10 +1,10 @@
 import re
 import uuid
-from datetime import UTC, datetime
 
 from sqlalchemy import Row, delete, insert, select
 from sqlalchemy.orm import Session
 
+from app.clock import utcnow
 from app.errors import AppError
 from app.models.identity import GitHubAccount, Profile, ProfileContact, User
 
@@ -13,10 +13,6 @@ PUBLISHED = "PUBLISHED"
 REQUIRED_FOR_PUBLICATION = ("display_name", "headline")
 
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,37}[a-z0-9]$")
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _missing_for_publication(values: dict[str, str | None]) -> list[str]:
@@ -97,7 +93,7 @@ def update_profile(
             setattr(profile, field, value)
             changed = True
     if changed:
-        profile.updated_at = _utcnow()
+        profile.updated_at = utcnow()
         db.flush()
 
 
@@ -108,7 +104,7 @@ def publish(db: Session, profile: Profile) -> None:
     if missing:
         raise _incomplete(missing)
     profile.status = PUBLISHED
-    profile.updated_at = _utcnow()
+    profile.updated_at = utcnow()
     db.flush()
 
 
@@ -116,7 +112,7 @@ def unpublish(db: Session, profile: Profile) -> None:
     if profile.status == PRIVATE:
         return
     profile.status = PRIVATE
-    profile.updated_at = _utcnow()
+    profile.updated_at = utcnow()
     db.flush()
 
 
