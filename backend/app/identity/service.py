@@ -2,12 +2,13 @@ import hashlib
 import re
 import secrets
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.clock import utcnow
 from app.errors import AppError
 from app.models.identity import AuthSession, GitHubAccount, Profile, User
 from app.settings import settings
@@ -44,10 +45,6 @@ _MULTI_HYPHEN_RE = re.compile(r"-{2,}")
 _MAX_SLUG = 39
 _MIN_SLUG = 3
 _SUFFIX_LEN = 7  # '-' + 6 hex chars
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _generate_base_slug(github_login: str) -> str:
@@ -148,7 +145,7 @@ def create_session(db: Session, user_id: uuid.UUID) -> str:
     """Issue a new session token, storing only its hash. Returns the raw token."""
     token = secrets.token_urlsafe(32)
     token_hash = hash_token(token)
-    expires_at = _utcnow() + timedelta(days=settings.session_ttl_days)
+    expires_at = utcnow() + timedelta(days=settings.session_ttl_days)
     db.add(AuthSession(user_id=user_id, token_hash=token_hash, expires_at=expires_at))
     db.flush()
     return token
@@ -161,7 +158,7 @@ def get_session_user(db: Session, token: str) -> User | None:
         select(AuthSession, User)
         .join(User, AuthSession.user_id == User.id)
         .where(AuthSession.token_hash == token_hash)
-        .where(AuthSession.expires_at > _utcnow())
+        .where(AuthSession.expires_at > utcnow())
     ).first()
     return row[1] if row else None
 
