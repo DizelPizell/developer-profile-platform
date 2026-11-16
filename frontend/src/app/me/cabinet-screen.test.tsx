@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { CabinetScreen } from "./cabinet-screen";
@@ -13,6 +13,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 const fetchMock = vi.fn<typeof fetch>();
 
+type Contact = { type: string; value: string; label: string | null; url: string };
+
 type Profile = {
   slug: string;
   status: "PRIVATE" | "PUBLISHED";
@@ -22,6 +24,7 @@ type Profile = {
   location: string | null;
   avatar_url: string | null;
   github_login: string;
+  contacts: Contact[];
 };
 
 const PROFILE: Profile = {
@@ -33,6 +36,7 @@ const PROFILE: Profile = {
   location: "Berlin",
   avatar_url: null,
   github_login: "ann-gh",
+  contacts: [],
 };
 
 function apiError(status: number, code: string, requestId: string, details = {}) {
@@ -393,5 +397,242 @@ describe("logout", () => {
     expect(alert.textContent).toContain("Код запроса: r-logout");
     expect(replace).not.toHaveBeenCalled();
     expect(button("Выйти").disabled).toBe(false);
+  });
+});
+
+describe("contacts", () => {
+  const EMAIL = { type: "EMAIL", value: "ann@example.com", label: null, url: "mailto:ann@example.com" };
+  const TELEGRAM = { type: "TELEGRAM", value: "ann_dev", label: null, url: "https://t.me/ann_dev" };
+  const LINKEDIN = {
+    type: "LINKEDIN",
+    value: "ann-dev",
+    label: null,
+    url: "https://www.linkedin.com/in/ann-dev",
+  };
+  const PHONE = { type: "PHONE", value: "+79123456789", label: null, url: "tel:+79123456789" };
+  const OTHER = { type: "OTHER", value: "https://a.example/", label: "Blog", url: "https://a.example/" };
+
+  const ADD = "+ Другие способы связи";
+  const hint = (id: string) => document.getElementById(`contact-${id}-hint`)?.textContent;
+  const error = (id: string) => document.getElementById(`contact-${id}-error`)?.textContent;
+  const rowField = (n: number, name: string) =>
+    within(screen.getByRole("group", { name: `Другой способ ${n}` })).getByRole("textbox", {
+      name,
+    }) as HTMLInputElement;
+  const sentBody = () => JSON.parse(lastRequest()[1]?.body as string);
+
+  test("a private profile is told that contacts appear after publication", async () => {
+    await renderCabinet();
+
+    expect(
+      screen.getByText(/^Контакты станут видны на публичной странице после публикации профиля\./),
+    ).toBeTruthy();
+  });
+
+  test("a published profile is warned that contacts are public at once", async () => {
+    await renderCabinet({ status: "PUBLISHED" });
+
+    expect(
+      screen.getByText(/^Профиль опубликован: сохранённые контакты сразу видны/),
+    ).toBeTruthy();
+  });
+
+  test("stored contacts fill the fields, with «Сохранено как» and no counters", async () => {
+    await renderCabinet({ contacts: [OTHER, PHONE, LINKEDIN, TELEGRAM, EMAIL] });
+
+    expect(field("Email").value).toBe("ann@example.com");
+    expect(field("Telegram").value).toBe("@ann_dev");
+    expect(field("LinkedIn").value).toBe("https://www.linkedin.com/in/ann-dev");
+    expect(field("Телефон").value).toBe("+79123456789");
+    expect(rowField(1, "Название").value).toBe("Blog");
+    expect(hint("EMAIL")).toBe("Сохранено как: ann@example.com");
+    expect(hint("TELEGRAM")).toBe("Сохранено как: @ann_dev");
+    expect(hint("LINKEDIN")).toBe("Сохранено как: in/ann-dev");
+    expect(hint("PHONE")).toBe("Сохранено как: +79123456789");
+    expect(document.getElementById("contact-EMAIL-count")).toBeNull();
+    // The stored order differs from the one the form sends; that alone is no change.
+    expect(button("Сохранить").disabled).toBe(true);
+
+    type("Telegram", "@other");
+
+    expect(hint("TELEGRAM")).toBe("Имя пользователя или ссылка t.me/…");
+  });
+
+  test("contacts are not sent when only another field changed", async () => {
+    await renderCabinet({ contacts: [EMAIL, OTHER] });
+    type("Имя", "Anna");
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ ...PROFILE, display_name: "Anna", contacts: [EMAIL, OTHER] }),
+    );
+
+    fireEvent.click(button("Сохранить"));
+
+    expect(await screen.findByText("Сохранено")).toBeTruthy();
+    expect(sentBody()).toEqual({ display_name: "Anna" });
+  });
+
+  test("the whole list is sent in the page order; the form then shows the response", async () => {
+    await renderCabinet();
+    type("Email", " Ann@Example.com ");
+    type("Телефон", "+7 (912) 345-67-89");
+    type("Telegram", "t.me/ann_dev");
+    fireEvent.click(button(ADD));
+    fireEvent.change(rowField(1, "Название"), { target: { value: "Blog" } });
+    fireEvent.change(rowField(1, "Ссылка"), { target: { value: "https://a.example/" } });
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ ...PROFILE, contacts: [TELEGRAM, EMAIL, PHONE, OTHER] }),
+    );
+
+    fireEvent.click(button("Сохранить"));
+
+    expect(await screen.findByText("Сохранено")).toBeTruthy();
+    expect(sentBody()).toEqual({
+      contacts: [
+        { type: "TELEGRAM", value: "t.me/ann_dev" },
+        { type: "EMAIL", value: " Ann@Example.com " },
+        { type: "PHONE", value: "+7 (912) 345-67-89" },
+        { type: "OTHER", value: "https://a.example/", label: "Blog" },
+      ],
+    });
+    expect(field("Email").value).toBe("ann@example.com");
+    expect(field("Telegram").value).toBe("@ann_dev");
+    expect(field("Телефон").value).toBe("+79123456789");
+    expect(button("Сохранить").disabled).toBe(true);
+  });
+
+  test("clearing every contact sends an empty list", async () => {
+    await renderCabinet({ contacts: [EMAIL, OTHER] });
+    type("Email", "  ");
+    fireEvent.click(button("Удалить: другой способ 1"));
+    fetchMock.mockResolvedValueOnce(Response.json(PROFILE));
+
+    fireEvent.click(button("Сохранить"));
+
+    expect(await screen.findByText("Сохранено")).toBeTruthy();
+    expect(sentBody()).toEqual({ contacts: [] });
+  });
+
+  test("a stored LinkedIn is sent again as a link the server accepts", async () => {
+    await renderCabinet();
+    type("LinkedIn", "linkedin.com/in/ann-dev/");
+    fetchMock.mockResolvedValueOnce(Response.json({ ...PROFILE, contacts: [LINKEDIN] }));
+    fireEvent.click(button("Сохранить"));
+    expect(await screen.findByText("Сохранено")).toBeTruthy();
+
+    type("Телефон", "+79123456789");
+    fetchMock.mockResolvedValueOnce(Response.json({ ...PROFILE, contacts: [LINKEDIN, PHONE] }));
+    fireEvent.click(button("Сохранить"));
+
+    expect(await screen.findByText("Сохранено")).toBeTruthy();
+    expect(sentBody()).toEqual({
+      contacts: [
+        { type: "LINKEDIN", value: "https://www.linkedin.com/in/ann-dev" },
+        { type: "PHONE", value: "+79123456789" },
+      ],
+    });
+  });
+
+  test("a server error lands on its field although empty fields were not sent", async () => {
+    await renderCabinet();
+    type("Email", "ann@example.com");
+    type("Телефон", "89123456789");
+    fireEvent.click(button(ADD));
+    fireEvent.click(button(ADD));
+    // Row 1 stays empty and is not sent; row 2 has a link without a name.
+    fireEvent.change(rowField(2, "Ссылка"), { target: { value: "javascript:alert(1)" } });
+    fetchMock.mockResolvedValueOnce(
+      apiError(422, "VALIDATION_ERROR", "r-422", {
+        fields: [
+          { loc: ["body", "contacts", 1, "value"], type: "invalid_phone" },
+          { loc: ["body", "contacts", 2, "value"], type: "invalid_url" },
+          { loc: ["body", "contacts", 2, "label"], type: "missing" },
+        ],
+      }),
+    );
+
+    fireEvent.click(button("Сохранить"));
+
+    await waitFor(() => expect(field("Телефон").getAttribute("aria-invalid")).toBe("true"));
+    expect(sentBody().contacts.map((item: Contact) => item.type)).toEqual([
+      "EMAIL",
+      "PHONE",
+      "OTHER",
+    ]);
+    expect(error("PHONE")).toBe("Укажите номер с плюсом, например +79991234567.");
+    expect(field("Телефон").getAttribute("aria-describedby")).toContain("contact-PHONE-error");
+    expect(error("other-1-url")).toBe("Допустимы только ссылки http и https.");
+    expect(error("other-1-label")).toBe("Укажите название.");
+    expect(error("other-0-url")).toBeUndefined();
+    expect(field("Email").getAttribute("aria-invalid")).toBeNull();
+    expect(field("Телефон").value).toBe("89123456789");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  test.each([
+    [
+      "Email",
+      "EMAIL",
+      "invalid_email",
+      "Укажите адрес латиницей: кириллические домены пока не поддерживаются.",
+    ],
+    [
+      "Telegram",
+      "TELEGRAM",
+      "invalid_telegram",
+      "Нужно имя пользователя или ссылка на профиль, а не приглашение.",
+    ],
+    [
+      "LinkedIn",
+      "LINKEDIN",
+      "invalid_linkedin",
+      "Нужна ссылка на профиль вида linkedin.com/in/имя.",
+    ],
+  ])("%s shows the text of its error type", async (name, id, errorType, text) => {
+    await renderCabinet();
+    type(name, "x");
+    fetchMock.mockResolvedValueOnce(
+      apiError(422, "VALIDATION_ERROR", "r-422", {
+        fields: [{ loc: ["body", "contacts", 0, "value"], type: errorType }],
+      }),
+    );
+
+    fireEvent.click(button("Сохранить"));
+
+    await waitFor(() => expect(error(id)).toBe(text));
+  });
+
+  test("a list error is shown as the generic error", async () => {
+    await renderCabinet();
+    type("Email", "ann@example.com");
+    fetchMock.mockResolvedValueOnce(
+      apiError(422, "VALIDATION_ERROR", "r-list", {
+        fields: [{ loc: ["body", "contacts"], type: "duplicate_contact_type" }],
+      }),
+    );
+
+    fireEvent.click(button("Сохранить"));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Код запроса: r-list");
+  });
+
+  test("at most 3 other contacts; empty rows are not a change", async () => {
+    await renderCabinet();
+    expect(screen.getByText("Добавлено 0 из 3")).toBeTruthy();
+
+    fireEvent.click(button(ADD));
+    expect(screen.getByText("Добавлено 1 из 3")).toBeTruthy();
+    fireEvent.click(button(ADD));
+    fireEvent.click(button(ADD));
+
+    expect(button(ADD).disabled).toBe(true);
+    expect(screen.getByText("Максимум 3 других способа связи")).toBeTruthy();
+    expect(screen.getAllByRole("group")).toHaveLength(3);
+    expect(rowField(1, "Название").maxLength).toBe(40);
+    expect(button("Сохранить").disabled).toBe(true);
+
+    fireEvent.click(button("Удалить: другой способ 2"));
+
+    expect(button(ADD).disabled).toBe(false);
+    expect(screen.getByText("Добавлено 2 из 3")).toBeTruthy();
   });
 });

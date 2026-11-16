@@ -12,6 +12,7 @@ import {
   missingProfileFields,
   PROFILE_FIELD_MAX_LENGTH,
   PROFILE_FIELDS,
+  profileContactErrors,
   profileFieldErrors,
   publishProfile,
   unpublishProfile,
@@ -21,6 +22,14 @@ import {
   type ProfileStatus,
   type ProfileUpdate,
 } from "@/lib/api";
+
+import {
+  buildContacts,
+  ContactsBlock,
+  contactErrorTexts,
+  contactsForm,
+  type ContactErrors,
+} from "./profile-contacts";
 
 // Texts from the cabinet mockup (DESIGN.md).
 const FIELDS: Record<
@@ -99,8 +108,16 @@ export function ProfileEditor({ initialProfile }: { initialProfile: OwnProfileRe
   );
   const [requestError, setRequestError] = useState<unknown>(null);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [contacts, setContacts] = useState(() => contactsForm(initialProfile.contacts));
+  const [contactErrors, setContactErrors] = useState<ContactErrors>({});
 
   const update = changedFields(values, saved);
+  // Both lists come from buildContacts, so an untouched form never reads as changed.
+  const built = buildContacts(contacts);
+  const storedList = buildContacts(contactsForm(saved.contacts)).list;
+  if (JSON.stringify(built.list) !== JSON.stringify(storedList)) {
+    update.contacts = built.list;
+  }
   const dirty = Object.keys(update).length > 0;
   const busy = pending !== null;
   const published = saved.status === "PUBLISHED";
@@ -116,6 +133,7 @@ export function ProfileEditor({ initialProfile }: { initialProfile: OwnProfileRe
     inFlight.current = true;
     setPending(action);
     setFieldErrors({});
+    setContactErrors({});
     setIncomplete(null);
     setRequestError(null);
     setSavedNotice(false);
@@ -125,6 +143,7 @@ export function ProfileEditor({ initialProfile }: { initialProfile: OwnProfileRe
       if (!keepEdits) {
         // The server normalizes values (trim, blank → null); show what it stored.
         setValues(toValues(profile));
+        setContacts(contactsForm(profile.contacts));
       }
       setSavedNotice(action === "save");
     } catch (error) {
@@ -134,12 +153,15 @@ export function ProfileEditor({ initialProfile }: { initialProfile: OwnProfileRe
       }
       const missing = missingProfileFields(error);
       const perField = Object.entries(profileFieldErrors(error)) as [ProfileField, string][];
+      // The keys of the list this request sent: the form cannot change during it.
+      const perContact = contactErrorTexts(profileContactErrors(error).items, built.keys);
       if (missing.length > 0) {
         setIncomplete({ action, fields: missing });
-      } else if (perField.length > 0) {
+      } else if (perField.length > 0 || Object.keys(perContact).length > 0) {
         setFieldErrors(
           Object.fromEntries(perField.map(([field, type]) => [field, fieldErrorMessage(field, type)])),
         );
+        setContactErrors(perContact);
       } else {
         setRequestError(error);
       }
@@ -224,6 +246,22 @@ export function ProfileEditor({ initialProfile }: { initialProfile: OwnProfileRe
         </div>
         {field("headline")}
         {field("bio", true)}
+
+        <ContactsBlock
+          form={contacts}
+          saved={saved.contacts}
+          published={published}
+          errors={contactErrors}
+          readOnly={busy}
+          onChange={(form, rowsChanged) => {
+            setContacts(form);
+            setSavedNotice(false);
+            if (rowsChanged) {
+              // Row errors are keyed by place, which a removed row shifts.
+              setContactErrors({});
+            }
+          }}
+        />
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-4">

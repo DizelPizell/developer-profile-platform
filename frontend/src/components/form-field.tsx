@@ -17,6 +17,7 @@ export function FormField({
   invalid = false,
   readOnly = false,
   multiline = false,
+  counter = true,
   onChange,
 }: {
   id: string;
@@ -33,6 +34,8 @@ export function FormField({
   invalid?: boolean;
   readOnly?: boolean;
   multiline?: boolean;
+  /** «N / limit» under the field; contact fields have none (profile-contacts.png). */
+  counter?: boolean;
   onChange: (value: string) => void;
 }) {
   const hintId = `${id}-hint`;
@@ -45,7 +48,7 @@ export function FormField({
     placeholder,
     readOnly,
     "aria-invalid": invalid || error !== undefined ? true : undefined,
-    "aria-describedby": [hintId, countId, error !== undefined ? errorId : null]
+    "aria-describedby": [hintId, counter ? countId : null, error !== undefined ? errorId : null]
       .filter(Boolean)
       .join(" "),
   };
@@ -63,9 +66,11 @@ export function FormField({
       )}
       <div className="flex justify-between gap-4 text-sm text-text-muted">
         <p id={hintId}>{hint}</p>
-        <p id={countId} className="shrink-0 tabular-nums">
-          {value.length} / {maxLength}
-        </p>
+        {counter && (
+          <p id={countId} className="shrink-0 tabular-nums">
+            {value.length} / {maxLength}
+          </p>
+        )}
       </div>
       {error !== undefined && (
         <p id={errorId} className="text-sm text-error">
