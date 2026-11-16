@@ -11,6 +11,8 @@ export default function nextConfig(phase: string): NextConfig {
   }
 
   return {
+    // The Docker image runs .next/standalone/server.js with only the files it needs.
+    output: "standalone",
     // Otherwise `next dev` writes an AGENTS.md into the project on every start.
     agentRules: false,
     turbopack: {

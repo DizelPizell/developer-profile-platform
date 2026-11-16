@@ -1,0 +1,69 @@
+# One origin (ADR-0021): /api/v1/ goes to FastAPI, everything else to Next.js.
+# ${SERVER_NAME} is filled in by the image's entrypoint (envsubst).
+
+server_tokens off;
+
+# Docker's DNS, re-asked every 10 seconds: a backend or frontend recreated by
+# `docker compose up -d --build` gets a new address, and nginx must not keep
+# the old one until its own restart.
+resolver 127.0.0.11 valid=10s;
+
+# Any other host name, or a bare IP: no answer, no certificate shown.
+server {
+    listen 80 default_server;
+    listen 443 ssl default_server;
+    ssl_reject_handshake on;
+    return 444;
+}
+
+server {
+    listen 80;
+    server_name ${SERVER_NAME};
+
+    # Let's Encrypt HTTP-01 challenge, written by the certbot service.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME};
+
+    ssl_certificate /etc/nginx/tls/fullchain.pem;
+    ssl_certificate_key /etc/nginx/tls/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # No preload: leaving the preload list takes months.
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    # JSON bodies only until uploads come with Phase 4.
+    client_max_body_size 1m;
+
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    # Nginx is the edge: the client's own X-Forwarded-For is replaced, not
+    # appended to, and the backend trusts these headers only from nginx
+    # (FORWARDED_ALLOW_IPS, ADR-0021).
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Variables make nginx resolve the names per request (see resolver).
+    set $backend http://backend:8000;
+    set $frontend http://frontend:3000;
+
+    location /api/v1/ {
+        proxy_pass $backend;
+    }
+
+    location / {
+        proxy_pass $frontend;
+    }
+}

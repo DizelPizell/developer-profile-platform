@@ -1,0 +1,70 @@
+# Production additions to docker-compose.yml (ADR-0021, step 9.2): Nginx in front
+# of the frontend and the backend on one origin, certificates from Let's Encrypt.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# The first certificate and the local check: DEPLOY.md. Step 9.3 completes this
+# file: secrets, an env file per service, no published ports but Nginx's.
+
+services:
+  backend:
+    environment:
+      # Only Nginx may set X-Forwarded-For and X-Forwarded-Proto: uvicorn reads
+      # this variable and ignores the headers from any other address.
+      FORWARDED_ALLOW_IPS: ${NGINX_IP:-172.30.10.10}
+
+  # Built for one address: NEXT_PUBLIC_API_URL is inlined into the bundle. No
+  # env_file: the frontend needs none of the backend's secrets.
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://${SERVER_NAME:?set SERVER_NAME in .env (docker-compose.prod.yml)}
+        API_INTERNAL_URL: http://backend:8000
+    container_name: developer-platform-frontend
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: ./nginx
+    container_name: developer-platform-nginx
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME in .env (docker-compose.prod.yml)}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certbot_www:/var/www/certbot:ro
+      - certbot_certs:/etc/letsencrypt:ro
+    networks:
+      default:
+        ipv4_address: ${NGINX_IP:-172.30.10.10}
+    depends_on:
+      - backend
+      - frontend
+
+  # Renews the certificate twice a day (a no-op until 30 days before expiry);
+  # Nginx reloads it every 6 hours. The first one is issued by hand (DEPLOY.md).
+  certbot:
+    image: certbot/certbot:v5.1.0
+    container_name: developer-platform-certbot
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -c
+      - trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+
+networks:
+  # A fixed subnet gives Nginx a fixed address to trust (FORWARDED_ALLOW_IPS).
+  default:
+    ipam:
+      config:
+        - subnet: ${INTERNAL_SUBNET:-172.30.10.0/24}
+
+volumes:
+  certbot_www:
+  certbot_certs:
