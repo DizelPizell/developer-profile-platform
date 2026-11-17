@@ -63,7 +63,8 @@ def test_client_secret_hidden_in_repr():
     [("development", False), ("test", True), ("production", True)],
 )
 def test_secure_cookies_off_only_in_development(app_env, expected):
-    assert _settings(app_env=app_env).secure_cookies is expected
+    urls = _PRODUCTION if app_env == "production" else {}
+    assert _settings(**{**urls, "app_env": app_env}).secure_cookies is expected
 
 
 def test_repository_list_cache_seconds_default_and_minimum(monkeypatch):
@@ -147,3 +148,37 @@ def test_worker_settings_minimums():
 
     assert (s.github_worker_max_attempts, s.github_worker_retry_max_seconds) == (1, 60)
     assert s.github_worker_reserve == 0
+
+
+_PRODUCTION = {
+    "app_env": "production",
+    "frontend_url": "https://example.com",
+    "github_callback_url": "https://example.com/api/v1/auth/github/callback",
+}
+
+
+def test_production_accepts_one_https_origin():
+    s = _settings(**_PRODUCTION)
+
+    assert s.secure_cookies is True
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        # ADR-0021: one https origin for the frontend and the API.
+        {"frontend_url": "http://example.com"},
+        {"github_callback_url": "http://example.com/api/v1/auth/github/callback"},
+        {"github_callback_url": "https://api.example.com/api/v1/auth/github/callback"},
+        {"github_callback_url": "https://example.com:8443/api/v1/auth/github/callback"},
+        {"github_callback_url": "https://example.com/auth/github/callback"},
+    ],
+)
+def test_production_rejects_another_origin_or_path(overrides):
+    with pytest.raises(ValidationError):
+        _settings(**{**_PRODUCTION, **overrides})
+
+
+def test_only_production_requires_one_https_origin():
+    # The local setup: two ports over http (the defaults of _VALID).
+    assert _settings(app_env="development").frontend_url.scheme == "http"

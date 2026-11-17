@@ -3,6 +3,9 @@ from typing import Literal
 from pydantic import Field, HttpUrl, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The OAuth callback route: /api/v1 + the auth router's /auth/github/callback.
+PRODUCTION_CALLBACK_PATH = "/api/v1/auth/github/callback"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -52,6 +55,27 @@ class Settings(BaseSettings):
         if self.github_worker_retry_max_seconds < self.github_worker_retry_base_seconds:
             raise ValueError(
                 "GITHUB_WORKER_RETRY_MAX_SECONDS is below GITHUB_WORKER_RETRY_BASE_SECONDS"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _production_is_one_https_origin(self) -> "Settings":
+        # ADR-0021: in production the frontend and the API share one https origin.
+        # A wrong value here would only show up as a broken sign-in.
+        if self.app_env != "production":
+            return self
+        front, callback = self.frontend_url, self.github_callback_url
+        if front.scheme != "https":
+            raise ValueError("FRONTEND_URL must use https in production")
+        same_origin = (callback.scheme, callback.host, callback.port) == (
+            front.scheme,
+            front.host,
+            front.port,
+        )
+        if not same_origin or callback.path != PRODUCTION_CALLBACK_PATH:
+            raise ValueError(
+                "GITHUB_CALLBACK_URL must be the origin of FRONTEND_URL followed by "
+                f"{PRODUCTION_CALLBACK_PATH} in production"
             )
         return self
 
