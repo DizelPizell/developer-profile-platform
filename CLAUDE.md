@@ -148,9 +148,7 @@ Infrastructure:
 
 Storage:
 
-\- S3-compatible object storage
-
-\- MinIO locally
+\- a named Docker volume on the host (media), written by the backend and served by Nginx under /media/ — not S3 and not MinIO in V1 (MinIO CE is no longer shipped). See ADR-0022-media-on-host-volume.md; S3 returns with a second host, a full disk or a CDN
 
 
 
@@ -904,13 +902,15 @@ deployment Phase 9 step 9.2: the frontend image (Next.js standalone, built for o
 
 deployment Phase 9 step 9.3: the production Compose — no published ports but Nginx's, rotated json-file logs on every service, COMPOSE_FILE in the server .env, secrets in .env (mode 600, not Compose secrets; env_file only on backend, migrate and github-worker), Settings with APP_ENV=production requiring an https FRONTEND_URL and GITHUB_CALLBACK_URL on the same origin, check_compose.py --production in CI, DEPLOY.md with the server, secret rotation, updates and rollback (ADR-0021)
 
+Phase 4 step 4.0: the media and demo ADRs — screenshots in a host volume served by Nginx, uploaded through the backend and re-encoded to WebP with Pillow, at most 6 per project, files removed after commit with a manual sweep command (ADR-0022); the demo as a link with a preview, no iframe and no backend request to the demo URL, demo_url as a column of projects (ADR-0023)
+
 
 
 Not yet started:
 
 
 
-demo, screenshots, file storage (MinIO/S3) and the public project page with its GitHub block — Phase 4
+demo, screenshots, file storage and the public project page with its GitHub block — Phase 4 steps 4.1–4.6
 
 the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
@@ -922,7 +922,7 @@ Current next goal:
 
 
 
-Phase 4 — Demo and Media: the demo URL and screenshots on a project, S3/MinIO with cleanup when a project is deleted (storage comes with Phase 4, decided 2026-11-17; public media from the same origin, ADR-0021), the public project page /u/{slug}/projects/{id} with its GitHub block, the demo-first UX. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 — Demo and Media, step by step: 4.1 demo_url on projects (ADR-0023); 4.2 screenshots — the media module with Pillow, project_screenshots, upload/caption/delete/reorder, cleanup, the media volume and /media/ in Nginx (ADR-0022); 4.3 the public project endpoint with its GitHub block; 4.4 the mockup; 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

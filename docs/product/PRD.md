@@ -108,6 +108,8 @@ If a project has a live demo, the demo is the first major element. Then the visi
 
 If embedding is blocked by CSP/X-Frame-Options, show a preview and an external "Open live demo" action.
 
+_Amended 2026-11-17 (ADR-0023): in V1 the demo is never embedded. The first major element is a preview (the first screenshot) with an "Открыть демо" button that opens the demo in a new tab; the backend never requests the demo URL._
+
 V1 does not execute arbitrary GitHub repositories.
 
 ## Interactive Project Workspace

@@ -15,14 +15,12 @@ flowchart LR
     Platform["Developer Professional Profile Platform"]
 
     GitHub["GitHub"]
-    Storage["S3-compatible Object Storage"]
 
     Developer --> Platform
     Recruiter --> Platform
     Reviewer --> Platform
 
     Platform --> GitHub
-    Platform --> Storage
 ```
 
 > **V1 note:** Recruiter / Employer and Technical Reviewer are anonymous readers of public profiles and project pages. They have no account and no V1-specific roles or flows. Recruiter accounts, candidate search and vacancies are V2.
@@ -38,7 +36,7 @@ flowchart LR
     Frontend["Next.js Web Application"]
     API["FastAPI Modular Monolith"]
     DB["PostgreSQL"]
-    Storage["MinIO / S3"]
+    Media["Media volume (screenshots)"]
     GitHub["GitHub API"]
     Worker["GitHub Sync Worker"]
 
@@ -48,7 +46,8 @@ flowchart LR
     Frontend -->|"SSR, internal network"| API
 
     API --> DB
-    API --> Storage
+    API -->|writes| Media
+    Nginx -->|"/media/*, read-only"| Media
     API --> GitHub
     Worker --> DB
     Worker --> GitHub
@@ -56,7 +55,7 @@ flowchart LR
 
 The Worker claims queued jobs from PostgreSQL via polling and `SELECT ... FOR UPDATE SKIP LOCKED` — it is not Kafka or an Outbox relay. See docs/release/v1/adr/0008-no-kafka-v1.md and docs/release/v1/adr/0009-sync-worker-skip-locked.md.
 
-Production runs on one host with Docker Compose and one origin (ADR-0021, [0021-single-origin-behind-nginx.md](../release/v1/adr/0021-single-origin-behind-nginx.md)): Nginx terminates TLS and is the only container with public ports (80, 443); PostgreSQL, the API, the frontend and the worker are reachable only on the internal network. Object storage stays internal; public media are served from the same origin (details in Phase 4).
+Production runs on one host with Docker Compose and one origin (ADR-0021, [0021-single-origin-behind-nginx.md](../release/v1/adr/0021-single-origin-behind-nginx.md)): Nginx terminates TLS and is the only container with public ports (80, 443); PostgreSQL, the API, the frontend and the worker are reachable only on the internal network. Screenshots live in a Docker volume on the host: the API writes them, Nginx serves them under `/media/` from the same origin; there is no S3 or MinIO in V1 (ADR-0022, [0022-media-on-host-volume.md](../release/v1/adr/0022-media-on-host-volume.md)).
 
 ## 4. Synchronous flow
 
