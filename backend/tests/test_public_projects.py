@@ -175,6 +175,7 @@ class TestWhitelist:
             "owner",
             "description",
             "contribution",
+            "demo_url",
             "PUBLISHED",
             "PUBLIC",
             "PRIVATE",

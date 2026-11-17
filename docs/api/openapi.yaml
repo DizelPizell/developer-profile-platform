@@ -841,6 +841,16 @@ components:
         results: {type: string, maxLength: 2000, nullable: true, description: Plain text; newlines allowed}
         role: {type: string, maxLength: 100, nullable: true}
         contribution: {type: string, maxLength: 2000, nullable: true, description: Plain text; newlines allowed}
+        demo_url:
+          type: string
+          maxLength: 2048
+          nullable: true
+          description: >-
+            Live demo link (ADR-0023). Trimmed; http or https only, scheme
+            returned in lower case, host with a dot, no login, whitespace,
+            backslash or control characters. Errors: invalid_url,
+            string_too_short (blank; send null to clear), string_too_long.
+            The server never requests this URL.
         technologies:
           type: array
           maxItems: 20
@@ -850,7 +860,7 @@ components:
           items: {$ref: "#/components/schemas/TechnologyName"}
     ProjectResponse:
       type: object
-      required: [id, status, visibility, title, summary, description, problem, results, role, contribution, technologies, featured_position, github]
+      required: [id, status, visibility, title, summary, description, problem, results, role, contribution, demo_url, technologies, featured_position, github]
       properties:
         id: {type: string, format: uuid}
         status: {$ref: "#/components/schemas/ProjectStatus"}
@@ -862,6 +872,7 @@ components:
         results: {type: string, nullable: true}
         role: {type: string, nullable: true}
         contribution: {type: string, nullable: true}
+        demo_url: {type: string, nullable: true}
         technologies: {type: array, items: {type: string}}
         featured_position: {type: integer, minimum: 1, maximum: 3, nullable: true}
         github:

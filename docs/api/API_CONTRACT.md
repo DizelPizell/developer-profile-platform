@@ -229,9 +229,12 @@ States (ADR-015): a new project is `DRAFT` + `PRIVATE`. Allowed pairs: `DRAFT`+`
   "results": "string (≤ 2000, plain text) | null",
   "role": "string (≤ 100) | null",
   "contribution": "string (≤ 2000, plain text) | null",
+  "demo_url": "string (≤ 2048, http/https URL) | null",
   "technologies": ["string (1–50)"]
 }
 ```
+
+`demo_url` is the live demo link (ADR-0023), checked by the rules of an `OTHER` contact: trimmed, `http` or `https` only (the scheme is stored in lower case), a host with a dot, no login, whitespace, backslash or control characters, ≤ 2048. Unlike the text fields, a blank value is an error, not a clear: send `null`. Errors: `invalid_url`, `string_too_short`, `string_too_long`. The server never requests this URL. It is not required for publication and is not part of the public project cards.
 
 `technologies` replaces the whole list in the given order (at most 20). It cannot be `null`; `[]` clears it. Names are trimmed and inner whitespace is collapsed; two names equal ignoring case give 422 `VALIDATION_ERROR`. A name that already exists ignoring case is linked to the existing technology and shown in its stored spelling.
 
@@ -249,6 +252,7 @@ States (ADR-015): a new project is `DRAFT` + `PRIVATE`. Allowed pairs: `DRAFT`+`
   "results": "string | null",
   "role": "string | null",
   "contribution": "string | null",
+  "demo_url": "string | null",
   "technologies": ["string"],
   "featured_position": "1 | 2 | 3 | null",
   "github": "ProjectGitHub | null"

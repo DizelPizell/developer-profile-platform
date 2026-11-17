@@ -44,6 +44,7 @@ def _project_response(db: Session, project: Project, now: datetime) -> ProjectRe
         results=project.results,
         role=project.role,
         contribution=project.contribution,
+        demo_url=project.demo_url,
         technologies=names,
         featured_position=position,
         github=github_service.project_github(db, project.id, now),

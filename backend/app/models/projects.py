@@ -40,6 +40,8 @@ PROJECT_TEXT_LIMITS: dict[str, int] = {
 # domain rule, it lives in another table.
 PROJECT_PUBLISH_REQUIRED: tuple[str, ...] = ("title", "summary", "role", "contribution")
 
+DEMO_URL_MAX_LENGTH = 2048  # the OTHER contact limit (ADR-0023)
+
 TECHNOLOGY_NAME_MAX_LENGTH = 50
 TECHNOLOGIES_PER_PROJECT = 20
 FEATURED_PROJECTS_PER_PROFILE = 3
@@ -66,6 +68,11 @@ class Project(Base):
             + ")",
             name="ck_projects_published_complete",
         ),
+        # Coarse backstop: the full URL rule lives in app/urls.py (ADR-0023).
+        CheckConstraint(
+            f"char_length(demo_url) <= {DEMO_URL_MAX_LENGTH} AND demo_url ~ '^https?://'",
+            name="ck_projects_demo_url",
+        ),
         # Target of the composite foreign key from project_repositories (ADR-017).
         UniqueConstraint("id", "owner_id", name="uq_projects_id_owner"),
     )
@@ -90,6 +97,7 @@ class Project(Base):
     results: Mapped[str | None] = mapped_column(Text, nullable=True)
     role: Mapped[str | None] = mapped_column(Text, nullable=True)
     contribution: Mapped[str | None] = mapped_column(Text, nullable=True)
+    demo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

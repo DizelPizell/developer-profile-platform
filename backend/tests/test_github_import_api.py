@@ -53,6 +53,7 @@ PROJECT_KEYS = {
     "results",
     "role",
     "contribution",
+    "demo_url",
     "technologies",
     "featured_position",
     "github",
@@ -108,6 +109,7 @@ def test_own_repository_is_imported_as_a_draft_private_project(env, db_session):
         "results": None,
         "role": None,
         "contribution": None,
+        "demo_url": None,
         "technologies": [],
         "featured_position": None,
     }

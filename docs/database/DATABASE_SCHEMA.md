@@ -162,6 +162,7 @@ CHECK `ck_profiles_published_complete`: публикация возможна т
 | `results` | TEXT | ≤ 2000; nullable |
 | `role` | TEXT | ≤ 100; nullable |
 | `contribution` | TEXT | ≤ 2000; nullable |
+| `demo_url` | TEXT | Nullable; ссылка на демо. CHECK `ck_projects_demo_url`: ≤ 2048 и начинается с `http://` или `https://`; полная проверка URL — в приложении (ADR-0023) |
 | `created_at` | TIMESTAMPTZ NOT NULL | |
 | `updated_at` | TIMESTAMPTZ NOT NULL | |
 
@@ -304,6 +305,7 @@ UNIQUE `(github_repository_id, category)`. `last_error` и `last_error_at` ус�
 | Одна активная джоба через partial unique index | [ADR-0009](../release/v1/adr/0009-sync-worker-skip-locked.md) |
 | `unavailable_since` — факт репозитория, не статус джобы | [ADR-0018](../release/v1/adr/0018-github-sync-v1.md) |
 | Контакты в отдельной таблице; один стандартный тип через partial unique index; email/phone отдаются по клику | [ADR-0020](../release/v1/adr/0020-contacts-separate-table.md) |
+| Демо — столбец `projects.demo_url`, не таблица `project_demos`; CHECK в базе только грубый | [ADR-0023](../release/v1/adr/0023-demo-link-without-iframe.md) |
 
 ## Статус миграций
 
@@ -314,6 +316,7 @@ UNIQUE `(github_repository_id, category)`. `last_error` и `last_error_at` ус�
 | `0003_github` | `github_accounts`, `github_repositories`, `project_repositories` | нет |
 | `0004_sync` | `github_sync_jobs`, `github_sync_category_status` | нет |
 | `b7e2d4c81a3f_profile_contacts` | `profile_contacts` | нет |
+| `c4d8a2f6e913_project_demo_url` | `projects.demo_url`, `ck_projects_demo_url` | нет |
 
 ## Аналитика
 

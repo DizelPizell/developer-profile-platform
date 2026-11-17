@@ -6,12 +6,11 @@ cannot point to another host.
 """
 
 import re
-from urllib.parse import urlsplit
 
 from pydantic_core import PydanticCustomError
 
 from app.models.identity import CONTACT_VALUE_LIMITS
-from app.plain_text import has_control_characters
+from app.urls import http_url
 
 # ADR-020, "Validation". ASCII only: no ?, &, % or spaces, so a mailto: link
 # needs no escaping and cannot carry parameters.
@@ -74,28 +73,12 @@ def _phone(value: str) -> str:
     return value
 
 
-def _other(value: str) -> str:
-    if has_control_characters(value, set()) or any(ch.isspace() or ch == "\\" for ch in value):
-        raise _invalid("url")
-    try:
-        parts = urlsplit(value)
-        parts.port  # noqa: B018 - raises ValueError for a malformed port
-    except ValueError:
-        raise _invalid("url") from None
-    scheme = parts.scheme.lower()
-    if scheme not in ("http", "https") or "@" in parts.netloc:
-        raise _invalid("url")
-    if not parts.hostname or "." not in parts.hostname:
-        raise _invalid("url")
-    return scheme + value[len(parts.scheme) :]
-
-
 _NORMALIZERS = {
     "EMAIL": _email,
     "TELEGRAM": _telegram,
     "LINKEDIN": _linkedin,
     "PHONE": _phone,
-    "OTHER": _other,
+    "OTHER": http_url,
 }
 
 
