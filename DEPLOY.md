@@ -1,6 +1,6 @@
 # Деплой
 
-Продакшн — один хост с Docker Compose, один origin за Nginx ([ADR-0021](docs/release/v1/adr/0021-single-origin-behind-nginx.md)). Шаг 9.3 дополнит этот файл: секреты, env по сервисам, сервер и обновление.
+Продакшн — один хост с Docker Compose, один origin за Nginx ([ADR-0021](docs/release/v1/adr/0021-single-origin-behind-nginx.md)). Бэкапы — шаг 9.5, мониторинг — 9.6, CI/CD — 9.4.
 
 ## Состав
 
@@ -9,39 +9,96 @@
 | Сервис | Что делает |
 |---|---|
 | `nginx` | Единственный с портами наружу (80, 443). TLS, `/api/v1/*` → `backend:8000`, остальное → `frontend:3000`, 80 → редирект на https, кроме ACME challenge |
-| `frontend` | Next.js (`node server.js` из standalone-сборки). Собирается под один адрес: `NEXT_PUBLIC_API_URL=https://SERVER_NAME` |
+| `frontend` | Next.js (`node server.js` из standalone-сборки). Собирается под один адрес: `NEXT_PUBLIC_API_URL=https://SERVER_NAME`. Секретов не получает |
+| `backend` | Без портов наружу. Доверяет `X-Forwarded-For` и `X-Forwarded-Proto` только от адреса Nginx (`FORWARDED_ALLOW_IPS=NGINX_IP`). Один процесс uvicorn: бюджет запросов к GitHub и кеш списка репозиториев живут в памяти процесса |
+| `migrate` | Применяет миграции при каждом `up` и завершается; бэкенд и воркер ждут его |
+| `github-worker` | Синхронизация GitHub, один процесс |
+| `postgres` | Без портов наружу: `docker compose exec postgres psql -U <POSTGRES_USER> <POSTGRES_DB>` |
 | `certbot` | Продлевает сертификат дважды в сутки; Nginx перечитывает его раз в 6 часов |
-| `backend` | Доверяет `X-Forwarded-For` и `X-Forwarded-Proto` только от адреса Nginx (`FORWARDED_ALLOW_IPS=NGINX_IP`) |
 
-Команда:
+У всех сервисов логи `json-file` с ротацией: 5 файлов по 10 МБ. Опубликованные Docker порты обходят ufw, поэтому наружу их нет ни у кого, кроме Nginx; CI это проверяет (`check_compose.py --production`).
+
+## Сервер
+
+- Linux с Docker Engine и плагином Compose v2.24 или новее (`!reset` в `docker-compose.prod.yml`).
+- Firewall: открыты только 22, 80, 443.
+- DNS: A-запись `SERVER_NAME` указывает на сервер.
+- Пользователь деплоя в группе `docker`. Доступ к Docker равен root: давать его только тем, кому можно видеть секреты.
+- GitHub OAuth App для продакшна: Homepage `https://SERVER_NAME`, callback `https://SERVER_NAME/api/v1/auth/github/callback`.
+
+## Секреты и `.env`
+
+Все настройки — в `.env` в корне репозитория на сервере. Файл не в git, права `600`, владелец — пользователь деплоя:
 
 ```sh
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+cp .env.example .env
+chmod 600 .env
 ```
 
-## Переменные `.env`
+Его читают `backend`, `migrate` и `github-worker` (`env_file`); `postgres` получает только `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`; `frontend`, `nginx` и `certbot` секретов не получают. Секретов нет в образах.
 
-- `SERVER_NAME` — имя сайта (`example.com`). Обязательна для продакшн-файла.
-- `FRONTEND_URL=https://SERVER_NAME`, `GITHUB_CALLBACK_URL=https://SERVER_NAME/api/v1/auth/github/callback` — тот же callback в GitHub OAuth App продакшна.
-- `APP_ENV=production` — cookie получают `Secure`.
-- `INTERNAL_SUBNET`, `NGINX_IP` — внутренняя сеть и фиксированный адрес Nginx в ней (по умолчанию `172.30.10.0/24` и `172.30.10.10`). Менять вместе, если подсеть занята на хосте.
+Что поменять относительно примера:
+
+| Переменная | Значение |
+|---|---|
+| `COMPOSE_FILE` | `docker-compose.yml:docker-compose.prod.yml` — обычные `docker compose up`, `logs`, `exec` используют оба файла |
+| `APP_ENV` | `production` — cookie получают `Secure` |
+| `SERVER_NAME` | имя сайта, например `example.com` |
+| `FRONTEND_URL` | `https://SERVER_NAME` |
+| `GITHUB_CALLBACK_URL` | `https://SERVER_NAME/api/v1/auth/github/callback` |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | из OAuth App продакшна (не из dev-приложения) |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 32`; тот же пароль — в `DATABASE_URL` |
+| `INTERNAL_SUBNET`, `NGINX_IP` | оставить, если подсеть `172.30.10.0/24` не занята на хосте; менять вместе |
+
+При `APP_ENV=production` бэкенд, `migrate` и воркер не стартуют, если `FRONTEND_URL` не https или `GITHUB_CALLBACK_URL` не на том же origin с путём `/api/v1/auth/github/callback`: ошибка в домене видна сразу, а не при входе.
+
+`.env` — единственное место секретов: его копия хранится отдельно от сервера и репозитория (вместе с бэкапами, шаг 9.5).
+
+### Ротация
+
+- `GITHUB_CLIENT_SECRET`: создать новый секрет в OAuth App, заменить в `.env`, `docker compose up -d` (пересоздаст `backend`, `migrate`, `github-worker`), удалить старый секрет в GitHub.
+- `POSTGRES_PASSWORD`: переменная задаёт пароль только при первой инициализации тома, поэтому сначала меняется пароль в базе, потом `.env`:
+
+  ```sh
+  docker compose exec postgres psql -U <POSTGRES_USER> -d <POSTGRES_DB> -c "ALTER USER <POSTGRES_USER> PASSWORD '<новый>'"
+  ```
+
+  Затем новый пароль — в `POSTGRES_PASSWORD` и `DATABASE_URL`, и `docker compose up -d`.
+- Сессии пользователей (`auth_sessions`) от секретов не зависят и при ротации не сбрасываются.
+
+## Первый запуск
+
+1. Клонировать репозиторий, заполнить `.env` (раздел выше).
+2. `docker compose up -d --build`. Проверить: `docker compose ps` — `migrate` завершился с кодом 0, остальные `Up`; порты только у `nginx`.
+3. Выпустить сертификат (раздел ниже).
+4. Пройти «Проверку после запуска».
 
 ## Первый сертификат
 
-До выпуска Nginx стартует с самоподписанным сертификатом (на 30 дней), иначе он не поднимется на 443. DNS-запись `SERVER_NAME` уже должна указывать на хост, порт 80 — быть открыт.
+До выпуска Nginx стартует с самоподписанным сертификатом (на 30 дней), иначе он не поднимется на 443. DNS уже должен указывать на хост, порт 80 — быть открыт.
 
-1. Поднять стек командой выше.
-2. Выпустить сертификат (сначала с `--staging`, чтобы не упереться в лимиты Let's Encrypt; потом без него):
+1. Выпустить сертификат (сначала с `--staging`, чтобы не упереться в лимиты Let's Encrypt; потом без него):
 
    ```sh
-   docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --entrypoint certbot certbot \
+   docker compose run --rm --entrypoint certbot certbot \
      certonly --webroot -w /var/www/certbot -d example.com --email admin@example.com --agree-tos --no-eff-email --staging
    ```
 
-   После staging-прогона перед боевым выпуском удалить пробный: `... run --rm --entrypoint certbot certbot delete --cert-name example.com`.
-3. Переключить Nginx на выпущенный сертификат: `docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx` (в логе — `using the Let's Encrypt certificate`).
+   После staging-прогона перед боевым выпуском удалить пробный: `docker compose run --rm --entrypoint certbot certbot delete --cert-name example.com`.
+2. Переключить Nginx на выпущенный сертификат: `docker compose restart nginx` (в логе — `using the Let's Encrypt certificate`).
 
 Дальше сервис `certbot` продлевает сам.
+
+## Обновление
+
+```sh
+git pull
+docker compose up -d --build
+```
+
+`migrate` применяет новые миграции до старта бэкенда и воркера. Миграции не откатываются автоматически: перед обновлением, в котором есть миграция, нужен свежий бэкап базы (9.5).
+
+Откат кода без миграций: `git checkout <предыдущий коммит>` и `docker compose up -d --build`. С миграцией — восстановление из бэкапа.
 
 ## Проверка после запуска
 
@@ -50,6 +107,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 - `curl -s -o /dev/null -H "X-Forwarded-For: 1.2.3.4" https://SERVER_NAME/api/v1/health`, затем `docker compose logs backend | tail` — в строке реальный адрес клиента, не `1.2.3.4`.
 - `curl -I -H "Host: other.example" http://SERVER_NAME/` — соединение закрыто без ответа.
 - `POST /api/v1/auth/logout` с `Origin: https://evil.example` → `403 CSRF_ORIGIN_INVALID`.
-- `docker compose ps` — порты наружу только у `nginx`. До шага 9.3 `backend` и `postgres` ещё опубликованы на `127.0.0.1`.
+- `docker compose ps` — порты наружу только у `nginx`; снаружи `nc -z SERVER_NAME 5432` и `8000` не соединяются.
+- Вход через GitHub и публикация профиля проходят в браузере.
 
 Локально те же проверки проходят с `SERVER_NAME=localhost` и самоподписанным сертификатом (`curl -k`); вход через GitHub — только с отдельным OAuth App, у которого callback `https://localhost/api/v1/auth/github/callback`.

@@ -41,6 +41,9 @@ jobs:
       - name: Validate with the production file
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
 
+      - name: Check the production services
+        run: python3 .github/scripts/check_compose.py --production
+
       - name: Check the Nginx configuration
         run: |
           docker build -t nginx-check nginx

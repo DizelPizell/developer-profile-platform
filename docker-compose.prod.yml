@@ -1,13 +1,35 @@
-# Production additions to docker-compose.yml (ADR-0021, step 9.2): Nginx in front
-# of the frontend and the backend on one origin, certificates from Let's Encrypt.
+# Production additions to docker-compose.yml (ADR-0021, steps 9.2 and 9.3): Nginx
+# in front of the frontend and the backend on one origin, certificates from
+# Let's Encrypt, no published ports but Nginx's, rotated logs. On the server
+# COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml in .env makes a plain
+# `docker compose up -d --build` use both files (DEPLOY.md).
 #
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-#
-# The first certificate and the local check: DEPLOY.md. Step 9.3 completes this
-# file: secrets, an env file per service, no published ports but Nginx's.
+# Secrets stay in .env (mode 600, not in git), read by backend, migrate and
+# github-worker only; postgres gets its three values, the rest gets none.
+
+# Without rotation json-file logs grow until the disk is full.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
 
 services:
+  # Reached only from the internal network: `docker compose exec postgres psql`.
+  postgres:
+    ports: !reset []
+    logging: *logging
+
+  migrate:
+    logging: *logging
+
+  github-worker:
+    logging: *logging
+
   backend:
+    # Only through Nginx (ADR-0021).
+    ports: !reset []
+    logging: *logging
     environment:
       # Only Nginx may set X-Forwarded-For and X-Forwarded-Proto: uvicorn reads
       # this variable and ignores the headers from any other address.
@@ -22,12 +44,14 @@ services:
         NEXT_PUBLIC_API_URL: https://${SERVER_NAME:?set SERVER_NAME in .env (docker-compose.prod.yml)}
         API_INTERNAL_URL: http://backend:8000
     container_name: developer-platform-frontend
+    logging: *logging
     restart: unless-stopped
 
   nginx:
     build:
       context: ./nginx
     container_name: developer-platform-nginx
+    logging: *logging
     restart: unless-stopped
     environment:
       SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME in .env (docker-compose.prod.yml)}
@@ -49,6 +73,7 @@ services:
   certbot:
     image: certbot/certbot:v5.1.0
     container_name: developer-platform-certbot
+    logging: *logging
     restart: unless-stopped
     entrypoint:
       - /bin/sh
