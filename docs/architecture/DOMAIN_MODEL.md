@@ -18,7 +18,7 @@ Public repository listing, linking, import, synchronization, normalized technica
 Event collection, profile metrics, project metrics and funnel metrics. V1.1, right after the V1 launch.
 
 ### Files
-Object storage, uploads and access policy.
+Screenshot uploads: validation, re-encoding to WebP, files in the media volume, cleanup when a project or a screenshot is deleted (docs/release/v1/adr/0022-media-on-host-volume.md).
 
 ## Main workflow
 

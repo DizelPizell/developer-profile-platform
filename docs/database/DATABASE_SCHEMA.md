@@ -19,8 +19,7 @@ projects
 technologies
 project_technologies
 featured_projects
-project_screenshots       (Phase 4)
-project_demos             (Phase 4)
+project_screenshots       (Phase 4, шаг 4.2 — ADR-0022)
 
 -- GitHub
 github_accounts
@@ -36,6 +35,7 @@ analytics_events          (V1.1)
 ```
 
 Нет отдельной сущности `PROJECT_CONTRIBUTION`: поля `role` и `contribution` — обычные текстовые поля `projects` (ADR-0004).
+Нет отдельной таблицы `project_demos`: демо — столбец `projects.demo_url` (Phase 4, шаг 4.1 — [ADR-0023](../release/v1/adr/0023-demo-link-without-iframe.md)). Файлы скриншотов лежат в томе `media`, в базе — только `storage_key` ([ADR-0022](../release/v1/adr/0022-media-on-host-volume.md)).
 Нет `EXPERIENCE`, `EDUCATION`, `SKILL` — перенесено после V1.
 
 V1 хранит только метаданные и языки репозиториев (ADR-0018). README, дерево файлов, контрибьюторы и коммиты отложены — не отклонены; когда вернутся, добавятся столбцы и таблицы без изменения архитектуры воркера.
@@ -54,8 +54,7 @@ projects 1:0/1 featured_projects
 
 projects 1:N project_technologies
 technologies 1:N project_technologies
-projects 1:N project_screenshots      (Phase 4)
-projects 0:1 project_demos            (Phase 4)
+projects 1:N project_screenshots      (Phase 4, 0..6)
 projects 0:1 project_repositories
 
 github_repositories 1:N project_repositories  (разделяется между пользователями; ADR-0017)
