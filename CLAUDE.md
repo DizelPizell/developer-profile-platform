@@ -904,13 +904,15 @@ deployment Phase 9 step 9.3: the production Compose — no published ports but N
 
 Phase 4 step 4.0: the media and demo ADRs — screenshots in a host volume served by Nginx, uploaded through the backend and re-encoded to WebP with Pillow, at most 6 per project, files removed after commit with a manual sweep command (ADR-0022); the demo as a link with a preview, no iframe and no backend request to the demo URL, demo_url as a column of projects (ADR-0023)
 
+Phase 4 step 4.1: demo_url on projects — a nullable column with a coarse CHECK, set and cleared through POST and PATCH /projects, returned in ProjectResponse only (not on public cards); the URL rule shared with OTHER contacts in app/urls.py (ADR-0023)
+
 
 
 Not yet started:
 
 
 
-demo, screenshots, file storage and the public project page with its GitHub block — Phase 4 steps 4.1–4.6
+demo, screenshots, file storage and the public project page with its GitHub block — Phase 4 steps 4.2–4.6
 
 the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
@@ -922,7 +924,7 @@ Current next goal:
 
 
 
-Phase 4 — Demo and Media, step by step: 4.1 demo_url on projects (ADR-0023); 4.2 screenshots — the media module with Pillow, project_screenshots, upload/caption/delete/reorder, cleanup, the media volume and /media/ in Nginx (ADR-0022); 4.3 the public project endpoint with its GitHub block; 4.4 the mockup; 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 — Demo and Media, step by step (4.1 is done): 4.2 screenshots — the media module with Pillow, project_screenshots, upload/caption/delete/reorder, cleanup, the media volume and /media/ in Nginx (ADR-0022); 4.3 the public project endpoint with its GitHub block; 4.4 the mockup; 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

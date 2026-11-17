@@ -501,3 +501,24 @@ def test_deleting_used_technology_is_restricted(db_session):
     with pytest.raises(IntegrityError) as exc:
         db_session.execute(text("DELETE FROM technologies WHERE id = :id"), {"id": technology.id})
     assert exc.value.orig.diag.constraint_name == "project_technologies_technology_id_fkey"
+
+
+# ---------------------------------------------------------------------------
+# projects: demo link (ADR-0023)
+# ---------------------------------------------------------------------------
+
+
+def test_demo_url_at_limit_accepted(db_session):
+    owner, _ = _owner(db_session)
+    base = "https://demo.example.com/"
+    _project(db_session, owner, demo_url=base + "a" * (2048 - len(base)))
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["https://demo.example.com/" + "a" * 2048, "javascript:alert(1)", "", "ftp://x.example"],
+)
+def test_demo_url_backstop_rejects(db_session, value):
+    owner, _ = _owner(db_session)
+    db_session.add(Project(owner_id=owner.id, demo_url=value))
+    _flush_violates(db_session, "ck_projects_demo_url")

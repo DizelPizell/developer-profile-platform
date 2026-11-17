@@ -30,6 +30,7 @@ PROJECT_KEYS = {
     "results",
     "role",
     "contribution",
+    "demo_url",
     "technologies",
     "featured_position",
     "github",
@@ -414,6 +415,71 @@ class TestUpdate:
             _url(project), json={"title": None, "summary": None, "technologies": []}
         ).json()
         assert body["title"] is None and body["technologies"] == []
+
+
+# ---------------------------------------------------------------------------
+# Demo link (ADR-0023)
+# ---------------------------------------------------------------------------
+
+
+class TestDemoUrl:
+    def test_set_keep_and_clear(self, client):
+        project = _create(client, demo_url="  https://demo.example.com/app?x=1  ")
+        assert project["demo_url"] == "https://demo.example.com/app?x=1"
+
+        kept = client.patch(_url(project), json={"title": "T"}).json()
+        assert kept["demo_url"] == "https://demo.example.com/app?x=1"
+        assert client.get(_url(project)).json()["demo_url"] == kept["demo_url"]
+
+        cleared = client.patch(_url(project), json={"demo_url": None}).json()
+        assert cleared["demo_url"] is None
+
+    def test_scheme_is_lowercased_and_rest_kept(self, client):
+        project = _create(client)
+        body = client.patch(_url(project), json={"demo_url": "HTTP://Demo.Example.com/A"}).json()
+        assert body["demo_url"] == "http://Demo.Example.com/A"
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "javascript:alert(1)",
+            "data:text/html,<b>x</b>",
+            "ftp://demo.example.com",
+            "demo.example.com",
+            "https://localhost",
+            "https://user:pass@demo.example.com",
+            "https://demo.example.com/a b",
+            "https://demo.example.com\\@evil.example",
+            "https://demo.example.com/\x00",
+            "https://demo.example.com:99999",
+        ],
+    )
+    def test_invalid_url_rejected(self, client, bad):
+        project = _create(client)
+        errors = _field_errors(client.patch(_url(project), json={"demo_url": bad}))
+        assert errors == [{"loc": ["body", "demo_url"], "type": "invalid_url"}]
+
+    def test_blank_rejected_not_cleared(self, client):
+        project = _create(client, demo_url="https://demo.example.com")
+        errors = _field_errors(client.patch(_url(project), json={"demo_url": "   "}))
+        assert errors == [{"loc": ["body", "demo_url"], "type": "string_too_short"}]
+
+    def test_length_limit(self, client):
+        project = _create(client)
+        base = "https://demo.example.com/"
+        at_limit = base + "a" * (2048 - len(base))
+        assert client.patch(_url(project), json={"demo_url": at_limit}).status_code == 200
+        errors = _field_errors(client.patch(_url(project), json={"demo_url": at_limit + "a"}))
+        assert errors == [{"loc": ["body", "demo_url"], "type": "string_too_long"}]
+
+    def test_not_required_for_publication(self, client):
+        assert _published(client)["demo_url"] is None
+
+    def test_other_user_cannot_set_it(self, client, other_client):
+        project = _create(client)
+        resp = other_client.patch(_url(project), json={"demo_url": "https://evil.example.com"})
+        assert resp.status_code == 404
+        assert client.get(_url(project)).json()["demo_url"] is None
 
 
 # ---------------------------------------------------------------------------
