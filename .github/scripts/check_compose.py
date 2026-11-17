@@ -1,8 +1,10 @@
-"""Checks the github-worker service in the resolved Compose file (ADR-018, step 6.6).
+"""Checks the github-worker service in the resolved Compose file (ADR-018, step 6.6),
+and with --production the file merged with docker-compose.prod.yml (ADR-0021, 9.3).
 
 Run from the repository root, with a .env beside docker-compose.yml:
 
     python .github/scripts/check_compose.py
+    python .github/scripts/check_compose.py --production
 
 It prints only the checks: the output of `docker compose config` holds the values
 of .env, so neither that output nor its errors are shown. Standard library only.
@@ -34,9 +36,15 @@ def duration_seconds(value: object) -> float | None:
     return sum(float(amount) * UNIT_SECONDS[unit] for amount, unit in parts)
 
 
-def resolved_config() -> dict | None:
+PRODUCTION_FILES = ("-f", "docker-compose.yml", "-f", "docker-compose.prod.yml")
+# The only service reachable from outside, and the ones that must get no secrets.
+PUBLIC_SERVICE = "nginx"
+NO_ENV_FILE = ("frontend", "nginx", "certbot")
+
+
+def resolved_config(files: tuple[str, ...] = ()) -> dict | None:
     result = subprocess.run(
-        ["docker", "compose", "config", "--format", "json"],
+        ["docker", "compose", *files, "config", "--format", "json"],
         capture_output=True,
         encoding="utf-8",
         check=False,
@@ -82,15 +90,37 @@ def checks(config: dict) -> list[tuple[str, str, bool]]:
     ]
 
 
+def production_checks(config: dict) -> list[tuple[str, str, bool]]:
+    services = config["services"]
+    published = sorted(name for name, service in services.items() if service.get("ports"))
+    return [
+        ("p1", f"only {PUBLIC_SERVICE} publishes ports", published == [PUBLIC_SERVICE]),
+        (
+            "p2",
+            f"{', '.join(NO_ENV_FILE)} have no env_file",
+            all(name in services and not services[name].get("env_file") for name in NO_ENV_FILE),
+        ),
+        (
+            "p3",
+            "every service rotates its logs (max-size)",
+            all(
+                ((service.get("logging") or {}).get("options") or {}).get("max-size")
+                for service in services.values()
+            ),
+        ),
+    ]
+
+
 def main() -> int:
-    config = resolved_config()
+    production = "--production" in sys.argv[1:]
+    config = resolved_config(PRODUCTION_FILES if production else ())
     if config is None:
         print("FAIL docker compose config failed; run `docker compose config -q` to see why")
         return 1
     if WORKER not in config["services"]:
         print(f"FAIL there is no {WORKER} service")
         return 1
-    results = checks(config)
+    results = checks(config) + (production_checks(config) if production else [])
     for label, expected, holds in results:
         print(f"{'ok  ' if holds else 'FAIL'} ({label}) {expected}")
     return 0 if all(holds for _, _, holds in results) else 1

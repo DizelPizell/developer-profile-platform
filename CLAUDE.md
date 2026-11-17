@@ -902,13 +902,13 @@ deployment Phase 9 step 9.1: the production topology ADR — one origin behind N
 
 deployment Phase 9 step 9.2: the frontend image (Next.js standalone, built for one address), the nginx image (one origin, 80 → https except the ACME challenge, HSTS, X-Forwarded-For replaced, other hosts dropped, a self-signed certificate until Let's Encrypt issues one, reload every 6 hours), the certbot service, docker-compose.prod.yml with a fixed Nginx address that uvicorn trusts through FORWARDED_ALLOW_IPS, DEPLOY.md and CI checks of both images (ADR-0021)
 
+deployment Phase 9 step 9.3: the production Compose — no published ports but Nginx's, rotated json-file logs on every service, COMPOSE_FILE in the server .env, secrets in .env (mode 600, not Compose secrets; env_file only on backend, migrate and github-worker), Settings with APP_ENV=production requiring an https FRONTEND_URL and GITHUB_CALLBACK_URL on the same origin, check_compose.py --production in CI, DEPLOY.md with the server, secret rotation, updates and rollback (ADR-0021)
+
 
 
 Not yet started:
 
 
-
-the deployment skeleton — Phase 9 step 9.3, before Phase 4 (9.1 and 9.2 are done)
 
 demo, screenshots, file storage (MinIO/S3) and the public project page with its GitHub block — Phase 4
 
@@ -922,7 +922,7 @@ Current next goal:
 
 
 
-The deployment skeleton — Phase 9 step 9.3 (the production Compose: secrets, an env file per service, no published ports but Nginx; storage comes with Phase 4, decided 2026-11-17), completing docker-compose.prod.yml and DEPLOY.md from 9.2 (ADR-0021). Then Phase 4 — Demo and Media (demo, screenshots and the public project page /u/{slug}/projects/{id}); the full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 — Demo and Media: the demo URL and screenshots on a project, S3/MinIO with cleanup when a project is deleted (storage comes with Phase 4, decided 2026-11-17; public media from the same origin, ADR-0021), the public project page /u/{slug}/projects/{id} with its GitHub block, the demo-first UX. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

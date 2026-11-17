@@ -112,7 +112,7 @@ V1 — первый рабочий релиз платформы. Разрабо
 
 - [x] 9.1: ADR о топологии продакшна — один origin: `/api/v1/*` → FastAPI, остальное → Next.js; наружу только Nginx на 80/443 ([0021](../adr/0021-single-origin-behind-nginx.md))
 - [x] 9.2: образы Docker, Nginx, HTTPS — `frontend/Dockerfile` (standalone), `nginx/` (конфиг, самоподписанный сертификат до выпуска, reload раз в 6 часов), сервис `certbot`, `docker-compose.prod.yml`, `FORWARDED_ALLOW_IPS` с фиксированным адресом Nginx; порядок выпуска — `DEPLOY.md` ([0021](../adr/0021-single-origin-behind-nginx.md))
-- [ ] 9.3: продакшн Compose и секреты: env по сервисам, порты наружу только у Nginx (без хранилища — оно с фазой 4)
+- [x] 9.3: продакшн Compose и секреты — порты наружу только у Nginx, ротация логов, `COMPOSE_FILE` в `.env`, секреты в `.env` (600) без отдельных файлов по сервисам, проверка `Settings` в production (https и один origin у `FRONTEND_URL` и `GITHUB_CALLBACK_URL`), `check_compose.py --production`; сервер, ротация секретов, обновление — `DEPLOY.md` ([0021](../adr/0021-single-origin-behind-nginx.md))
 
 ## Перед запуском
 
