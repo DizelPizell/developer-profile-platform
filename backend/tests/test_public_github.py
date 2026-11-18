@@ -663,3 +663,28 @@ class TestQueryCount:
 
         # Profile, contacts, projects, technologies, GitHub data.
         assert one == thirty_linked == thirty_mixed == 5
+
+
+class TestProjectPage:
+    """The public project page (step 4.3) gets the same object as the card."""
+
+    def _page_github(self, visitor, http, project_id: str) -> dict | None:
+        resp = visitor.get(f"{PUBLIC}/{_slug(http)}/projects/{project_id}")
+        assert resp.status_code == 200, resp.text
+        return resp.json()["github"]
+
+    def test_same_object_as_the_card(self, env, visitor, db_session):
+        project_id = _linked(env, db_session)
+        github = self._page_github(visitor, env.http, project_id)
+        assert set(github) == PUBLIC_GITHUB_KEYS
+        assert github == _card_github(visitor, env.http, project_id)
+
+    def test_null_without_a_sync(self, env, visitor, db_session):
+        project_id = _linked(env, db_session, synced=False)
+        assert self._page_github(visitor, env.http, project_id) is None
+
+    def test_no_github_call(self, env, visitor, db_session):
+        project_id = _linked(env, db_session)
+        requests = len(env.github.requests)
+        assert self._page_github(visitor, env.http, project_id) is not None
+        assert len(env.github.requests) == requests

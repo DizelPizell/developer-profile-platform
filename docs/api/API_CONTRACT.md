@@ -18,7 +18,7 @@ GET  /auth/me
 | `POST /auth/logout` | 204, deletes the session and clears the cookie | 403 `CSRF_ORIGIN_INVALID`; 500 `INTERNAL_ERROR` |
 | `GET /auth/me` | 200 `MeResponse` | 401 `UNAUTHORIZED`; 500 `INTERNAL_ERROR` |
 
-The session is an HttpOnly cookie set by the callback (ADR-012). Its name comes from `SESSION_COOKIE_NAME`: `developer_session` in `.env.example`, `session` when the variable is unset. OpenAPI declares it as the `cookieAuth` security scheme. Login, callback, logout, `GET /public/profiles/{slug}` and `GET /public/profiles/{slug}/contacts` need no session (logout clears one if present); every other implemented endpoint requires it and answers 401 `UNAUTHORIZED` without it.
+The session is an HttpOnly cookie set by the callback (ADR-012). Its name comes from `SESSION_COOKIE_NAME`: `developer_session` in `.env.example`, `session` when the variable is unset. OpenAPI declares it as the `cookieAuth` security scheme. Login, callback, logout, `GET /public/profiles/{slug}`, `GET /public/profiles/{slug}/projects/{id}` and `GET /public/profiles/{slug}/contacts` need no session (logout clears one if present); every other implemented endpoint requires it and answers 401 `UNAUTHORIZED` without it.
 
 The callback deletes the `oauth_state` cookie on every response, including errors.
 
@@ -113,11 +113,13 @@ A blank `value` gives `string_too_short`; a `label` on a standard type gives `la
 ```http
 GET /public/profiles/{slug}
 GET /public/profiles/{slug}/contacts?type=EMAIL|PHONE
+GET /public/profiles/{slug}/projects/{id}
 ```
 
 | Endpoint | Success | Errors |
 |---|---|---|
 | `GET /public/profiles/{slug}` | 200 `PublicProfileResponse` | 404 `NOT_FOUND`; 500 `INTERNAL_ERROR` |
+| `GET /public/profiles/{slug}/projects/{id}` | 200 `PublicProjectPage` | 404 `NOT_FOUND`; 500 `INTERNAL_ERROR` |
 | `GET /public/profiles/{slug}/contacts` | 200 `{type, value, url}`, `Cache-Control: no-store` | 404 `NOT_FOUND`; 422 `VALIDATION_ERROR` (`type` missing or not `EMAIL`/`PHONE`, `loc` `["query", "type"]`); 500 `INTERNAL_ERROR` |
 
 No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A private profile, a missing profile and a malformed slug return the same 404 body as an unknown URL (only `request_id` differs). The contacts endpoint returns that same 404 when the profile has no contact of the requested type. It has no rate limit until step 8.3 (ADR-020).
@@ -181,7 +183,33 @@ No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A pr
 
 `github` is `null` when the project has no linked repository, the repository has not been synced successfully yet, the repository is unavailable (two 404s in a row), or the developer is no longer its owner or a contributor (ADR-017, ADR-018). `languages` is ordered by bytes, descending, and may be empty. Date-times are ISO 8601 in UTC (`2026-10-30T12:00:00Z`). Never returned: internal or GitHub ids, ETags, sync states or errors, the file tree, README.
 
-`featured` and `other` contain only projects that are `PUBLISHED` + `PUBLIC` (ADR-015). `featured` is ordered by `position` (1..3); `other` holds the remaining public projects, newest first. Both are empty arrays when there are none. A project carries only the fields shown; never `status`, `visibility`, `description`, `contribution` or timestamps. `technologies` are names in the developer's order. The public project page (`/u/{slug}/projects/{id}` on the frontend) and its endpoint come in Phase 4.
+`featured` and `other` contain only projects that are `PUBLISHED` + `PUBLIC` (ADR-015). `featured` is ordered by `position` (1..3); `other` holds the remaining public projects, newest first. Both are empty arrays when there are none. A project carries only the fields shown; never `status`, `visibility`, `description`, `contribution` or timestamps. `technologies` are names in the developer's order. The project page below returns the rest of the project.
+
+### Public project page
+
+`GET /public/profiles/{slug}/projects/{id}` (step 4.3) — the page `/u/{slug}/projects/{id}` on the frontend. No session, no `Cache-Control`, no GitHub call. The same 404 `NOT_FOUND` as an unknown URL when the profile is not published or missing, the project belongs to another user, the project is not `PUBLISHED` + `PUBLIC` (a draft, an archived or a hidden one), or `id` is not a canonical UUID. Five queries for any number of screenshots and technologies.
+
+`PublicProjectPage` (whitelist — never `status`, `visibility`, `featured_position`, the owner's id, storage keys, screenshot ids or timestamps):
+
+```json
+{
+  "id": "uuid",
+  "title": "string",
+  "summary": "string",
+  "description": "string | null",
+  "problem": "string | null",
+  "results": "string | null",
+  "role": "string",
+  "contribution": "string",
+  "technologies": ["string"],
+  "demo_url": "string | null",
+  "screenshots": [{"url": "/media/projects/{project_id}/{uuid}.webp", "caption": "string | null", "width": 1280, "height": 800}],
+  "github": "PublicGitHub | null",
+  "owner": {"slug": "string", "display_name": "string", "avatar_url": "string | null"}
+}
+```
+
+`screenshots` are in the developer's order, at most 6. `github` is the same object with the same null rules as on the cards (ADR-019). `owner` is for the link back to the profile.
 
 ## Projects
 

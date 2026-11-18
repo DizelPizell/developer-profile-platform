@@ -196,6 +196,23 @@ def public_projects(db: Session, owner_id: uuid.UUID) -> list[Row]:
     )
 
 
+def get_public_project(db: Session, owner_id: uuid.UUID, project_id: str) -> Project | None:
+    """The owner's project if it is PUBLISHED + PUBLIC, else None: a malformed id,
+    another owner's project and a draft, archived or hidden one look the same.
+    The caller checks that the profile is published."""
+    parsed_id = parse_canonical_uuid(project_id)
+    if parsed_id is None:
+        return None
+    return db.execute(
+        select(Project).where(
+            Project.id == parsed_id,
+            Project.owner_id == owner_id,
+            Project.status == PUBLISHED,
+            Project.visibility == PUBLIC,
+        )
+    ).scalar_one_or_none()
+
+
 def _technology_ids(db: Session, project: Project) -> list[uuid.UUID]:
     return list(
         db.execute(

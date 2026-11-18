@@ -154,7 +154,7 @@
 ### UC-E2. Данные GitHub на карточке проекта
 
 - **Актор:** любой посетитель. **С релиза:** v1.
-- **Поток:** объект `github` возвращается в составе `UC-E1`; содержит 10 полей (full_name, html_url, description, stars, forks, open_issues, is_fork, is_archived, languages, synced_at); равен `null` если нет привязки, синхронизация не завершена, репозиторий недоступен или привязка разорвана.
+- **Поток:** объект `github` возвращается в составе `UC-E1`; содержит 10 полей (`full_name`, `html_url`, `description`, `languages`, `pushed_at`, `is_fork`, `parent_full_name`, `is_archived`, `relation`, `synced_at`); равен `null` если нет привязки, синхронизация не завершена, репозиторий недоступен или привязка разорвана.
 - **Отклонения:** `github = null` — нормальное состояние, UI обрабатывает молча (одна строка в лог на проект).
 - **ADR:** [ADR-0019](release/v1/adr/0019-public-github-on-cards.md).
 
@@ -165,3 +165,10 @@
 - **Отклонения:** профиль не найден, `PRIVATE`, slug некорректный или контакта нет → тот же `404 NOT_FOUND`, что у UC-E1; другой `type` или его нет → `422 VALIDATION_ERROR`. Rate limit — шаг 8.3, до него ручка не ограничена.
 - **Страница:** в секции «Контакты» кнопка «Показать email» или «Показать телефон» → «Загрузка…» → ссылка `mailto:` или `tel:`. Любая ошибка, включая ответ другого типа или с другой ссылкой, — «Не удалось получить email.» / «Не удалось получить телефон.» и «Повторить». Значения нет в HTML страницы и в JSON профиля.
 - **ADR:** [ADR-0020](release/v1/adr/0020-contacts-separate-table.md).
+
+### UC-E4. Просмотр публичной страницы проекта
+
+- **Актор:** любой посетитель. **С релиза:** v1 (бэкенд — 4.3; страница `/u/{slug}/projects/{id}` — 4.6).
+- **Поток:** `GET /api/v1/public/profiles/{slug}/projects/{id}` без сессии → профиль `PUBLISHED`, проект его владельца в `PUBLISHED + PUBLIC` → `200`: поля проекта (с `description`, `problem`, `results`, `contribution`), технологии, `demo_url`, скриншоты по порядку (`url`, `caption`, `width`, `height` — без id), тот же объект `github`, что на карточке (UC-E2), и `owner` (`slug`, `display_name`, `avatar_url`) — пятью запросами без вызова GitHub API.
+- **Отклонения:** профиль не найден или `PRIVATE`, проект другого пользователя, черновик, архивный или скрытый проект, некорректный id → тот же `404 NOT_FOUND`, что у UC-E1.
+- **ADR:** [ADR-0019](release/v1/adr/0019-public-github-on-cards.md), [ADR-0022](release/v1/adr/0022-media-on-host-volume.md), [ADR-0023](release/v1/adr/0023-demo-link-without-iframe.md).

@@ -147,6 +147,38 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "500": {$ref: "#/components/responses/InternalError"}
+  /public/profiles/{slug}/projects/{project_id}:
+    get:
+      operationId: getPublicProject
+      security: []
+      summary: Get a public project page
+      description: >-
+        One PUBLISHED + PUBLIC project of a PUBLISHED profile (step 4.3), with
+        its screenshots and the same nullable github object as the cards
+        (ADR-019). A private or missing profile, another user's project, a
+        draft, archived or hidden project and a malformed id return the same
+        404 as an unknown URL. No GitHub call.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: {type: string}
+        - name: project_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: Public project page
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicProjectPage"}
+        "404":
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /public/profiles/{slug}/contacts:
     get:
       operationId: getPublicProfileContact
@@ -923,6 +955,54 @@ components:
       properties:
         name: {type: string}
         bytes: {type: integer, format: int64, minimum: 0}
+    PublicProjectPage:
+      type: object
+      description: >-
+        Public project page whitelist (step 4.3); never status, visibility,
+        featured_position, owner ids, storage keys, screenshot ids or timestamps.
+      required: [id, title, summary, description, problem, results, role, contribution, technologies, demo_url, screenshots, github, owner]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        summary: {type: string}
+        description: {type: string, nullable: true}
+        problem: {type: string, nullable: true}
+        results: {type: string, nullable: true}
+        role: {type: string}
+        contribution: {type: string}
+        technologies:
+          type: array
+          description: Technology names in the developer's order.
+          items: {type: string}
+        demo_url: {type: string, nullable: true, description: A link only (ADR-0023)}
+        screenshots:
+          type: array
+          maxItems: 6
+          description: In the developer's order.
+          items: {$ref: "#/components/schemas/PublicScreenshot"}
+        github:
+          type: object
+          allOf: [{$ref: "#/components/schemas/PublicGitHub"}]
+          nullable: true
+          description: The same object and null rules as on the cards (ADR-019).
+        owner: {$ref: "#/components/schemas/PublicProjectOwner"}
+    PublicScreenshot:
+      type: object
+      required: [url, caption, width, height]
+      properties:
+        url:
+          type: string
+          description: Path on the site's origin, /media/projects/{project_id}/{uuid}.webp.
+        caption: {type: string, nullable: true, description: Alt text}
+        width: {type: integer, minimum: 1, maximum: 2560}
+        height: {type: integer, minimum: 1, maximum: 2560}
+    PublicProjectOwner:
+      type: object
+      required: [slug, display_name, avatar_url]
+      properties:
+        slug: {type: string}
+        display_name: {type: string}
+        avatar_url: {type: string, nullable: true}
     PublicFeaturedProject:
       allOf:
         - {$ref: "#/components/schemas/PublicProject"}

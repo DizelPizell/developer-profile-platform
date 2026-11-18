@@ -209,6 +209,40 @@ class PublicFeaturedProject(PublicProject):
     position: int
 
 
+class PublicScreenshot(BaseModel):
+    """A screenshot on the public project page: no id, no storage key (ADR-0022)."""
+
+    url: str
+    caption: str | None
+    width: int
+    height: int
+
+
+class PublicProjectOwner(BaseModel):
+    slug: str
+    display_name: str
+    avatar_url: str | None
+
+
+class PublicProjectPage(BaseModel):
+    """The public project page: a whitelist (step 4.3). Lifecycle, visibility, the
+    featured position and timestamps are not returned."""
+
+    id: uuid.UUID
+    title: str
+    summary: str
+    description: str | None
+    problem: str | None
+    results: str | None
+    role: str
+    contribution: str
+    technologies: list[str]
+    demo_url: str | None
+    screenshots: list[PublicScreenshot]
+    github: PublicGitHub | None
+    owner: PublicProjectOwner
+
+
 class FeaturedProject(BaseModel):
     project_id: uuid.UUID
     position: int
