@@ -8,9 +8,9 @@
 
 | Сервис | Что делает |
 |---|---|
-| `nginx` | Единственный с портами наружу (80, 443). TLS, `/api/v1/*` → `backend:8000`, остальное → `frontend:3000`, 80 → редирект на https, кроме ACME challenge |
+| `nginx` | Единственный с портами наружу (80, 443). TLS, `/api/v1/*` → `backend:8000`, `/media/*` — файлы скриншотов из тома `media` (только чтение), остальное → `frontend:3000`, 80 → редирект на https, кроме ACME challenge. Тело запроса — до 1 МБ, на загрузке скриншота — до 6 МБ |
 | `frontend` | Next.js (`node server.js` из standalone-сборки). Собирается под один адрес: `NEXT_PUBLIC_API_URL=https://SERVER_NAME`. Секретов не получает |
-| `backend` | Без портов наружу. Доверяет `X-Forwarded-For` и `X-Forwarded-Proto` только от адреса Nginx (`FORWARDED_ALLOW_IPS=NGINX_IP`). Один процесс uvicorn: бюджет запросов к GitHub и кеш списка репозиториев живут в памяти процесса |
+| `backend` | Без портов наружу. Доверяет `X-Forwarded-For` и `X-Forwarded-Proto` только от адреса Nginx (`FORWARDED_ALLOW_IPS=NGINX_IP`). Один процесс uvicorn: бюджет запросов к GitHub и кеш списка репозиториев живут в памяти процесса. Пишет скриншоты в том `media` (`/srv/media`) |
 | `migrate` | Применяет миграции при каждом `up` и завершается; бэкенд и воркер ждут его |
 | `github-worker` | Синхронизация GitHub, один процесс |
 | `postgres` | Без портов наружу: `docker compose exec postgres psql -U <POSTGRES_USER> <POSTGRES_DB>` |
@@ -100,6 +100,19 @@ docker compose up -d --build
 
 Откат кода без миграций: `git checkout <предыдущий коммит>` и `docker compose up -d --build`. С миграцией — восстановление из бэкапа.
 
+## Файлы скриншотов
+
+Скриншоты лежат в именованном томе `media` ([ADR-0022](docs/release/v1/adr/0022-media-on-host-volume.md)); в базе — только путь к файлу. Том и база бэкапятся вместе (9.5): без тома ссылки в базе ведут в `404`, без базы файлы ничьи. Свободное место на диске — в мониторинге (9.6).
+
+Файл удаляется вместе со скриншотом или проектом. Если процесс упал между записью файла и строки, файл остаётся без строки. Такие файлы старше суток убирает ручная команда — раз в месяц или после сбоя бэкенда:
+
+```sh
+docker compose exec backend python -m app.media.sweep --dry-run
+docker compose exec backend python -m app.media.sweep
+```
+
+Первая только печатает, что будет удалено; вторая удаляет и печатает удалённое. Если `MEDIA_ROOT` не каталог, команда завершается с кодом 1 и ничего не трогает.
+
 ## Проверка после запуска
 
 - `curl -I http://SERVER_NAME/` → `301` на `https://`.
@@ -109,5 +122,6 @@ docker compose up -d --build
 - `POST /api/v1/auth/logout` с `Origin: https://evil.example` → `403 CSRF_ORIGIN_INVALID`.
 - `docker compose ps` — порты наружу только у `nginx`; снаружи `nc -z SERVER_NAME 5432` и `8000` не соединяются.
 - Вход через GitHub и публикация профиля проходят в браузере.
+- Скриншот загружается в форме проекта; `curl -I https://SERVER_NAME/media/projects/<id>/<id>.webp` (адрес — из `url` в ответе) → `200`, `Content-Type: image/webp`, `Cache-Control: public, max-age=31536000, immutable`, `X-Content-Type-Options: nosniff` и `Strict-Transport-Security`. `curl -I https://SERVER_NAME/media/` → `404`.
 
 Локально те же проверки проходят с `SERVER_NAME=localhost` и самоподписанным сертификатом (`curl -k`); вход через GitHub — только с отдельным OAuth App, у которого callback `https://localhost/api/v1/auth/github/callback`.

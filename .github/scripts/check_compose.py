@@ -1,4 +1,5 @@
-"""Checks the github-worker service in the resolved Compose file (ADR-018, step 6.6),
+"""Checks the github-worker service and the media volume in the resolved Compose file
+(ADR-018, step 6.6; ADR-0022, step 4.2b),
 and with --production the file merged with docker-compose.prod.yml (ADR-0021, 9.3).
 
 Run from the repository root, with a .env beside docker-compose.yml:
@@ -40,6 +41,17 @@ PRODUCTION_FILES = ("-f", "docker-compose.yml", "-f", "docker-compose.prod.yml")
 # The only service reachable from outside, and the ones that must get no secrets.
 PUBLIC_SERVICE = "nginx"
 NO_ENV_FILE = ("frontend", "nginx", "certbot")
+# The screenshot volume (ADR-0022): written by the backend, read by Nginx.
+MEDIA_VOLUME = "media"
+MEDIA_TARGET = "/srv/media"
+
+
+def media_mount(service: dict) -> dict | None:
+    """The service's mount of the media volume, as `docker compose config` prints it."""
+    for volume in service.get("volumes") or []:
+        if volume.get("type") == "volume" and volume.get("source") == MEDIA_VOLUME:
+            return volume
+    return None
 
 
 def resolved_config(files: tuple[str, ...] = ()) -> dict | None:
@@ -64,7 +76,14 @@ def checks(config: dict) -> list[tuple[str, str, bool]]:
     images = {worker.get("image"), services["migrate"].get("image"), backend_image}
     grace = duration_seconds(worker.get("stop_grace_period"))
     depends_on = worker.get("depends_on") or {}
+    backend_media = media_mount(backend) or {}
     return [
+        (
+            "h",
+            f"backend mounts {MEDIA_VOLUME} at {MEDIA_TARGET} for writing",
+            backend_media.get("target") == MEDIA_TARGET and not backend_media.get("read_only"),
+        ),
+        ("i", f"github-worker does not mount {MEDIA_VOLUME}", media_mount(worker) is None),
         ("a", "github-worker, backend and migrate use one image", len(images) == 1),
         ("b", "restart is unless-stopped", worker.get("restart") == "unless-stopped"),
         (
@@ -93,7 +112,13 @@ def checks(config: dict) -> list[tuple[str, str, bool]]:
 def production_checks(config: dict) -> list[tuple[str, str, bool]]:
     services = config["services"]
     published = sorted(name for name, service in services.items() if service.get("ports"))
+    nginx_media = media_mount(services.get(PUBLIC_SERVICE) or {}) or {}
     return [
+        (
+            "p4",
+            f"{PUBLIC_SERVICE} mounts {MEDIA_VOLUME} at {MEDIA_TARGET} read-only",
+            nginx_media.get("target") == MEDIA_TARGET and nginx_media.get("read_only") is True,
+        ),
         ("p1", f"only {PUBLIC_SERVICE} publishes ports", published == [PUBLIC_SERVICE]),
         (
             "p2",

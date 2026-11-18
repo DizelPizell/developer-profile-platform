@@ -61,6 +61,8 @@ services:
     volumes:
       - certbot_www:/var/www/certbot:ro
       - certbot_certs:/etc/letsencrypt:ro
+      # Screenshots written by the backend (ADR-0022); Nginx only reads them.
+      - media:/srv/media:ro
     networks:
       default:
         ipv4_address: ${NGINX_IP:-172.30.10.10}
