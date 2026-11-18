@@ -187,7 +187,8 @@ def upload_screenshot(
     # No transaction stays open while the image is re-encoded.
     db.rollback()
     # shortcut: without Nginx (development) the request body has no size limit;
-    # Nginx caps this path at 6 MB in production (step 4.2b).
+    # in production Nginx caps this path at 6 MB. Add a limit here if the API is
+    # ever reachable without Nginx.
     data = file.file.read(MAX_UPLOAD_BYTES + 1)
     try:
         image = reencode(data)
