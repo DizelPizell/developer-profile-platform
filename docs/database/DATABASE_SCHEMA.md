@@ -19,7 +19,7 @@ projects
 technologies
 project_technologies
 featured_projects
-project_screenshots       (Phase 4, шаг 4.2 — ADR-0022)
+project_screenshots       (ADR-0022)
 
 -- GitHub
 github_accounts
@@ -199,6 +199,22 @@ UNIQUE `(project_id, technology_id)`, UNIQUE `(project_id, position)`.
 
 ---
 
+### `project_screenshots`
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | UUID PK | |
+| `project_id` | UUID FK → projects | ON DELETE CASCADE |
+| `position` | SMALLINT NOT NULL | 1..6 (`ck_project_screenshots_position`); без пропусков |
+| `caption` | TEXT | Nullable; ≤ 200, не пустой (`ck_project_screenshots_caption`); это `alt` |
+| `storage_key` | TEXT UNIQUE NOT NULL | Путь в томе `media`: `projects/{project_id}/{uuid}.webp` |
+| `width`, `height` | SMALLINT NOT NULL | 1..2560 (`ck_project_screenshots_size`); размер после перекодирования |
+| `created_at` | TIMESTAMPTZ NOT NULL | |
+
+UNIQUE `(project_id, position)` `DEFERRABLE INITIALLY IMMEDIATE` (`uq_project_screenshots_position`) — вместе с диапазоном позиций держит лимит 6 на проект; отложенная проверка позволяет перестановку и сдвиг одним UPDATE. Файлы лежат в томе `media`: строка удаляется в транзакции, файл — после коммита (ADR-0022). Каскад при удалении проекта удаляет строки, а файлы удаляет код удаления проекта.
+
+---
+
 ### `featured_projects`
 
 | Поле | Тип | Описание |
@@ -306,6 +322,7 @@ UNIQUE `(github_repository_id, category)`. `last_error` и `last_error_at` ус�
 | `unavailable_since` — факт репозитория, не статус джобы | [ADR-0018](../release/v1/adr/0018-github-sync-v1.md) |
 | Контакты в отдельной таблице; один стандартный тип через partial unique index; email/phone отдаются по клику | [ADR-0020](../release/v1/adr/0020-contacts-separate-table.md) |
 | Демо — столбец `projects.demo_url`, не таблица `project_demos`; CHECK в базе только грубый | [ADR-0023](../release/v1/adr/0023-demo-link-without-iframe.md) |
+| Скриншоты: в базе только `storage_key` и размер, файл — в томе `media`; лимит 6 держат CHECK и отложенный UNIQUE позиции | [ADR-0022](../release/v1/adr/0022-media-on-host-volume.md) |
 
 ## Статус миграций
 
@@ -317,6 +334,7 @@ UNIQUE `(github_repository_id, category)`. `last_error` и `last_error_at` ус�
 | `0004_sync` | `github_sync_jobs`, `github_sync_category_status` | нет |
 | `b7e2d4c81a3f_profile_contacts` | `profile_contacts` | нет |
 | `c4d8a2f6e913_project_demo_url` | `projects.demo_url`, `ck_projects_demo_url` | нет |
+| `d5e9b3a7f204_project_screenshots` | `project_screenshots` | нет |
 
 ## Аналитика
 

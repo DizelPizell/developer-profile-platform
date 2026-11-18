@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, HttpUrl, SecretStr, model_validator
@@ -49,6 +50,8 @@ class Settings(BaseSettings):
     # queues at most this many such jobs a minute (ADR-018).
     github_periodic_sync_seconds: int = Field(default=86_400, ge=1)
     github_periodic_sync_batch: int = Field(default=30, ge=1)
+    # The media volume: screenshots written by the API, served by Nginx (ADR-0022).
+    media_root: Path = Path("/srv/media")
 
     @model_validator(mode="after")
     def _retry_max_not_below_base(self) -> "Settings":

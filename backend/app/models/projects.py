@@ -45,6 +45,10 @@ DEMO_URL_MAX_LENGTH = 2048  # the OTHER contact limit (ADR-0023)
 TECHNOLOGY_NAME_MAX_LENGTH = 50
 TECHNOLOGIES_PER_PROJECT = 20
 FEATURED_PROJECTS_PER_PROFILE = 3
+SCREENSHOTS_PER_PROJECT = 6
+SCREENSHOT_CAPTION_MAX_LENGTH = 200
+# The long side of a stored screenshot, after re-encoding (ADR-0022).
+SCREENSHOT_MAX_SIDE = 2560
 
 
 def _text_check(column: str, max_length: int) -> CheckConstraint:
@@ -200,6 +204,56 @@ class ProjectShowcase(Base):
         nullable=False,
     )
     position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class ProjectScreenshot(Base):
+    """An image of a project; the file lives in the media volume (ADR-0022)."""
+
+    __tablename__ = "project_screenshots"
+    __table_args__ = (
+        # With the position range this caps a project at six screenshots.
+        # Deferrable: checked at the end of each statement, so a reorder is one UPDATE.
+        UniqueConstraint(
+            "project_id",
+            "position",
+            name="uq_project_screenshots_position",
+            deferrable=True,
+            initially="IMMEDIATE",
+        ),
+        CheckConstraint(
+            f"position BETWEEN 1 AND {SCREENSHOTS_PER_PROJECT}",
+            name="ck_project_screenshots_position",
+        ),
+        CheckConstraint(
+            f"char_length(caption) <= {SCREENSHOT_CAPTION_MAX_LENGTH} AND btrim(caption) <> ''",
+            name="ck_project_screenshots_caption",
+        ),
+        CheckConstraint(
+            f"width BETWEEN 1 AND {SCREENSHOT_MAX_SIDE} "
+            f"AND height BETWEEN 1 AND {SCREENSHOT_MAX_SIDE}",
+            name="ck_project_screenshots_size",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Path inside the media volume, projects/{project_id}/{uuid}.webp.
+    storage_key: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    width: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    height: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

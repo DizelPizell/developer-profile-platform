@@ -57,6 +57,7 @@ PROJECT_KEYS = {
     "technologies",
     "featured_position",
     "github",
+    "screenshots",
 }
 
 
@@ -112,6 +113,7 @@ def test_own_repository_is_imported_as_a_draft_private_project(env, db_session):
         "demo_url": None,
         "technologies": [],
         "featured_position": None,
+        "screenshots": [],
     }
     assert set(body["github"]) == GITHUB_KEYS
     assert body["github"] == {

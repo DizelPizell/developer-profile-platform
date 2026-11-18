@@ -906,13 +906,15 @@ Phase 4 step 4.0: the media and demo ADRs — screenshots in a host volume serve
 
 Phase 4 step 4.1: demo_url on projects — a nullable column with a coarse CHECK, set and cleared through POST and PATCH /projects, returned in ProjectResponse only (not on public cards); the URL rule shared with OTHER contacts in app/urls.py (ADR-0023)
 
+Phase 4 step 4.2a: screenshots in the backend — app/media (the volume writer and the Pillow re-encoding to WebP, at most 5 MB and 40 Mpx, EXIF dropped, orientation applied), python-multipart, project_screenshots (at most 6, deferrable unique position), upload, caption, delete and POST reorder returning the list, screenshots in ProjectResponse, files deleted after the commit with the screenshot or the project, /media from FastAPI only in development, the volume directory in the backend image and the media volume in the dev Compose (ADR-0022)
+
 
 
 Not yet started:
 
 
 
-demo, screenshots, file storage and the public project page with its GitHub block — Phase 4 steps 4.2–4.6
+demo, screenshots, file storage and the public project page with its GitHub block — Phase 4 steps 4.2b–4.6
 
 the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
@@ -924,7 +926,7 @@ Current next goal:
 
 
 
-Phase 4 — Demo and Media, step by step (4.1 is done): 4.2 screenshots — the media module with Pillow, project_screenshots, upload/caption/delete/reorder, cleanup, the media volume and /media/ in Nginx (ADR-0022); 4.3 the public project endpoint with its GitHub block; 4.4 the mockup; 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 — Demo and Media, step by step (4.1 and 4.2a are done): 4.2b — the media volume read-only in Nginx, location /media/ and 6 MB on the upload path, the sweep command, check_compose.py and DEPLOY.md (ADR-0022); 4.3 the public project endpoint with its GitHub block; 4.4 the mockup; 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

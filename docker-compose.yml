@@ -37,6 +37,9 @@ services:
     env_file: .env
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    # Screenshots (ADR-0022); MEDIA_ROOT defaults to /srv/media.
+    volumes:
+      - media:/srv/media
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,3 +68,4 @@ services:
 
 volumes:
   postgres_data:
+  media:

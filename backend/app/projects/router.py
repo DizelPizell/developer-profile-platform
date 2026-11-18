@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Form, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
@@ -10,9 +11,11 @@ from app.github.budget import UserRequestBudget
 from app.github.client import GitHubApiClient
 from app.github.dependencies import get_github_api_client, get_now, get_user_request_budget
 from app.github.schemas import RepositoryLinkRequest
+from app.media import storage
+from app.media.images import MAX_UPLOAD_BYTES, ImageRejected, reencode
 from app.models.identity import User
 from app.models.projects import Project
-from app.projects import service
+from app.projects import screenshots, service
 from app.projects.schemas import (
     FeaturedProject,
     FeaturedProjectsResponse,
@@ -22,6 +25,11 @@ from app.projects.schemas import (
     ProjectSummary,
     ProjectVisibilityUpdate,
     ProjectWrite,
+    Screenshot,
+    ScreenshotCaption,
+    ScreenshotCaptionUpdate,
+    ScreenshotListResponse,
+    ScreenshotReorderRequest,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -48,7 +56,25 @@ def _project_response(db: Session, project: Project, now: datetime) -> ProjectRe
         technologies=names,
         featured_position=position,
         github=github_service.project_github(db, project.id, now),
+        screenshots=_screenshot_items(db, project.id),
     )
+
+
+def _screenshot_items(db: Session, project_id: uuid.UUID) -> list[Screenshot]:
+    return [
+        Screenshot(
+            id=s.id,
+            url=storage.url(s.storage_key),
+            caption=s.caption,
+            width=s.width,
+            height=s.height,
+        )
+        for s in screenshots.list_screenshots(db, project_id)
+    ]
+
+
+def _screenshot_list(db: Session, project_id: uuid.UUID) -> ScreenshotListResponse:
+    return ScreenshotListResponse(items=_screenshot_items(db, project_id))
 
 
 def _featured_response(db: Session, profile_id: uuid.UUID) -> FeaturedProjectsResponse:
@@ -139,9 +165,88 @@ def delete_project(
 ) -> Response:
     service.lock_owner_profile(db, user)
     project = service.get_own_project(db, user, project_id, for_update=True)
+    keys = screenshots.storage_keys(db, project.id)
     service.delete_project(db, project)
     db.commit()
+    # Files go only after the rows are gone (ADR-0022).
+    storage.delete(keys)
     return Response(status_code=204)
+
+
+@router.post("/{project_id}/screenshots", status_code=201)
+def upload_screenshot(
+    project_id: str,
+    file: UploadFile,
+    caption: Annotated[ScreenshotCaption, Form()] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScreenshotListResponse:
+    project = service.get_own_project(db, user, project_id)
+    project_uuid = project.id
+    screenshots.check_limit(db, project_uuid)
+    # No transaction stays open while the image is re-encoded.
+    db.rollback()
+    # shortcut: without Nginx (development) the request body has no size limit;
+    # Nginx caps this path at 6 MB in production (step 4.2b).
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
+    try:
+        image = reencode(data)
+    except ImageRejected as exc:
+        raise screenshots.rejected(exc) from None
+
+    key = storage.screenshot_key(project_uuid)
+    storage.save(key, image.data)
+    try:
+        project = service.get_own_project(db, user, project_id, for_update=True)
+        screenshots.add(db, project, key, image, caption)
+        db.commit()
+    except BaseException:
+        db.rollback()
+        storage.delete([key])
+        raise
+    return _screenshot_list(db, project_uuid)
+
+
+@router.patch("/{project_id}/screenshots/{screenshot_id}")
+def update_screenshot(
+    project_id: str,
+    screenshot_id: str,
+    payload: ScreenshotCaptionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScreenshotListResponse:
+    project = service.get_own_project(db, user, project_id, for_update=True)
+    screenshots.get(db, project, screenshot_id).caption = payload.caption
+    db.commit()
+    return _screenshot_list(db, project.id)
+
+
+@router.delete("/{project_id}/screenshots/{screenshot_id}")
+def delete_screenshot(
+    project_id: str,
+    screenshot_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScreenshotListResponse:
+    project = service.get_own_project(db, user, project_id, for_update=True)
+    project_uuid = project.id
+    key = screenshots.remove(db, screenshots.get(db, project, screenshot_id))
+    db.commit()
+    storage.delete([key])
+    return _screenshot_list(db, project_uuid)
+
+
+@router.post("/{project_id}/screenshots/reorder")
+def reorder_screenshots(
+    project_id: str,
+    payload: ScreenshotReorderRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScreenshotListResponse:
+    project = service.get_own_project(db, user, project_id, for_update=True)
+    screenshots.reorder(db, project, payload.screenshot_ids)
+    db.commit()
+    return _screenshot_list(db, project.id)
 
 
 @router.post("/{project_id}/publish")

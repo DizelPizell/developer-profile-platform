@@ -107,7 +107,9 @@ V1 — первый рабочий релиз платформы. Разрабо
 
 - [x] 4.0: ADR о хранилище и медиа ([0022](../adr/0022-media-on-host-volume.md)) и о демо ([0023](../adr/0023-demo-link-without-iframe.md))
 - [x] 4.1: бэкенд — `projects.demo_url`, миграция, `PATCH /projects/{id}`, поле в `ProjectResponse`; проверка URL общая с контактом `OTHER` (`app/urls.py`)
-- [ ] 4.2: бэкенд — скриншоты: модуль `app/media/` и Pillow, таблица `project_screenshots` (до 6 на проект), загрузка, подпись, удаление, порядок; очистка файлов при удалении проекта, команда `sweep`; том `media` в Compose и `/media/` в Nginx
+- [ ] 4.2: бэкенд — скриншоты, двумя PR:
+  - [x] 4.2a: модуль `app/media/`, Pillow и `python-multipart`, таблица `project_screenshots` (до 6 на проект), загрузка, подпись, удаление, порядок (`POST …/screenshots/reorder`), `screenshots` в `ProjectResponse`; файлы удаляются при удалении скриншота и проекта; `/media` из FastAPI при `APP_ENV=development`; каталог тома в образе бэкенда и том `media` в dev-Compose
+  - [ ] 4.2b: том `media` у Nginx в prod (только чтение), `location /media/` и 6 МБ на пути загрузки, команда `sweep`, проверка в `check_compose.py`, `DEPLOY.md`
 - [ ] 4.3: бэкенд — публичная страница проекта `GET /public/profiles/{slug}/projects/{id}` с блоком GitHub
 - [ ] 4.4: макет — страница проекта и блок «Демо и скриншоты» в форме
 - [ ] 4.5: фронтенд — демо и скриншоты в кабинете

@@ -11,6 +11,8 @@ from app.models.projects import (
     DEMO_URL_MAX_LENGTH,
     FEATURED_PROJECTS_PER_PROFILE,
     PROJECT_TEXT_LIMITS,
+    SCREENSHOT_CAPTION_MAX_LENGTH,
+    SCREENSHOTS_PER_PROJECT,
     TECHNOLOGIES_PER_PROJECT,
     TECHNOLOGY_NAME_MAX_LENGTH,
 )
@@ -91,6 +93,31 @@ class ProjectVisibilityUpdate(BaseModel):
     visibility: Literal["PUBLIC", "PRIVATE"]
 
 
+# Plain single-line text, trimmed; blank becomes null (ADR-0022: the caption is the alt text).
+ScreenshotCaption = Annotated[str | None, plain_text(SCREENSHOT_CAPTION_MAX_LENGTH)]
+
+
+class Screenshot(BaseModel):
+    id: uuid.UUID
+    # A path on the site's origin, /media/projects/{project_id}/{uuid}.webp.
+    url: str
+    caption: str | None
+    width: int
+    height: int
+
+
+class ScreenshotListResponse(BaseModel):
+    """The project's screenshots in their order."""
+
+    items: list[Screenshot]
+
+
+class ScreenshotCaptionUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    caption: ScreenshotCaption
+
+
 class ProjectResponse(BaseModel):
     id: uuid.UUID
     status: str
@@ -106,6 +133,7 @@ class ProjectResponse(BaseModel):
     technologies: list[str]
     featured_position: int | None
     github: ProjectGitHub | None
+    screenshots: list[Screenshot]
 
 
 class ProjectSummary(BaseModel):
@@ -145,6 +173,24 @@ class FeaturedReorderRequest(BaseModel):
         list[Annotated[uuid.UUID, BeforeValidator(_canonical_uuid)]],
         Field(max_length=FEATURED_PROJECTS_PER_PROFILE),
         AfterValidator(_no_duplicate_projects),
+    ]
+
+
+def _no_duplicate_screenshots(screenshot_ids: list[uuid.UUID]) -> list[uuid.UUID]:
+    if len(set(screenshot_ids)) != len(screenshot_ids):
+        raise PydanticCustomError("duplicate_screenshot", "Screenshot ids must be unique")
+    return screenshot_ids
+
+
+class ScreenshotReorderRequest(BaseModel):
+    """The complete current screenshot set of the project in the new order (ADR-0022)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    screenshot_ids: Annotated[
+        list[Annotated[uuid.UUID, BeforeValidator(_canonical_uuid)]],
+        Field(max_length=SCREENSHOTS_PER_PROJECT),
+        AfterValidator(_no_duplicate_screenshots),
     ]
 
 

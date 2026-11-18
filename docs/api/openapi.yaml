@@ -270,7 +270,8 @@ paths:
       summary: Delete own project
       description: >-
         Hard delete in any state. Removes the project from featured projects
-        and moves the remaining ones up.
+        and moves the remaining ones up. Its screenshot files are deleted after
+        the commit.
       responses:
         "204": {description: Deleted}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -401,6 +402,115 @@ paths:
           description: >-
             FEATURED_ORDER_MISMATCH — the list is not the current featured set;
             the client should reload
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /projects/{id}/screenshots:
+    parameters:
+      - {$ref: "#/components/parameters/ProjectId"}
+    post:
+      security: [{cookieAuth: []}]
+      summary: Upload a screenshot
+      description: >-
+        Adds a screenshot after the last one, in any project state (ADR-0022).
+        JPEG, PNG or WebP up to 5 MB, told by the content, not the file name or
+        Content-Type; at most 40 million pixels, checked from the header before
+        decoding. The image is re-encoded to WebP with the long side reduced to
+        2560 px: the EXIF orientation is applied, EXIF and XMP (GPS included)
+        are dropped, an animation keeps its first frame. At most 6 screenshots
+        per project. The file is served at its `url` to anyone who knows it,
+        also for a draft or private project; deleting the screenshot or the
+        project deletes the file.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+                caption:
+                  type: string
+                  maxLength: 200
+                  description: >-
+                    Optional alt text. Plain single-line text, trimmed; blank
+                    means none.
+      responses:
+        "201": {$ref: "#/components/responses/Screenshots"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: >-
+            SCREENSHOT_LIMIT_REACHED — the project has 6 screenshots; details
+            {"limit": 6}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: >-
+            VALIDATION_ERROR. For the field `file`: missing, invalid_image (not
+            a JPEG, PNG or WebP, or broken), image_too_large (over 5 MB),
+            too_many_pixels. For `caption`: string_too_long, control_characters.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /projects/{id}/screenshots/{screenshot_id}:
+    parameters:
+      - {$ref: "#/components/parameters/ProjectId"}
+      - {$ref: "#/components/parameters/ScreenshotId"}
+    patch:
+      security: [{cookieAuth: []}]
+      summary: Change a screenshot caption
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ScreenshotCaptionUpdate"}
+      responses:
+        "200": {$ref: "#/components/responses/Screenshots"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    delete:
+      security: [{cookieAuth: []}]
+      summary: Delete a screenshot
+      description: >-
+        Deletes the screenshot and moves the later ones up; the file is
+        deleted after the commit.
+      responses:
+        "200": {$ref: "#/components/responses/Screenshots"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /projects/{id}/screenshots/reorder:
+    parameters:
+      - {$ref: "#/components/parameters/ProjectId"}
+    post:
+      security: [{cookieAuth: []}]
+      summary: Reorder screenshots
+      description: The body is the complete current screenshot set in the new order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ScreenshotReorderRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/Screenshots"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409":
+          description: >-
+            SCREENSHOT_ORDER_MISMATCH — the list is not the current screenshot
+            set; the client should reload
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -610,6 +720,14 @@ components:
         malformed id (any other form, including no hyphens, braces or a
         urn:uuid: prefix), a missing project and another user's project all
         return the same 404 NOT_FOUND.
+      schema: {type: string, format: uuid}
+    ScreenshotId:
+      name: screenshot_id
+      in: path
+      required: true
+      description: >-
+        Screenshot id in the canonical form. A malformed id or a screenshot of
+        another project returns 404 NOT_FOUND.
       schema: {type: string, format: uuid}
     GitHubRepoId:
       name: id
@@ -860,7 +978,7 @@ components:
           items: {$ref: "#/components/schemas/TechnologyName"}
     ProjectResponse:
       type: object
-      required: [id, status, visibility, title, summary, description, problem, results, role, contribution, demo_url, technologies, featured_position, github]
+      required: [id, status, visibility, title, summary, description, problem, results, role, contribution, demo_url, technologies, featured_position, github, screenshots]
       properties:
         id: {type: string, format: uuid}
         status: {$ref: "#/components/schemas/ProjectStatus"}
@@ -880,6 +998,11 @@ components:
           allOf: [{$ref: "#/components/schemas/ProjectGitHub"}]
           nullable: true
           description: The linked repository, or null.
+        screenshots:
+          type: array
+          maxItems: 6
+          description: In their order; see /projects/{id}/screenshots.
+          items: {$ref: "#/components/schemas/Screenshot"}
     ProjectGitHub:
       type: object
       description: The linked repository as the cabinet sees it (ADR-017, ADR-018).
@@ -1034,7 +1157,56 @@ components:
             The complete current featured set in the new order, as canonical
             UUIDs; any other form gives 422 VALIDATION_ERROR.
           items: {type: string, format: uuid}
+    Screenshot:
+      type: object
+      required: [id, url, caption, width, height]
+      properties:
+        id: {type: string, format: uuid}
+        url:
+          type: string
+          description: >-
+            Path on the site's origin, /media/projects/{project_id}/{uuid}.webp;
+            the content behind it never changes.
+        caption: {type: string, nullable: true, description: Alt text}
+        width: {type: integer, minimum: 1, maximum: 2560}
+        height: {type: integer, minimum: 1, maximum: 2560}
+    ScreenshotListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 6
+          items: {$ref: "#/components/schemas/Screenshot"}
+    ScreenshotCaptionUpdate:
+      type: object
+      additionalProperties: false
+      required: [caption]
+      properties:
+        caption:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Plain single-line text, trimmed; blank or null clears it.
+    ScreenshotReorderRequest:
+      type: object
+      additionalProperties: false
+      required: [screenshot_ids]
+      properties:
+        screenshot_ids:
+          type: array
+          maxItems: 6
+          uniqueItems: true
+          description: >-
+            The complete current screenshot set in the new order, as canonical
+            UUIDs.
+          items: {type: string, format: uuid}
   responses:
+    Screenshots:
+      description: The project's screenshots in their order
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ScreenshotListResponse"}
     ValidationError:
       description: >-
         VALIDATION_ERROR — request failed validation. `details.fields` lists
