@@ -485,11 +485,51 @@ Screens, texts and rules: "Contacts on the public page" and "Contacts in the pro
 - Checked with Vitest + RTL (686 tests), lint, typecheck and build.
 - Checked by hand on 2026-11-16 against the local stack, all steps of the README's "Manual contacts check": errors under their fields, normalized values with «Сохранено как», no `contacts` in a PATCH without contact changes, a second save with LinkedIn, the limit of 3, no email or phone in the page HTML or the profile JSON, the reveal with the focus on the link, the error and «Повторить» with the backend stopped, a private profile (404), clearing to `[]`, and the layout at 800 and 1280 px.
 
+## 4.5 — Demo and screenshots in the cabinet (M; after backend 4.1–4.2) [planned]
+
+**Goal**: a developer adds a demo link and up to 6 screenshots to a project in the project form (ADR-0022, ADR-0023).
+
+Screens, texts and rules: "«Демо и скриншоты» in the project form" in `DESIGN.md`, mockup `project-media.png` (states A–H and the error table). API: `demo_url` in `ProjectWrite` / `ProjectResponse` and the "Screenshots" section of `docs/api/API_CONTRACT.md`. The backend, OpenAPI and migrations do not change.
+
+One PR, one commit per item:
+
+1. API layer: `demo_url` and `screenshots` in the project types; `uploadScreenshot` (`multipart/form-data` with `file` only; no `Content-Type` set by hand), `updateScreenshotCaption`, `deleteScreenshot`, `reorderScreenshots`, each returning the list; the error codes `SCREENSHOT_LIMIT_REACHED`, `SCREENSHOT_ORDER_MISMATCH`; a 413 read by its status, since Nginx answers with HTML.
+2. `demo_url` as a form field: in the dirty check and the PATCH of changed fields, an emptied field as `null`, the errors under the field.
+3. The screenshots block (`app/me/projects/screenshots-block.tsx`): the note, the counter, upload with the two checks before sending, rows with the caption, ▲▼ and the delete dialog, the live region, the focus rules; the 404 rule (reload the project, then decide).
+4. The top panel: the link to the public page or the note (slug and status from `GET /profile`); the line «Демо и скриншоты добавим в следующих версиях.» removed with its test.
+
+Done when:
+
+- the block matches `project-media.png` at 1280 and 375 px;
+- Vitest + RTL cover: the pre-send checks, every error row of the table, the 6 of 6 state, the reorder body (the whole set), unsaved field edits kept after each screenshot call, the focus after upload, delete and move, the 404 rule;
+- lint, typecheck, build and the tests pass;
+- a manual check against the local stack is written in `frontend/README.md` and done: upload of JPEG, PNG, WebP and a broken file, a file over 5 MB, the 7th upload, caption, reorder, delete, the demo link with `javascript:`, the file opening at its `/media/` URL.
+
+## 4.6 — The public project page (M; after 4.5 and backend 4.3) [planned]
+
+**Goal**: a visitor opens a project from the profile and sees the demo first, then the screenshots, the developer's texts and the GitHub data (PRD «Demo-first project page», ADR-0023).
+
+Screens, texts and rules: "Public project page" in `DESIGN.md`, mockup `project-page.png` (states A–F and the rules card). API: `GET /public/profiles/{slug}/projects/{id}` (`PublicProjectPage`, step 4.3).
+
+One PR, one commit per item:
+
+1. `getPublicProject` (5 s timeout, `cache: "no-store"`, 404 → `null`) and `readPublicProjectPage`: the whitelist, `github` through `readPublicGitHub`, the demo link check and the screenshot check, each with one server log line without values.
+2. The route `app/u/[slug]/projects/[id]/`: the address checks (slug, canonical UUID, 308 to lowercase), one API call per request shared through `headers()` like the profile, the project 404 and the error page with «Повторить», `generateMetadata`.
+3. The page: title, demo block, screenshots, the four text blocks, the GitHub section (the F-GH2 component), the back link; Server Components only, no client JavaScript.
+4. The links from the profile: the title of a featured card and of an «Другие проекты» row.
+
+Done when:
+
+- the page matches `project-page.png` at 1280 and 375 px in the four states, and the 404;
+- tests cover: the whitelist, a wrong `github` hiding only its section, a `demo_url` with another scheme hiding the demo block, a screenshot with a foreign `url` dropped, the preview not repeated in the gallery, the hidden empty blocks, the status codes (200, 404, 308, 500) against a mock API, the escaped text;
+- lint, typecheck, build and the tests pass;
+- a manual check against the local stack is written in `frontend/README.md` and done: a published project with and without a demo and screenshots, a draft, a hidden and an archived project (404), a private profile (404), the link from a card and a row.
+
 ## F7+ — Demos, GitHub data, contacts
 
 **Goal**: add project pages and technical evidence as the backend provides them.
 
-- The public project page `/u/{slug}/projects/{id}`, demos and screenshots — after backend Phase 4.
+- The public project page `/u/{slug}/projects/{id}`, demos and screenshots — steps 4.5 and 4.6, planned above.
 - GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 and F-GH2 are planned above. There is no profile-level «Данные GitHub» block in V1.
 - Contacts on the cabinet and the public page — step C.2, done above.
 - Analytics — V1.1: steps 7.3 and 7.4 in DEVELOPMENT_PLAN, after the V1 launch.

@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>project-page</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .page { max-width: 1024px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+  .demo { display: grid; grid-template-columns: 3fr 2fr; gap: 28px; align-items: start; }
+  .demo-side { display: flex; flex-direction: column; gap: 16px; }
+  .host-big { font: 500 28px/1.3 "Tektur"; word-break: break-all; padding: 40px 24px; background: var(--bg); border: 4px solid var(--outline); }
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  figure { display: flex; flex-direction: column; gap: 8px; }
+  figcaption { font-size: 14px; color: var(--muted); }
+  .cut { max-height: 640px; overflow: hidden; position: relative; }
+  .cut::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; background: linear-gradient(transparent, var(--bg)); }
+  .w375 .page { gap: 20px; }
+  .w375 .panel { padding: 16px; }
+  .w375 .demo { grid-template-columns: 1fr; gap: 16px; }
+  .w375 .btn.lg { width: 100%; }
+  .w375 h1.h { font-size: 16px; }
+  .w375 .host-big { font-size: 20px; padding: 24px 16px; }
+  .ptitle { font: 500 36px/1.25 "Tektur"; overflow-wrap: anywhere; }
+  .w375 .ptitle { font-size: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+</style>
+</head>
+<body>
+
+<header class="intro panel">
+  <h1 class="h" style="font-size:24px">Публичная страница проекта</h1>
+  <p>Шаг 4.4 для 4.6. Адрес /u/{slug}/projects/{id}, данные — только PublicProjectPage (шаг 4.3). Тексты и правила — DESIGN.md, «Public project page». Демо первым: превью и ссылка, без iframe (ADR-0023). Квадратные скобки — примерные данные.</p>
+</header>
+
+<!-- ===== A: demo + screenshots, full page ===== -->
+<div class="sheet-h h" style="font-size:16px">A · демо и скриншоты, 1280 px</div>
+<div class="viewport">
+  <div class="page">
+    <div class="topbar"><span class="brand">DEV.PROFILE</span><span class="btn">Войти через GitHub</span></div>
+
+    <a class="link m">‹ [Иван Петров]</a>
+
+    <section class="panel stack">
+      <div class="between"><span class="src">От автора</span></div>
+      <h1 class="ptitle">[Сервис импорта заказов]</h1>
+      <p class="pre" style="font-size:18px">[Принимает выгрузки из маркетплейсов, сверяет остатки и отдаёт отчёт для склада.]</p>
+      <div class="row"><span class="chip">Python</span><span class="chip">FastAPI</span><span class="chip">PostgreSQL</span><span class="chip">Celery</span><span class="chip">Docker</span></div>
+      <p class="muted">Моя роль: [Бэкенд-разработчик]</p>
+    </section>
+
+    <section class="stack">
+      <div class="sec"><span class="h">Демо</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="panel demo">
+        <div class="shot" data-t="1"></div>
+        <div class="demo-side">
+          <p class="muted sm">[Главный экран: остатки по складам]</p>
+          <span class="btn lg accent focus">Открыть демо ↗</span>
+          <p class="sm muted">[orders-demo.example.com] · откроется в новой вкладке</p>
+          <p class="sm muted">Ссылку указал автор, платформа сайт демо не проверяет.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="stack">
+      <div class="sec"><span class="h">Скриншоты</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="shots">
+        <figure><div class="shot t2" data-t="2"></div><figcaption>[Сверка остатков: расхождения подсвечены]</figcaption></figure>
+        <figure><div class="shot t3" data-t="3"></div><figcaption>[Отчёт для склада за неделю]</figcaption></figure>
+        <figure><div class="shot t4" data-t="4"></div></figure>
+      </div>
+    </section>
+
+    <section class="stack">
+      <div class="sec"><span class="h">Задача</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="panel"><p class="pre">[Склад сверял остатки трёх маркетплейсов вручную в таблицах: два дня в неделю и ошибки в отгрузках.]</p></div>
+    </section>
+    <section class="stack">
+      <div class="sec"><span class="h">Мой вклад</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="panel"><p class="pre">[Спроектировал схему БД и импорт выгрузок.
+Написал сверку остатков и отчёт, настроил фоновые задачи и деплой.]</p></div>
+    </section>
+    <section class="stack">
+      <div class="sec"><span class="h">Результат</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="panel"><p class="pre">[Сверка занимает 10 минут вместо двух дней, расхождения видны до отгрузки.]</p></div>
+    </section>
+    <section class="stack">
+      <div class="sec"><span class="h">Подробнее</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="panel"><p class="pre">[Сервис читает CSV и XLSX выгрузки, приводит артикулы к одному справочнику и хранит историю остатков. Отчёт собирается раз в сутки и по кнопке.]</p></div>
+    </section>
+
+    <section class="stack">
+      <div class="sec mutedmark"><span class="h">Данные GitHub</span><span class="rule"></span></div>
+      <div class="panel stack" style="gap:10px">
+        <span class="src">Источник: GitHub</span>
+        <a class="link m">[DizelPizell/orders-sync]</a>
+        <p>Владелец репозитория</p>
+        <p>[Order import and stock reconciliation for marketplaces.]</p>
+        <p class="sm muted">Доля кода в байтах, по данным GitHub</p>
+        <div class="row"><span class="chip">Python 68 %</span><span class="chip">TypeScript 24 %</span><span class="chip">Shell 6 %</span><span class="sm muted">Другие — 2 %</span></div>
+        <p class="sm muted">Данные GitHub от [01.11.2026]</p>
+      </div>
+    </section>
+  </div>
+</div>
+<p class="note"><b>A</b>Демо — первый крупный блок после названия. Превью — первый скриншот, сама картинка не ссылка; в галерее он не повторяется. Скриншот без подписи — без figcaption, alt «Скриншот N проекта «…»». Фокус на кнопке показан для примера. Пустые тексты скрыты, без заглушек.</p>
+
+<!-- ===== B: demo without screenshots ===== -->
+<div class="sheet-h h" style="font-size:16px">B · демо без скриншотов</div>
+<div class="viewport cut">
+  <div class="page">
+    <a class="link m">‹ [Иван Петров]</a>
+    <section class="panel stack">
+      <span class="src">От автора</span>
+      <h1 class="ptitle">[Плагин для Next.js]</h1>
+      <p style="font-size:18px">[Исправление кэширования маршрутов и тесты для него.]</p>
+      <div class="row"><span class="chip">TypeScript</span><span class="chip">Next.js</span></div>
+      <p class="muted">Моя роль: [Контрибьютор]</p>
+    </section>
+    <section class="stack">
+      <div class="sec"><span class="h">Демо</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="panel demo">
+        <div class="host-big">[next-cache-demo.vercel.app]</div>
+        <div class="demo-side">
+          <span class="btn lg accent">Открыть демо ↗</span>
+          <p class="sm muted">[next-cache-demo.vercel.app] · откроется в новой вкладке</p>
+          <p class="sm muted">Ссылку указал автор, платформа сайт демо не проверяет.</p>
+        </div>
+      </div>
+    </section>
+    <section class="stack">
+      <div class="sec"><span class="h">Задача</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="panel"><p>[…]</p></div>
+    </section>
+  </div>
+</div>
+<p class="note"><b>B</b>Без скриншотов вместо превью крупно показан хост (new URL().host, IDN — punycode). Секции «Скриншоты» нет.</p>
+
+<!-- ===== C: screenshots without demo ===== -->
+<div class="sheet-h h" style="font-size:16px">C · скриншоты без демо</div>
+<div class="viewport cut">
+  <div class="page">
+    <a class="link m">‹ [Иван Петров]</a>
+    <section class="panel stack">
+      <span class="src">От автора</span>
+      <h1 class="ptitle">[Внутренний отчёт для склада]</h1>
+      <p style="font-size:18px">[Выгрузка остатков в таблицу, без публичного кода. NDA.]</p>
+      <div class="row"><span class="chip">Python</span><span class="chip">Excel</span></div>
+      <p class="muted">Моя роль: [Разработчик]</p>
+    </section>
+    <section class="stack">
+      <div class="sec"><span class="h">Скриншоты</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="shots">
+        <figure><div class="shot t5" data-t="5"></div><figcaption>[Форма выгрузки]</figcaption></figure>
+        <figure><div class="shot t6" data-t="6"></div><figcaption>[Готовая таблица]</figcaption></figure>
+      </div>
+    </section>
+  </div>
+</div>
+<p class="note"><b>C</b>Без демо секции «Демо» нет; «Скриншоты» показывают все, начиная с первого. Одна картинка — одна колонка, от двух — две.</p>
+
+<!-- ===== D: neither ===== -->
+<div class="sheet-h h" style="font-size:16px">D · ни демо, ни скриншотов</div>
+<div class="viewport cut" style="max-height:560px">
+  <div class="page">
+    <a class="link m">‹ [Иван Петров]</a>
+    <section class="panel stack">
+      <span class="src">От автора</span>
+      <h1 class="ptitle">[Старый парсер цен]</h1>
+      <p style="font-size:18px">[Первая версия сборщика цен с сайтов. Не развивается.]</p>
+      <div class="row"><span class="chip">Python</span><span class="chip">BeautifulSoup</span></div>
+      <p class="muted">Моя роль: [Разработчик]</p>
+    </section>
+    <section class="stack">
+      <div class="sec"><span class="h">Мой вклад</span><span class="rule"></span><span class="src">От автора</span></div>
+      <div class="panel"><p class="pre">[Написал парсер целиком, один.]</p></div>
+    </section>
+  </div>
+</div>
+<p class="note"><b>D</b>Страница начинается с текстов. Ни «нет демо», ни «нет скриншотов»: проекту не нужно ни то, ни другое. Здесь нет «Задачи», «Результата», «Подробнее» (null) и «Данных GitHub» (github: null) — секций нет совсем.</p>
+
+<!-- ===== E: 375 px ===== -->
+<div class="sheet-h h" style="font-size:16px">E · 375 px и 404</div>
+<div class="row" style="align-items:flex-start; gap:24px; flex-wrap:nowrap">
+  <div>
+    <div class="viewport w375 cut" style="max-height:900px">
+      <div class="page">
+        <div class="topbar" style="padding:10px 12px"><span class="brand" style="font-size:12px">DEV.PROFILE</span><span class="btn sm" style="padding:8px 10px">Войти</span></div>
+        <a class="link m">‹ [Иван Петров]</a>
+        <section class="panel stack">
+          <span class="src">От автора</span>
+          <h1 class="ptitle sm375">[Сервис импорта заказов]</h1>
+          <p>[Принимает выгрузки из маркетплейсов, сверяет остатки и отдаёт отчёт для склада.]</p>
+          <div class="row" style="gap:8px"><span class="chip">Python</span><span class="chip">FastAPI</span><span class="chip">PostgreSQL</span></div>
+          <p class="muted">Моя роль: [Бэкенд-разработчик]</p>
+        </section>
+        <div class="sec"><span class="h">Демо</span><span class="rule"></span></div>
+        <div class="panel demo">
+          <div class="shot" data-t="1"></div>
+          <span class="btn lg accent">Открыть демо ↗</span>
+          <p class="sm muted">[orders-demo.example.com] · откроется в новой вкладке</p>
+          <p class="sm muted">Ссылку указал автор, платформа сайт демо не проверяет.</p>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>E1</b>Состояние A. Одна колонка, кнопка во всю ширину.</p>
+  </div>
+  <div>
+    <div class="viewport w375 cut" style="max-height:900px">
+      <div class="page">
+        <div class="topbar" style="padding:10px 12px"><span class="brand" style="font-size:12px">DEV.PROFILE</span><span class="btn sm" style="padding:8px 10px">Войти</span></div>
+        <a class="link m">‹ [Иван Петров]</a>
+        <section class="panel stack">
+          <span class="src">От автора</span>
+          <h1 class="ptitle sm375">[Плагин для Next.js]</h1>
+          <p>[Исправление кэширования маршрутов и тесты для него.]</p>
+        </section>
+        <div class="sec"><span class="h">Демо</span><span class="rule"></span></div>
+        <div class="panel demo">
+          <div class="host-big">[next-cache-demo.vercel.app]</div>
+          <span class="btn lg accent">Открыть демо ↗</span>
+          <p class="sm muted">Ссылку указал автор, платформа сайт демо не проверяет.</p>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>E2</b>Состояние B. Длинный хост переносится в любом месте.</p>
+  </div>
+  <div>
+    <div class="viewport w375">
+      <div class="page">
+        <div class="topbar" style="padding:10px 12px"><span class="brand" style="font-size:12px">DEV.PROFILE</span><span class="btn sm" style="padding:8px 10px">Войти</span></div>
+        <section class="panel stack" style="text-align:center; padding:40px 16px">
+          <p class="h" style="font-size:64px; color:var(--label)">404</p>
+          <h1 class="h" style="font-size:16px">Проект не найден</h1>
+          <p class="muted">Возможно, он скрыт, ещё не опубликован или ссылка неверна.</p>
+        </section>
+      </div>
+    </div>
+    <p class="note"><b>E3</b>Один 404 на всё: нет профиля, профиль скрыт, чужой проект, черновик, архив, скрытый, кривой id. Без ссылки назад — она выдала бы, какой случай. HTTP 404.</p>
+  </div>
+</div>
+
+<!-- ===== F: links from the profile ===== -->
+<div class="sheet-h h" style="font-size:16px">F · переход с профиля</div>
+<div class="viewport">
+  <div class="page">
+    <div class="sec"><span class="h">Главные проекты</span><span class="rule"></span><span class="src">От автора</span></div>
+    <div class="cards">
+      <div class="panel stack" style="gap:12px">
+        <span class="badge cap" style="align-self:flex-start">Главный 1</span>
+        <a class="link focus" style="font:500 20px/1.3 Tektur">[Сервис импорта заказов]</a>
+        <p>[Принимает выгрузки из маркетплейсов, сверяет остатки…]</p>
+        <div class="row" style="gap:8px"><span class="chip">Python</span><span class="chip">FastAPI</span><span class="chip">PostgreSQL</span></div>
+        <p class="sm muted">Моя роль: [Бэкенд-разработчик]</p>
+      </div>
+      <div class="panel stack" style="gap:12px">
+        <span class="badge cap" style="align-self:flex-start">Главный 2</span>
+        <a class="link" style="font:500 20px/1.3 Tektur">[Плагин для Next.js]</a>
+        <p>[Исправление кэширования маршрутов и тесты для него.]</p>
+        <div class="row" style="gap:8px"><span class="chip">TypeScript</span><span class="chip">Next.js</span></div>
+        <p class="sm muted">Моя роль: [Контрибьютор]</p>
+      </div>
+      <div></div>
+    </div>
+    <div class="sec mutedmark"><span class="h">Другие проекты</span><span class="rule"></span><span class="src">От автора</span></div>
+    <div class="panel between">
+      <div><a class="link" style="font-size:18px">[Старый парсер цен]</a><p class="sm muted">[Первая версия сборщика цен с сайтов]</p></div>
+      <span class="chip">Python</span>
+    </div>
+  </div>
+</div>
+<p class="note"><b>F</b>Ссылка — только название (подчёркнуто). Отдельного «Открыть проект ›» нет, картинки на карточке нет: в whitelist карточек нет скриншотов (ADR-019). Блок GitHub карточек не меняется и здесь опущен.</p>
+
+<!-- ===== Rules ===== -->
+<div class="sheet-h h" style="font-size:16px">Правила</div>
+<div class="panel">
+  <dl class="rules">
+    <dt class="cap">Порядок</dt><dd>Назад к профилю → название → Демо → Скриншоты → Задача, Мой вклад, Результат, Подробнее → Данные GitHub.</dd>
+    <dt class="cap">Демо</dt><dd>Только если demo_url разбирается и протокол http: или https:. Иначе блока нет, одна строка в лог сервера без значения. Ссылка: новая вкладка, rel="noopener noreferrer nofollow ugc". Без iframe, сервер URL не запрашивает.</dd>
+    <dt class="cap">Скриншоты</dt><dd>img с width и height, loading="lazy" (кроме превью). Картинка — ссылка на свой url в новой вкладке, «Открыть скриншот N в полном размере». Без лайтбокса. url только вида /media/…, иначе скриншот пропущен.</dd>
+    <dt class="cap">Тексты</dt><dd>Простой текст, переносы строк сохраняются, без разметки, не шире 70 знаков. null — блока нет.</dd>
+    <dt class="cap">Источник</dt><dd>Поля автора — «От автора». GitHub — отдельная секция с «Источник: GitHub», тот же компонент и whitelist, что на карточках. github: null — секции нет.</dd>
+    <dt class="cap">Адрес</dt><dd>Слаг по правилам профиля, id — канонический UUID; заглавные → 308 на строчный адрес. Кривой адрес — 404 без запроса к API.</dd>
+    <dt class="cap">Ошибки</dt><dd>404 — экран E3. Остальное — «Не удалось загрузить проект» и «Повторить», HTTP 500.</dd>
+    <dt class="cap">Не показываем</dt><dd>Оценки, счётчики, просмотры, «проверено», статус и видимость проекта.</dd>
+  </dl>
+</div>
+
+<script>
+  for (const el of document.querySelectorAll(".shot")) {
+    const h = [40, 65, 50, 80, 55, 90, 70].map((v, i) => `<i style="height:${(v + el.dataset.t * 7 * i) % 85 + 10}%"></i>`).join("");
+    el.innerHTML = `<div class="bar"></div><div class="side"><i></i><i></i><i></i><i></i></div><div class="main"><div class="kpis"><i></i><i></i><i></i></div><div class="chart">${h}</div></div>`;
+  }
+</script>
+</body>
+</html>
