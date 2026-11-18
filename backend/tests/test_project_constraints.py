@@ -16,6 +16,7 @@ from app.models.identity import Profile, User
 from app.models.projects import (
     PROJECT_TEXT_LIMITS,
     Project,
+    ProjectScreenshot,
     ProjectShowcase,
     ProjectTechnology,
     Technology,
@@ -522,3 +523,57 @@ def test_demo_url_backstop_rejects(db_session, value):
     owner, _ = _owner(db_session)
     db_session.add(Project(owner_id=owner.id, demo_url=value))
     _flush_violates(db_session, "ck_projects_demo_url")
+
+
+# ---------------------------------------------------------------------------
+# project_screenshots (ADR-0022)
+# ---------------------------------------------------------------------------
+
+
+def _screenshot(db_session, project: Project, **fields) -> ProjectScreenshot:
+    values = {"position": 1, "storage_key": f"projects/{project.id}/{next(_ids)}.webp"}
+    values |= {"width": 10, "height": 10} | fields
+    screenshot = ProjectScreenshot(project_id=project.id, **values)
+    db_session.add(screenshot)
+    db_session.flush()
+    return screenshot
+
+
+@pytest.mark.parametrize(
+    ("fields", "constraint"),
+    [
+        ({"position": 7}, "ck_project_screenshots_position"),
+        ({"position": 0}, "ck_project_screenshots_position"),
+        ({"caption": "  "}, "ck_project_screenshots_caption"),
+        ({"caption": "x" * 201}, "ck_project_screenshots_caption"),
+        ({"width": 2561}, "ck_project_screenshots_size"),
+        ({"height": 0}, "ck_project_screenshots_size"),
+    ],
+)
+def test_screenshot_checks(db_session, fields, constraint):
+    owner, _ = _owner(db_session)
+    project = _project(db_session, owner)
+    with pytest.raises(IntegrityError) as exc:
+        _screenshot(db_session, project, **fields)
+    assert exc.value.orig.diag.constraint_name == constraint
+
+
+def test_screenshot_position_and_key_are_unique(db_session):
+    owner, _ = _owner(db_session)
+    project = _project(db_session, owner)
+    first = _screenshot(db_session, project, caption="x" * 200, width=2560, height=2560)
+    with pytest.raises(IntegrityError) as exc:
+        with db_session.begin_nested():
+            _screenshot(db_session, project)
+    assert exc.value.orig.diag.constraint_name == "uq_project_screenshots_position"
+    with pytest.raises(IntegrityError) as exc:
+        _screenshot(db_session, project, position=2, storage_key=first.storage_key)
+    assert exc.value.orig.diag.constraint_name == "project_screenshots_storage_key_key"
+
+
+def test_screenshots_go_with_their_project(db_session):
+    owner, _ = _owner(db_session)
+    project = _project(db_session, owner)
+    _screenshot(db_session, project)
+    db_session.execute(text("DELETE FROM projects WHERE id = :id"), {"id": project.id})
+    assert _count(db_session, "SELECT count(*) FROM project_screenshots") == 0

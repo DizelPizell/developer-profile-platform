@@ -92,8 +92,15 @@
 ### UC-C5. Удаление проекта
 
 - **Актор:** владелец проекта. **С релиза:** v1.
-- **Поток:** `DELETE /api/v1/me/projects/{id}` → CASCADE удаляет связанные `project_technologies`, `featured_projects`, `project_repositories` → `204`.
+- **Поток:** `DELETE /api/v1/projects/{id}` → CASCADE удаляет связанные `project_technologies`, `featured_projects`, `project_repositories`, `project_screenshots` → после коммита удаляются файлы скриншотов → `204`.
 - **Отклонения:** проект не найден или чужой → `404`.
+
+### UC-C6. Скриншоты проекта
+
+- **Актор:** владелец проекта. **С релиза:** v1.
+- **Поток:** `POST /api/v1/projects/{id}/screenshots` (`multipart/form-data`: `file`, необязательная `caption`) → JPEG, PNG или WebP до 5 МБ перекодируется в WebP (длинная сторона до 2560 px, без EXIF) → файл в томе `media`, строка в `project_screenshots` в конце списка → `201` со списком скриншотов. Подпись — `PATCH …/screenshots/{screenshot_id}`, удаление — `DELETE …/screenshots/{screenshot_id}` (файл удаляется после коммита), порядок — `POST …/screenshots/reorder` со всем набором. Скриншоты приходят в `screenshots` ответа проекта; файл открывается по `/media/…`.
+- **Отклонения:** проект или скриншот не найден или чужой → `404`; седьмой скриншот → `409 SCREENSHOT_LIMIT_REACHED`; не картинка или другой формат → `422 invalid_image`; больше 5 МБ → `422 image_too_large`; больше 40 Мп → `422 too_many_pixels`; набор в перестановке не совпадает с текущим → `409 SCREENSHOT_ORDER_MISMATCH`.
+- **ADR:** [ADR-0022](release/v1/adr/0022-media-on-host-volume.md).
 
 ---
 

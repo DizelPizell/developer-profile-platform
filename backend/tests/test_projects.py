@@ -34,6 +34,7 @@ PROJECT_KEYS = {
     "technologies",
     "featured_position",
     "github",
+    "screenshots",
 }
 SUMMARY_KEYS = {
     "id",

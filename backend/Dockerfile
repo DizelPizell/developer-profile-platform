@@ -10,9 +10,13 @@ COPY alembic/ ./alembic/
 COPY requirements.lock ./
 RUN pip install --no-cache-dir -c requirements.lock .
 
+# The media volume's mount point (ADR-0022): an empty named volume takes the
+# owner of this directory on its first mount, so the app user can write to it.
 RUN groupadd --system app \
     && useradd --system --gid app --no-create-home app \
-    && chown -R app:app /app
+    && chown -R app:app /app \
+    && mkdir -p /srv/media \
+    && chown app:app /srv/media
 
 USER app
 

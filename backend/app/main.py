@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.access_log import install_access_log_filter
 from app.errors import UnhandledErrorMiddleware, register_error_handlers
@@ -47,3 +48,8 @@ app.include_router(github_import_router, prefix="/api/v1")
 @app.get("/api/v1/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+if settings.app_env == "development":
+    # Nginx serves /media/ everywhere else (ADR-0022).
+    app.mount("/media", StaticFiles(directory=settings.media_root, check_dir=False), name="media")

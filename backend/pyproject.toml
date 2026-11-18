@@ -11,6 +11,10 @@ dependencies = [
     "alembic>=1.20.1",
     "pydantic-settings>=2.16.1",
     "httpx>=0.28.1",
+    # Decodes, checks and re-encodes uploaded screenshots (ADR-0022).
+    "pillow>=13.0.0",
+    # FastAPI needs it to read multipart/form-data uploads (ADR-0022).
+    "python-multipart>=0.0.34",
 ]
 
 [project.optional-dependencies]

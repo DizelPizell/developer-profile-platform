@@ -204,7 +204,7 @@ All require a session and act only on the current user's projects. A missing pro
 | `POST /projects` | 201 `ProjectResponse` | 401; 403 `CSRF_ORIGIN_INVALID`; 409 `PROJECT_LIMIT_REACHED`; 422 `VALIDATION_ERROR` |
 | `GET /projects/{id}` | 200 `ProjectResponse` | 401; 404 `NOT_FOUND` |
 | `PATCH /projects/{id}` | 200 `ProjectResponse` | 401; 403; 404; 422 `VALIDATION_ERROR`; 422 `PROJECT_INCOMPLETE` (emptying a required field of a published project) |
-| `DELETE /projects/{id}` | 204 | 401; 403; 404 |
+| `DELETE /projects/{id}` | 204 (its screenshot files are deleted after the commit) | 401; 403; 404 |
 | `POST /projects/{id}/publish` | 200 `ProjectResponse` (idempotent) | 401; 403; 404; 422 `PROJECT_INCOMPLETE` |
 | `POST /projects/{id}/archive` | 200 `ProjectResponse` (idempotent) | 401; 403; 404; 409 `PROJECT_TRANSITION_INVALID` (from `DRAFT`) |
 | `POST /projects/{id}/visibility` | 200 `ProjectResponse` (idempotent) | 401; 403; 404; 409 `PROJECT_TRANSITION_INVALID` (not `PUBLISHED`); 422 `VALIDATION_ERROR` |
@@ -255,11 +255,12 @@ States (ADR-015): a new project is `DRAFT` + `PRIVATE`. Allowed pairs: `DRAFT`+`
   "demo_url": "string | null",
   "technologies": ["string"],
   "featured_position": "1 | 2 | 3 | null",
-  "github": "ProjectGitHub | null"
+  "github": "ProjectGitHub | null",
+  "screenshots": ["Screenshot"]
 }
 ```
 
-`github` is the project's linked repository, or `null` when there is none; see "GitHub" below.
+`github` is the project's linked repository, or `null` when there is none; see "GitHub" below. `screenshots` are the project's screenshots in their order (at most 6, `[]` when none); see "Screenshots" below.
 
 `ProjectListResponse`: `{"items": [ProjectSummary]}`, newest first by creation time, at most 50 items (the project limit), no pagination. `ProjectSummary`:
 
@@ -281,6 +282,44 @@ States (ADR-015): a new project is `DRAFT` + `PRIVATE`. Allowed pairs: `DRAFT`+`
 `ProjectVisibilityUpdate` (body of `POST /projects/{id}/visibility`): `{"visibility": "PUBLIC | PRIVATE"}`.
 
 `PROJECT_INCOMPLETE` details: `{"missing_fields": ["title", "summary", "role", "contribution", "technologies"]}` (only the missing ones).
+
+## Screenshots
+
+```http
+POST   /projects/{id}/screenshots
+PATCH  /projects/{id}/screenshots/{screenshot_id}
+DELETE /projects/{id}/screenshots/{screenshot_id}
+POST   /projects/{id}/screenshots/reorder
+```
+
+At most 6 screenshots per project, in any project state (ADR-0022). The rules of project ids apply to `screenshot_id`; a screenshot of another project is 404 `NOT_FOUND`. Every endpoint answers with `ScreenshotListResponse`: `{"items": [Screenshot]}`, the project's screenshots in their order.
+
+| Endpoint | Success | Errors |
+|---|---|---|
+| `POST /projects/{id}/screenshots` | 201 `ScreenshotListResponse` | 401; 403; 404; 409 `SCREENSHOT_LIMIT_REACHED` (`{"limit": 6}`); 422 `VALIDATION_ERROR` |
+| `PATCH /projects/{id}/screenshots/{screenshot_id}` | 200 `ScreenshotListResponse` | 401; 403; 404; 422 `VALIDATION_ERROR` |
+| `DELETE /projects/{id}/screenshots/{screenshot_id}` | 200 `ScreenshotListResponse` | 401; 403; 404 |
+| `POST /projects/{id}/screenshots/reorder` | 200 `ScreenshotListResponse` | 401; 403; 404; 409 `SCREENSHOT_ORDER_MISMATCH`; 422 `VALIDATION_ERROR` |
+
+Upload: `multipart/form-data` with `file` (required) and `caption` (optional). The file is a JPEG, PNG or WebP up to 5 MB, told by its content, not by its name or `Content-Type`, with at most 40 million pixels, checked from the header before decoding. It is re-encoded to WebP with the long side reduced to 2560 px: the EXIF orientation is applied, EXIF and XMP (GPS included) are dropped, an animation keeps its first frame. Errors of the `file` field: `missing`, `invalid_image`, `image_too_large`, `too_many_pixels`. In production Nginx stops a body over 6 MB on this path with its own 413 page, not the JSON error format; the frontend checks the size before sending.
+
+`caption` (upload and `ScreenshotCaptionUpdate` `{"caption": "string | null"}`) is the alt text: plain single-line text, trimmed, ≤ 200; blank or `null` means none.
+
+`ScreenshotReorderRequest`: `{"screenshot_ids": ["uuid"]}`, the complete current set in the new order; another set is 409 `SCREENSHOT_ORDER_MISMATCH`, a repeated id is 422 `duplicate_screenshot`.
+
+`Screenshot`:
+
+```json
+{
+  "id": "uuid",
+  "url": "/media/projects/{project_id}/{uuid}.webp",
+  "caption": "string | null",
+  "width": "integer (1–2560)",
+  "height": "integer (1–2560)"
+}
+```
+
+`url` is a path on the site's own origin; the file behind it never changes (a new upload gets a new name). Whoever knows the URL can open it, also for a draft or private project; deleting the screenshot or the project deletes the file after the commit. Public responses get screenshots in step 4.3, only for visible projects.
 
 ## Showcase (featured projects)
 

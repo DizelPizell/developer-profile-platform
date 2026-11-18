@@ -5,7 +5,13 @@ from app.models.github import (
     ProjectRepository,
 )
 from app.models.identity import AuthSession, GitHubAccount, Profile, ProfileContact, User
-from app.models.projects import Project, ProjectShowcase, ProjectTechnology, Technology
+from app.models.projects import (
+    Project,
+    ProjectScreenshot,
+    ProjectShowcase,
+    ProjectTechnology,
+    Technology,
+)
 
 __all__ = [
     "User",
@@ -17,6 +23,7 @@ __all__ = [
     "Technology",
     "ProjectTechnology",
     "ProjectShowcase",
+    "ProjectScreenshot",
     "GitHubRepository",
     "ProjectRepository",
     "GitHubSyncJob",
