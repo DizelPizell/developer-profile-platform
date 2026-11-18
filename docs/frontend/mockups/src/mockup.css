@@ -1,0 +1,83 @@
+/* Shared styles of the HTML mockups; tokens from DESIGN.md. */
+/* Local copies of the next/font files (OFL), so rendering works offline. */
+@font-face { font-family: Tektur; font-weight: 400 900; src: url(fonts/tektur-cyrillic.woff2); unicode-range: U+301, U+400-45F, U+490-491, U+4B0-4B1, U+2116; }
+@font-face { font-family: Tektur; font-weight: 400 900; src: url(fonts/tektur-latin.woff2); unicode-range: U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Press Start 2P"; src: url(fonts/press-start-2p-cyrillic.woff2); unicode-range: U+301, U+400-45F, U+490-491, U+4B0-4B1, U+2116; }
+@font-face { font-family: "Press Start 2P"; src: url(fonts/press-start-2p-latin.woff2); unicode-range: U+0-FF, U+131, U+152-153, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+:root {
+  --bg: #150d2e; --grid: #1b1140; --panel: #231650; --frame: #3b2a80; --outline: #0b0620;
+  --accent: #7c3aed; --label: #ffd23f; --text: #f3edff; --muted: #b8a9e8;
+  --error: #ff5d8f; --success: #22c55e;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  width: 1280px; padding: 40px 48px 64px; color: var(--text); font: 16px/1.5 "Tektur", sans-serif;
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--grid) 2px, transparent 2px), linear-gradient(90deg, var(--grid) 2px, transparent 2px);
+  background-size: 32px 32px;
+}
+.h { font-family: "Press Start 2P", monospace; text-transform: uppercase; line-height: 1.6; }
+.cap { font-size: 16px; text-transform: uppercase; letter-spacing: .04em; font-weight: 500; }
+.sm { font-size: 14px; } .muted { color: var(--muted); } .err { color: var(--error); } .ok { color: var(--success); }
+.panel { background: var(--panel); border: 4px solid var(--outline); box-shadow: inset 0 0 0 4px var(--frame), 6px 6px 0 var(--outline); padding: 24px 28px; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.between { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+
+/* Annotation chrome of the mockup sheet (not part of the product). */
+.intro { margin-bottom: 40px; }
+.intro p { margin-top: 12px; color: var(--muted); }
+.sheet-h { display: flex; align-items: center; gap: 16px; margin: 48px 0 20px; }
+.sheet-h::before { content: ""; width: 16px; height: 16px; background: var(--label); }
+.sheet-h::after { content: ""; flex: 1; height: 4px; background: var(--outline); }
+.note { margin-top: 12px; font-size: 14px; color: var(--muted); }
+.note b { color: var(--label); font-weight: 500; margin-right: 8px; }
+.states { display: grid; grid-template-columns: 1fr 1fr; gap: 40px 32px; align-items: start; }
+.viewport { border: 4px dashed var(--frame); padding: 24px; background: var(--bg); }
+.viewport.w375 { width: 375px; padding: 16px; }
+.rules { display: grid; grid-template-columns: 200px 1fr; gap: 14px 24px; }
+.rules dt { color: var(--label); }
+
+/* Product elements. */
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: var(--panel); border: 4px solid var(--outline); }
+.brand { font-family: "Press Start 2P", monospace; font-size: 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 500 16px/1 "Tektur"; padding: 12px 18px; border: 4px solid var(--outline); box-shadow: 4px 4px 0 var(--outline); background: var(--panel); color: var(--text); white-space: nowrap; }
+.btn.lg { font-size: 20px; padding: 16px 24px; }
+.btn.accent { background: var(--accent); }
+.btn.label { background: var(--label); color: var(--outline); }
+.btn.danger { background: var(--panel); color: var(--error); }
+.btn.dangerfill { background: var(--error); color: var(--outline); }
+.btn.off { opacity: .45; box-shadow: none; }
+.btn.sq { padding: 10px 12px; }
+.chip { display: inline-block; padding: 4px 10px; background: var(--bg); border: 2px solid var(--outline); font-size: 14px; }
+.badge { display: inline-block; padding: 2px 8px; background: var(--label); color: var(--outline); border: 2px solid var(--outline); }
+.src { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.link { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+.link.m { color: var(--muted); }
+.sec { display: flex; align-items: center; gap: 14px; margin: 8px 0 4px; }
+.sec::before { content: ""; width: 16px; height: 16px; background: var(--label); flex: none; }
+.sec.mutedmark::before { background: var(--muted); }
+.sec .rule { flex: 1; height: 4px; background: var(--outline); }
+.sec .h { font-size: 16px; }
+.focus { outline: 4px solid var(--label); outline-offset: 4px; }
+.input { border: 2px solid var(--muted); background: var(--bg); padding: 10px 12px; color: var(--text); min-height: 46px; display: flex; align-items: center; }
+.input.ph { color: var(--muted); }
+.input.bad { border-color: var(--error); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.alert { border: 4px solid var(--error); background: var(--bg); padding: 12px 16px; }
+.okbox { border: 4px solid var(--success); background: var(--bg); padding: 12px 16px; }
+.pre { white-space: pre-line; max-width: 70ch; }
+
+/* A fake screenshot of the developer's own app: light, so it reads as a foreign page. */
+.shot { position: relative; background: #eef1f7; border: 4px solid var(--outline); overflow: hidden; aspect-ratio: 16 / 10; }
+.shot .bar { height: 9%; background: #2f3b52; }
+.shot .side { position: absolute; left: 0; top: 9%; bottom: 0; width: 18%; background: #dfe4ee; }
+.shot .side i { display: block; height: 6%; margin: 12% 14% 0; background: #b9c2d3; }
+.shot .main { position: absolute; left: 22%; right: 4%; top: 15%; bottom: 6%; display: grid; grid-template-rows: auto 1fr; gap: 6%; }
+.shot .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4%; height: 18%; min-height: 18px; }
+.shot .kpis i { background: #fff; border: 2px solid #c9d1df; }
+.shot .chart { display: flex; align-items: flex-end; gap: 3%; padding: 3%; background: #fff; border: 2px solid #c9d1df; }
+.shot .chart i { flex: 1; background: #4f7cff; }
+.shot.t2 .chart i { background: #20a77b; } .shot.t3 .chart i { background: #f08a3c; }
+.shot.t4 .bar { background: #5b3cc4; } .shot.t5 .bar { background: #1f7a8c; } .shot.t6 .bar { background: #8c2f4f; }

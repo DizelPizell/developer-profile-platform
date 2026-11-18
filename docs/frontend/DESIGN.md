@@ -97,6 +97,7 @@ Rules that follow:
 | `/me/projects/[id]` | Edit project (F5) | Client |
 | `/me/repositories` | «Репозитории GitHub» (F-GH1) | Client |
 | `/u/[slug]` | Public profile | Server (SSR) |
+| `/u/[slug]/projects/[id]` | Public project page (4.6) | Server (SSR) |
 | anything else | 404 | — |
 
 ## Screens
@@ -153,7 +154,7 @@ The layout comes from `public-profile.png`; only what the Phase 3 API provides i
   - `summary`, at most four lines (`line-clamp`), then cut;
   - up to three technology chips, in the developer's order; the rest are not shown;
   - «Моя роль: {role}» at the bottom of the card, with the GitHub block, when there is one, under it. Cards of a line keep one height: the role and the block are pushed down together.
-  - The mockup's striped image area and «Открыть проект ›» wait for Phase 4 (screenshots and the public project page) and are not rendered. No element links to a project.
+  - The mockup's striped image area and «Открыть проект ›» are not rendered. Until step 4.6 no element links to a project; from 4.6 the title does (see "Public project page").
 - **«Другие проекты»** — a row per project, in API order (newest first):
   - `title`, wrapped like on cards;
   - `summary` on one line, cut with an ellipsis;
@@ -213,6 +214,70 @@ Decisions where the mockup differs (the owner, 2026-11-16):
 - **Place.** The mockup puts the block in a right column under «Инвентарь», which the page does not have. From `lg` «О себе» is on the left and «Контакты» on the right (20rem); below `lg` the section goes under «О себе»; without `bio` it takes the row alone.
 - **Hero button.** The mockup draws no hero; ADR-0020 requires the button.
 - **Phone.** The mockup shows «+7 999 123-45-67»; the page shows the E.164 value as the API returns it. Formatting international numbers without a library would be a guess.
+
+### Public project page — `/u/[slug]/projects/[id]` (4.6)
+
+Spec for the mockup `project-page.png` (step 4.4), drawn after this text; where the drawing differs, the conflict is raised, not silently picked. Data: `GET /api/v1/public/profiles/{slug}/projects/{id}` → `PublicProjectPage` (step 4.3): `id`, `title`, `summary`, `description`, `problem`, `results`, `role`, `contribution`, `technologies`, `demo_url`, `screenshots` (`url`, `caption`, `width`, `height`), `github`, `owner` (`slug`, `display_name`, `avatar_url`). Server rendered (SSR), one API call per request, like the profile.
+
+Principle: **demo first** (PRD, ADR-0023). When the project has a demo, the demo block is the first large element after the title. There is no iframe: a preview and a link.
+
+Blocks, top to bottom:
+
+| Block | Data | Notes |
+|---|---|---|
+| Header | — | The profile page's top bar, unchanged. |
+| Back link | `owner` | «‹ {display_name}», a link to `/u/{owner.slug}`. No avatar: the name is enough to say where it leads. |
+| Title | `title`, `summary`, `technologies`, `role` | `title` in Tektur (`h1`, wraps at any point), `summary` under it, then all technology chips (`CHIP`) in the developer's order, then «Моя роль: {role}». Marked «От автора». |
+| «Демо» | `demo_url`, first of `screenshots` | Only when `demo_url` passes the link check below. See "Demo block". |
+| «Скриншоты» | `screenshots` | See "Screenshots". No screenshots left to show: no section. |
+| «Задача» | `problem` | «От автора», plain text, `white-space: pre-line`. `null` hides the block. |
+| «Мой вклад» | `contribution` | The same; never empty for a public project. |
+| «Результат» | `results` | The same; `null` hides it. |
+| «Подробнее» | `description` | The same; `null` hides it. |
+| «Данные GitHub» | `github` | The featured-card GitHub block of F-GH2 (source, `full_name`, relation, chips, description, languages, date), the same component and whitelist reader. `null`: no section, no stub. |
+
+The order of the texts — task, contribution, result, details — puts the evidence of the developer's own work before the long description. No block is drawn empty and none says «нет демо» or «нет скриншотов»: a project needs neither (CLAUDE.md).
+
+#### Demo block
+
+- A panel with the heading «Демо», the preview and the main button «Открыть демо ↗» (accent, `lg`).
+- The preview is the first screenshot: `<img>` with its `width` and `height` (no layout shift), scaled to the panel width, `alt` from its caption. The image itself is not a link: one link per target keeps the tab order short.
+- Without screenshots the panel shows the host of the demo in large text instead of the preview, and the same button.
+- Under the button: «{host} · откроется в новой вкладке» in `text-muted`, where host is `new URL(demo_url).host` (an IDN reads as punycode, so the text cannot hide where the link leads), and «Ссылку указал автор, платформа сайт демо не проверяет.» (ADR-0023: the server never requests the URL).
+- Link check, as for «Другое» in contacts: the URL parses and its protocol is `http:` or `https:`. Otherwise the whole block is hidden and one server log line names the project id and the field, never the value.
+- The link opens a new tab with `rel="noopener noreferrer nofollow ugc"`.
+- With a demo, the first screenshot is the preview and the «Скриншоты» section starts from the second. Without a demo it shows all of them.
+
+#### Screenshots
+
+- Section «Скриншоты», «От автора». One column; two from `sm` when there are two or more.
+- Each is a `figure`: `<img>` with `width`, `height`, `loading="lazy"` (the demo preview is not lazy), `alt` = `caption`, or «Скриншот N проекта «{title}»» when there is none. A caption is also shown under the image in `text-muted`.
+- The image is a link to its own `url` in a new tab, named «Открыть скриншот N в полном размере»: no lightbox and no client JavaScript in V1.
+- A screenshot is used only when `url` starts with `/media/` (a path on the site's own origin) and `width` and `height` are integers from 1 to 2560; otherwise it is dropped with one server log line (project id, field). The page keeps working.
+
+Rules:
+
+- Every value is rendered as text. The response is read through a whitelist (`readPublicProjectPage`); fields outside `PublicProjectPage` are dropped. A missing required field or a wrong type of a project field is an unexpected body (error screen); a wrong `github` hides only its section, like on the cards.
+- No scores, counters, views or «проверено» marks. GitHub data stays in its own marked section (content rules).
+
+Address:
+
+- The slug follows the profile rules (lowercased, the same pattern; uppercase → 308 to `/u/{lowercase}/projects/{id}`).
+- `id` must be a canonical UUID (8-4-4-4-12 hex, as the API's `parse_canonical_uuid`); anything else is the project 404 without calling the API. Uppercase hex redirects (308) to lowercase together with the slug, so a project has one address.
+
+Metadata: title «{title} — {owner.display_name}», description `summary`. No Open Graph image in V1.
+
+States:
+
+| API response | Result |
+|---|---|
+| 200 | Project page |
+| 404, malformed slug or id | Project 404 screen, HTTP status 404: «Проект не найден» and «Возможно, он скрыт, ещё не опубликован или ссылка неверна.» No link back: the profile may be private too, and the one 404 must not tell which case it is (step 4.3) |
+| Any other error | «Не удалось загрузить проект» with «Повторить», HTTP status 500, as on the profile |
+
+Responsive: at 375 px everything is one column; the demo button takes the full width.
+
+Links from the profile (part of 4.6): on a featured card and in an «Другие проекты» row the `title` becomes a link to `/u/{slug}/projects/{id}`. There is no separate «Открыть проект ›»: a second link to the same place adds a tab stop and nothing else. The cards get no image: the card whitelist has no screenshots (ADR-019), and the mockup's striped area is dropped in V1.
 
 ### Cabinet — `/me`
 
@@ -360,7 +425,7 @@ Behavior:
 
 #### New and edit project — `/me/projects/new`, `/me/projects/[id]`
 
-Top panel: «Новый проект» or «Проект», the state badge (once saved) and «Публичная страница проекта появится позже». Fields in mockup order; «*» means required for publication, not for saving. `role` and `technologies` sit side by side, as do `problem` and `results`; on narrow screens they stack.
+Top panel: «Новый проект» or «Проект», the state badge (once saved) and «Публичная страница проекта появится позже» (from 4.5 a link or a note, see "«Демо и скриншоты» in the project form"). Fields in mockup order; «*» means required for publication, not for saving. `role` and `technologies` sit side by side, as do `problem` and `results`; on narrow screens they stack.
 
 | Field | Label | Placeholder | Hint | Limit | Lines |
 |---|---|---|---|---|---|
@@ -375,7 +440,7 @@ Top panel: «Новый проект» or «Проект», the state badge (onc
 
 - Every field has a counter «N / limit». Text is plain: no markup, line breaks kept in multi-line fields.
 - Technologies are chips. A name is added with Enter or «Добавить» and removed with × («Удалить «{name}»»). The name is trimmed and inner whitespace collapsed, as the API does. A blank name is ignored. A name equal to an existing one ignoring case is not added: `«{name}» уже есть в списке.`. At 20 the input is read-only with «Не больше 20 технологий.». Technologies keep the entered order.
-- Under the form: «Демо, скриншоты и репозиторий GitHub добавим в следующих версиях.» From F-GH1 the line changes (see "GitHub in the cabinet").
+- Under the form: «Демо, скриншоты и репозиторий GitHub добавим в следующих версиях.» From F-GH1 the line changes (see "GitHub in the cabinet"); from 4.5 it is gone.
 
 Actions (buttons under the form):
 
@@ -408,6 +473,64 @@ States and errors (list and form):
 | 409 `PROJECT_NOT_FEATURABLE` | «Главным можно сделать только опубликованный и видимый проект. Данные загружены заново.»; the list is reloaded |
 | 409 `FEATURED_LIMIT_REACHED` | «В главных уже 3 проекта. Уберите один, чтобы добавить другой.»; the list is reloaded |
 | 409 `FEATURED_ORDER_MISMATCH` | «Список главных изменился, порядок загружен заново.»; the list is reloaded |
+
+#### «Демо и скриншоты» in the project form (4.5)
+
+Spec for the mockup `project-media.png` (step 4.4: the block in its states and a rules card), drawn after this text. API: `demo_url` in `ProjectWrite` / `ProjectResponse` (step 4.1, ADR-0023) and the "Screenshots" section of `docs/api/API_CONTRACT.md` (step 4.2a, ADR-0022).
+
+Place: after «Результат», before «Репозиторий GitHub» (demo first, as on the public page). Heading «Демо и скриншоты», «Необязательно». It replaces the line «Демо и скриншоты добавим в следующих версиях.» under the form; that line goes away with nothing in its place.
+
+The top panel's «Публичная страница проекта появится позже» changes:
+
+- a `PUBLISHED` + `PUBLIC` project of a `PUBLISHED` profile: the link «Открыть публичную страницу ↗» to `/u/{slug}/projects/{id}`, in a new tab (the slug and status come from `GET /profile`, already read for the header);
+- otherwise: «Публичная страница появится, когда проект и профиль будут опубликованы.»
+
+**Demo link** — an ordinary form field, saved by «Сохранить» with the other fields:
+
+| Field | Label | Placeholder | Hint | `maxLength` |
+|---|---|---|---|---|
+| `demo_url` | «Ссылка на демо» | «https://demo.example.com» | «Только http и https. У посетителя откроется в новой вкладке; превью — первый скриншот» | 2048 |
+
+- No counter (like contact links). An emptied field is sent as `null`: the API rejects a blank string (contract). The field shows the stored value after a save (the scheme in lower case).
+- Errors under the field: `invalid_url` → «Допустимы только ссылки http и https.» (the contact text), `string_too_long` → «Не больше 2048 символов.», any other → «Некорректное значение.».
+- The client does not check the URL before sending; the server is the source of truth.
+
+**Screenshots** — work at once, like linking a repository, and do not depend on «Сохранить».
+
+- On `/me/projects/new`: only «Скриншоты можно добавить после первого сохранения.» (an upload needs a project id).
+- The note: «Скриншоты сохраняются сразу и не зависят от кнопки «Сохранить». Файл открывается по прямой ссылке у любого, кто её знает, даже пока проект — черновик.» The second sentence is the contract's rule (ADR-0022), said to the owner before they upload.
+- «Скриншотов: N из 6» and «Добавить скриншот» (`label`). The button opens a file picker (`accept="image/jpeg,image/png,image/webp"`, one file). Hint: «JPEG, PNG или WebP, до 5 МБ. Метаданные (EXIF, в том числе место съёмки) удаляются.»
+- Before sending, two checks without a request: over 5 MB → «Файл больше 5 МБ.»; a type other than the three → «Подходят JPEG, PNG и WebP.» The server still decides by the content.
+- At 6 the button is disabled with «Можно добавить не больше 6 скриншотов.»
+- Upload sends `POST /projects/{id}/screenshots` with the file and no caption. Meanwhile the button reads «Загружаем…», and all form buttons are disabled (a request at a time, as everywhere). No progress bar: `fetch` does not report upload progress, and 5 MB does not need one.
+- An empty list shows «[Пока нет скриншотов]».
+
+A row per screenshot, in order:
+
+- the position N in a `label` square; the first row also carries «Превью демо» while a demo link is saved;
+- a thumbnail (`url`, 160 px wide, `object-contain`, `width`/`height` set), `alt` = caption or «Скриншот N»;
+- «Подпись» (placeholder «Что на скриншоте», hint «Для тех, кто не видит картинку. До 200 символов», counter, one line) and «Сохранить подпись» (secondary), active when the text differs from the stored one. Enter in the field saves the caption, not the form. It sends `PATCH …/screenshots/{screenshot_id}`; an emptied caption is `null`;
+- ▲ and ▼ with the names «Выше: скриншот N» and «Ниже: скриншот N» (disabled on the edges, no drag-and-drop, as for featured projects). A move sends `POST …/screenshots/reorder` with the whole set in the new order;
+- «Удалить» (red text on a panel) asks in an `AlertDialog` (focus on «Отмена»): «Удалить скриншот?», «Файл удалится навсегда. Отменить нельзя.», «Удалить» (`error` fill), «Отмена».
+
+Behavior:
+
+- Every screenshot call returns `ScreenshotListResponse`; the form replaces its list with it and touches nothing else, so unsaved field edits stay.
+- Focus: after an upload — the new row's caption field; after a delete — the next row's «Удалить», or «Добавить скриншот» when none is left; after a move — the same arrow in the row's new place (or the other arrow when it became disabled).
+- Results and errors are announced in a live region of the block (`role="status"`): «Загружаем скриншот…», «Скриншот добавлен.», «Подпись сохранена.», «Скриншот удалён.», «Порядок изменён.», and the error texts below. An upload error also names the file.
+
+Errors, shown inside the block (under the upload button, or under the row they belong to):
+
+| Response | Text |
+|---|---|
+| 422 `invalid_image` on `file` | «Не получилось прочитать картинку. Подходят JPEG, PNG и WebP.» |
+| 422 `image_too_large` on `file`, or 413 from Nginx (an HTML body, read by the status) | «Файл больше 5 МБ.» |
+| 422 `too_many_pixels` on `file` | «Слишком большое изображение: не больше 40 мегапикселей.» |
+| 422 on `caption` | «Не больше 200 символов.», «Недопустимые символы.» or «Некорректное значение.» |
+| 409 `SCREENSHOT_LIMIT_REACHED` | «Можно добавить не больше 6 скриншотов. Список загружен заново.»; the list is reloaded from `GET /projects/{id}` (only `screenshots` taken) |
+| 409 `SCREENSHOT_ORDER_MISMATCH` | «Список скриншотов изменился, порядок загружен заново.»; reloaded the same way |
+| 404 `NOT_FOUND` | One code for a missing screenshot and a missing project, so the form reloads `GET /projects/{id}`: 200 → «Скриншот не найден. Список загружен заново.»; 404 → the «Проект не найден» panel |
+| 401, network, 500 | The form's usual handling (`/login`, the cabinet texts with «Код запроса») |
 
 ### GitHub in the cabinet (F-GH1)
 
@@ -708,7 +831,7 @@ The profile text names both cases together, so it never says which one applies: 
 
 ## Mockups
 
-Mockups are added manually to `docs/frontend/mockups/`:
+Mockups are added manually to `docs/frontend/mockups/`. From 4.4 they can also be drawn as HTML in `mockups/src/` (shared `mockup.css`, local font files) and rendered with `node render.mjs <name>` (`CHROME` = a Chrome or headless-shell binary); the PNG stays the reference:
 
 - `public-profile.png`
 - `cabinet.png`
@@ -721,6 +844,8 @@ Mockups are added manually to `docs/frontend/mockups/`:
 - `repository-sync.png` (F-GH1.5: the sync states of the form block and the rules card)
 - `public-cards.png` (F-GH2: the GitHub block on public cards and rows; six featured cards only to show the states)
 - `profile-contacts.png` (C.2: the contacts section of the public page, the block of the profile form and the rules card)
+- `project-page.png` (4.4, for 4.6): the public project page at 1280 and 375 px in four states — demo with screenshots, demo without screenshots, screenshots without a demo, neither (texts and GitHub only); the project 404; a profile card and row with the title as a link
+- `project-media.png` (4.4, for 4.5): the «Демо и скриншоты» block — a new project, empty, 1 screenshot with a demo link («Превью демо»), 6 of 6, uploading, an upload error, a `demo_url` error, the delete dialog; the top panel's link and note; a rules card
 
 The F-GH1 version of «Мои проекты» (with «Импорт из GitHub» and the GitHub label) is in the working tree as `my-projects.png.png`; the mockup owner decides whether it replaces `my-projects.png`.
 

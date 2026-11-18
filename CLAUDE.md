@@ -913,12 +913,15 @@ Phase 4 step 4.2b: media in production — the media volume read-only in Nginx, 
 Phase 4 step 4.3: the public project page in the backend — GET /public/profiles/{slug}/projects/{id} with a whitelisted PublicProjectPage (the project fields, technologies, demo_url, screenshots without ids, the same github object as the cards, the owner for the link back), one 404 for a private profile, another user's project, a project not PUBLISHED + PUBLIC or a malformed id, five queries, no GitHub call; the ADR-019 field list corrected (ADR-019, ADR-0022, ADR-0023)
 
 
+Phase 4 step 4.4: the mockups project-page.png (the public project page: demo with and without screenshots, screenshots only, neither, 375 px, the 404, links from the profile) and project-media.png (the «Демо и скриншоты» form block in its states and the error texts), drawn as HTML in docs/frontend/mockups/src and rendered to PNG; the screens in DESIGN.md and steps 4.5 and 4.6 in FRONTEND_PLAN.md; documents only, no code
+
+
 
 Not yet started:
 
 
 
-the project page mockup, the cabinet for the demo and screenshots, and the public project page — Phase 4 steps 4.4–4.6
+the cabinet for the demo and screenshots, and the public project page — Phase 4 steps 4.5–4.6
 
 the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
@@ -930,7 +933,7 @@ Current next goal:
 
 
 
-Phase 4 — Demo and Media, step by step (4.1–4.3 are done): 4.4 the mockup; 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 — Demo and Media, step by step (4.1–4.4 are done): 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
