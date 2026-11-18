@@ -910,13 +910,15 @@ Phase 4 step 4.2a: screenshots in the backend — app/media (the volume writer a
 
 Phase 4 step 4.2b: media in production — the media volume read-only in Nginx, location /media/ serving only keys shaped projects/<uuid>/<uuid>.webp with immutable caching, nosniff and HSTS repeated, 6 MB only on the upload path, python -m app.media.sweep [--dry-run] for files without a row older than a day, check_compose.py checks of the volume and check_nginx.sh in CI answering real requests with curl (ADR-0022)
 
+Phase 4 step 4.3: the public project page in the backend — GET /public/profiles/{slug}/projects/{id} with a whitelisted PublicProjectPage (the project fields, technologies, demo_url, screenshots without ids, the same github object as the cards, the owner for the link back), one 404 for a private profile, another user's project, a project not PUBLISHED + PUBLIC or a malformed id, five queries, no GitHub call; the ADR-019 field list corrected (ADR-019, ADR-0022, ADR-0023)
+
 
 
 Not yet started:
 
 
 
-demo, screenshots, file storage and the public project page with its GitHub block — Phase 4 steps 4.3–4.6
+the project page mockup, the cabinet for the demo and screenshots, and the public project page — Phase 4 steps 4.4–4.6
 
 the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
@@ -928,7 +930,7 @@ Current next goal:
 
 
 
-Phase 4 — Demo and Media, step by step (4.1 and 4.2 are done): 4.3 the public project endpoint with its GitHub block; 4.4 the mockup; 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 — Demo and Media, step by step (4.1–4.3 are done): 4.4 the mockup; 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

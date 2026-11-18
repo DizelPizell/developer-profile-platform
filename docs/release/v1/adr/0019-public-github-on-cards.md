@@ -14,6 +14,8 @@ V1 синхронизирует метаданные и языки репози�
 
 Публичный `github` объект в карточке проекта (`GET /api/v1/profiles/{slug}`) содержит ровно 10 полей: `full_name`, `html_url`, `description`, `stars`, `forks`, `open_issues`, `is_fork`, `is_archived`, `languages`, `synced_at`.
 
+_Правка 2026-11-18: список полей выше не совпадает с принятым и реализованным в 6.7 — `stars`, `forks` и `open_issues` не возвращаются. Фактические 10 полей: `full_name`, `html_url`, `description`, `languages`, `pushed_at`, `is_fork`, `parent_full_name`, `is_archived`, `relation`, `synced_at` (`PublicGitHub` в `backend/app/github/schemas.py`, OpenAPI). Профиль — `GET /api/v1/public/profiles/{slug}`. Публичная страница проекта `GET /api/v1/public/profiles/{slug}/projects/{id}` (шаг 4.3) отдаёт тот же объект с теми же правилами `null`, тоже из базы, без вызова GitHub._
+
 Объект `github` равен `null` если: нет привязки к репозиторию, синхронизация ещё не завершилась успешно для всех обязательных категорий, репозиторий недоступен (`unavailable_since` установлен), или привязка разорвана.
 
 Данные GitHub никогда не запрашиваются из API во время HTTP-запроса — только из базы данных. Одним батчевым запросом для всех проектов профиля.

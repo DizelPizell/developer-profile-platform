@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_current_user, get_db
 from app.errors import AppError
 from app.github import service as github_service
+from app.media import storage
 from app.models.identity import Profile, User
 from app.profile import service
 from app.profile.contacts import contact_url
@@ -17,8 +18,15 @@ from app.profile.schemas import (
     PublicContactValue,
     PublicProfileResponse,
 )
+from app.projects import screenshots
 from app.projects import service as projects_service
-from app.projects.schemas import PublicFeaturedProject, PublicProject
+from app.projects.schemas import (
+    PublicFeaturedProject,
+    PublicProject,
+    PublicProjectOwner,
+    PublicProjectPage,
+    PublicScreenshot,
+)
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 public_router = APIRouter(prefix="/public/profiles", tags=["public"])
@@ -156,3 +164,42 @@ def get_public_contact(
         raise _not_found()
     response.headers["Cache-Control"] = "no-store"
     return PublicContactValue(type=contact_type, value=value, url=contact_url(contact_type, value))
+
+
+@public_router.get("/{slug}/projects/{project_id}")
+def get_public_project(
+    slug: str, project_id: str, db: Session = Depends(get_db)
+) -> PublicProjectPage:
+    """The public project page (step 4.3): one 404 for an unknown or private profile,
+    another owner's project and a project that is not PUBLISHED + PUBLIC."""
+    found = service.get_public_profile(db, slug)
+    project = found and projects_service.get_public_project(db, found[1].id, project_id)
+    if not project:
+        raise _not_found()
+    profile, _, github_account = found
+
+    # Five queries in all, whatever the number of screenshots and technologies.
+    return PublicProjectPage(
+        id=project.id,
+        title=project.title,
+        summary=project.summary,
+        description=project.description,
+        problem=project.problem,
+        results=project.results,
+        role=project.role,
+        contribution=project.contribution,
+        technologies=projects_service.technology_names(db, [project.id])[project.id],
+        demo_url=project.demo_url,
+        screenshots=[
+            PublicScreenshot(
+                url=storage.url(s.storage_key), caption=s.caption, width=s.width, height=s.height
+            )
+            for s in screenshots.list_screenshots(db, project.id)
+        ],
+        github=github_service.public_github(db, [project.id]).get(project.id),
+        owner=PublicProjectOwner(
+            slug=profile.slug,
+            display_name=profile.display_name,
+            avatar_url=github_account.avatar_url if github_account else None,
+        ),
+    )

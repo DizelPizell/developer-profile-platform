@@ -110,7 +110,7 @@ V1 — первый рабочий релиз платформы. Разрабо
 - [x] 4.2: бэкенд — скриншоты, двумя PR:
   - [x] 4.2a: модуль `app/media/`, Pillow и `python-multipart`, таблица `project_screenshots` (до 6 на проект), загрузка, подпись, удаление, порядок (`POST …/screenshots/reorder`), `screenshots` в `ProjectResponse`; файлы удаляются при удалении скриншота и проекта; `/media` из FastAPI при `APP_ENV=development`; каталог тома в образе бэкенда и том `media` в dev-Compose
   - [x] 4.2b: том `media` у Nginx в prod (только чтение), `location /media/` только для ключей вида `projects/<uuid>/<uuid>.webp` и 6 МБ на пути загрузки, команда `python -m app.media.sweep [--dry-run]`, проверки в `check_compose.py` и живая проверка Nginx через curl в CI (`check_nginx.sh`), `DEPLOY.md`
-- [ ] 4.3: бэкенд — публичная страница проекта `GET /public/profiles/{slug}/projects/{id}` с блоком GitHub
+- [x] 4.3: бэкенд — публичная страница проекта `GET /public/profiles/{slug}/projects/{id}` с блоком GitHub
 - [ ] 4.4: макет — страница проекта и блок «Демо и скриншоты» в форме
 - [ ] 4.5: фронтенд — демо и скриншоты в кабинете
 - [ ] 4.6: фронтенд — публичная страница `/u/{slug}/projects/{id}`, «демо в первую очередь», переход с карточек
