@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import Link from "next/link";
 
 import { PixelAvatar } from "@/components/pixel-avatar";
 import { SectionHeading } from "@/components/section-heading";
@@ -109,8 +110,8 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
 
         {hasProjects && (
           <div id="projects" className="flex scroll-mt-6 flex-col gap-8">
-            {profile.featured.length > 0 && <FeaturedProjects projects={profile.featured} />}
-            {profile.other.length > 0 && <OtherProjects projects={profile.other} />}
+            {profile.featured.length > 0 && <FeaturedProjects projects={profile.featured} slug={profile.slug} />}
+            {profile.other.length > 0 && <OtherProjects projects={profile.other} slug={profile.slug} />}
           </div>
         )}
       </main>
@@ -118,8 +119,9 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
   );
 }
 
-// No link to the project page and no image area: both come in Phase 4.
-function FeaturedProjects({ projects }: { projects: PublicFeaturedProject[] }) {
+// The title links to the project page; no image area: the card whitelist has no
+// screenshots (ADR-019, DESIGN.md).
+function FeaturedProjects({ projects, slug }: { projects: PublicFeaturedProject[]; slug: string }) {
   return (
     <section aria-labelledby="featured-title" className="flex flex-col gap-6">
       <SectionHeading id="featured-title" marker="label" aside={<AuthorMark />}>
@@ -131,7 +133,9 @@ function FeaturedProjects({ projects }: { projects: PublicFeaturedProject[] }) {
             <span className="self-start border-2 border-outline bg-label px-2 py-1 caps-label text-outline">
               Главный {project.position}
             </span>
-            <h3 className="text-xl break-words">{project.title}</h3>
+            <h3 className="text-xl break-words">
+              <ProjectLink slug={slug} project={project} />
+            </h3>
             <p className="line-clamp-4 break-words">{project.summary}</p>
             {project.technologies.length > 0 && (
               <ul aria-label="Технологии" className="flex flex-wrap gap-2">
@@ -153,7 +157,7 @@ function FeaturedProjects({ projects }: { projects: PublicFeaturedProject[] }) {
 
 // On narrow screens the badge goes under the text, so a long technology name
 // does not squeeze the title. The GitHub block is a line of its own under the row.
-function OtherProjects({ projects }: { projects: PublicProject[] }) {
+function OtherProjects({ projects, slug }: { projects: PublicProject[]; slug: string }) {
   return (
     <section aria-labelledby="other-title" className="flex flex-col gap-6">
       <SectionHeading id="other-title" marker="muted" aside={<AuthorMark />}>
@@ -164,7 +168,9 @@ function OtherProjects({ projects }: { projects: PublicProject[] }) {
           <li key={project.id} className="flex flex-col gap-3 bg-panel px-6 py-4 shadow-panel">
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
               <div className="flex w-full min-w-0 grow flex-col gap-1 sm:w-auto">
-                <h3 className="text-lg break-words">{project.title}</h3>
+                <h3 className="text-lg break-words">
+                  <ProjectLink slug={slug} project={project} />
+                </h3>
                 <p className="truncate text-text-muted">{project.summary}</p>
               </div>
               {project.technologies.length > 0 && (
@@ -178,5 +184,17 @@ function OtherProjects({ projects }: { projects: PublicProject[] }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** The title as the one link to the project page: no second «Открыть проект ›». */
+function ProjectLink({ slug, project }: { slug: string; project: PublicProject }) {
+  return (
+    <Link
+      href={`/u/${encodeURIComponent(slug)}/projects/${encodeURIComponent(project.id)}`}
+      className="underline underline-offset-4"
+    >
+      {project.title}
+    </Link>
   );
 }
