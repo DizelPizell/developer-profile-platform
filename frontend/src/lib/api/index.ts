@@ -48,12 +48,15 @@ export {
 } from "./github";
 export {
   getPublicProfile,
+  getPublicProject,
   PUBLIC_PROFILE_TIMEOUT_MS,
   revealContact,
   type PublicContact,
   type PublicFeaturedProject,
   type PublicProfile,
   type PublicProject,
+  type PublicProjectPage,
+  type PublicScreenshot,
   type RevealedContact,
 } from "./public-profile";
 export {

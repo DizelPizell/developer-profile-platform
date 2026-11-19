@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import { isMediaPath } from "./config";
 import { ApiError } from "./errors";
 import { type PublicGitHub, readPublicGitHub } from "./github";
 import { CONTACT_TYPES, type ContactType } from "./profile";
@@ -223,6 +224,176 @@ export async function getPublicProfile(
     throw invalidResponse("Unexpected public profile body");
   }
   return profile;
+}
+
+/** A screenshot of PublicProjectPage, with a path checked by isMediaPath. */
+export type PublicScreenshot = {
+  url: string;
+  caption: string | null;
+  width: number;
+  height: number;
+};
+
+/** PublicProjectPage from API_CONTRACT.md (step 4.3), the fields the page shows. */
+export type PublicProjectPage = {
+  id: string;
+  title: string;
+  summary: string;
+  description: string | null;
+  problem: string | null;
+  results: string | null;
+  role: string;
+  contribution: string;
+  /** In the developer's order. */
+  technologies: string[];
+  /** An http or https URL; anything else is null (DESIGN.md, «Demo block»). */
+  demo_url: string | null;
+  /** In the developer's order, without the ones that fail the check. */
+  screenshots: PublicScreenshot[];
+  github: PublicGitHub | null;
+  /** The owner's avatar is not read: the page does not show it. */
+  owner: { slug: string; display_name: string };
+};
+
+/** The side cap of the re-encoded screenshot (SCREENSHOT_MAX_SIDE, ADR-0022). */
+const SCREENSHOT_MAX_SIDE = 2560;
+
+const PAGE_TEXT_FIELDS = ["id", "title", "summary", "role", "contribution"] as const;
+const PAGE_NULLABLE_FIELDS = ["description", "problem", "results"] as const;
+
+function isSide(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= SCREENSHOT_MAX_SIDE;
+}
+
+/** A link the demo button may open: it parses and is http or https. */
+function isDemoUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** The first wrong field of a screenshot, or null when it can be shown. */
+function screenshotFault(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return "screenshots";
+  }
+  if (typeof value.url !== "string" || !isMediaPath(value.url)) {
+    return "screenshots.url";
+  }
+  if (value.caption !== null && typeof value.caption !== "string") {
+    return "screenshots.caption";
+  }
+  if (!isSide(value.width)) {
+    return "screenshots.width";
+  }
+  if (!isSide(value.height)) {
+    return "screenshots.height";
+  }
+  return null;
+}
+
+/**
+ * Copies only the known fields. A wrong project field is null (an unexpected body);
+ * a wrong demo link, screenshot or `github` is left out with one log line each,
+ * naming the project and the field, never the value.
+ */
+function toPublicProjectPage(body: unknown): PublicProjectPage | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+  for (const field of PAGE_TEXT_FIELDS) {
+    if (typeof body[field] !== "string") {
+      return null;
+    }
+  }
+  for (const field of PAGE_NULLABLE_FIELDS) {
+    if (body[field] !== null && typeof body[field] !== "string") {
+      return null;
+    }
+  }
+  const { technologies, demo_url: demoUrl, screenshots, owner } = body;
+  if (!Array.isArray(technologies) || !technologies.every((name) => typeof name === "string")) {
+    return null;
+  }
+  if (demoUrl !== null && typeof demoUrl !== "string") {
+    return null;
+  }
+  if (!Array.isArray(screenshots)) {
+    return null;
+  }
+  if (!isRecord(owner) || typeof owner.slug !== "string" || typeof owner.display_name !== "string") {
+    return null;
+  }
+
+  const id = body.id as string;
+  const warn = (field: string) => console.warn(`Public project ${id}: invalid field ${field}`);
+  let demo: string | null = demoUrl;
+  if (demo !== null && !isDemoUrl(demo)) {
+    warn("demo_url");
+    demo = null;
+  }
+  const shown: PublicScreenshot[] = [];
+  for (const item of screenshots) {
+    const fault = screenshotFault(item);
+    if (fault !== null) {
+      warn(fault);
+      continue;
+    }
+    const { url, caption, width, height } = item as PublicScreenshot;
+    shown.push({ url, caption, width, height });
+  }
+  const { github, fault } = readPublicGitHub(body.github);
+  if (fault !== null) {
+    warn(fault);
+  }
+
+  return {
+    id,
+    title: body.title as string,
+    summary: body.summary as string,
+    description: body.description as string | null,
+    problem: body.problem as string | null,
+    results: body.results as string | null,
+    role: body.role as string,
+    contribution: body.contribution as string,
+    technologies: [...technologies],
+    demo_url: demo,
+    screenshots: shown,
+    github,
+    owner: { slug: owner.slug, display_name: owner.display_name },
+  };
+}
+
+/**
+ * Loads a PUBLISHED + PUBLIC project of a published profile for server rendering,
+ * like getPublicProfile. Returns null for a 404: the API answers the same for a
+ * private profile, another user's project and a draft, hidden or archived one.
+ */
+export async function getPublicProject(
+  slug: string,
+  id: string,
+  { timeoutMs = PUBLIC_PROFILE_TIMEOUT_MS }: { timeoutMs?: number } = {},
+): Promise<PublicProjectPage | null> {
+  let body: unknown;
+  try {
+    body = await apiFetch<unknown>(
+      `/public/profiles/${encodeURIComponent(slug)}/projects/${encodeURIComponent(id)}`,
+      { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) },
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+  const page = toPublicProjectPage(body);
+  if (!page) {
+    throw invalidResponse("Unexpected public project body");
+  }
+  return page;
 }
 
 function invalidResponse(message: string): ApiError {
