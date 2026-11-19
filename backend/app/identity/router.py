@@ -12,6 +12,7 @@ from app.identity import service
 from app.identity.github_client import GitHubOAuthClient, get_github_client
 from app.identity.schemas import MeResponse
 from app.models.identity import User
+from app.rate_limit import login_limiter, rate_limited, retry_after
 from app.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ _CALLBACK_ERROR_CODES = frozenset(
         "MISSING_CODE",
         "OAUTH_CODE_INVALID",
         "GITHUB_UNAVAILABLE",
+        "RATE_LIMITED",
         "INTERNAL_ERROR",
     }
 )
@@ -58,7 +60,10 @@ def _session_cookie_attrs() -> dict:
 
 
 @router.get("/github/login")
-def github_login() -> RedirectResponse:
+def github_login(request: Request) -> RedirectResponse:
+    # A link the browser follows, so the limit is a redirect too, not JSON.
+    if retry_after(login_limiter, request) is not None:
+        return _login_error_redirect("RATE_LIMITED")
     state = secrets.token_urlsafe(32)
     query = urlencode(
         {
@@ -121,6 +126,10 @@ def _complete_github_login(
     db: Session,
     github_client: GitHubOAuthClient,
 ) -> Response:
+    # Counted before the state check: each callback may cost a GitHub code exchange.
+    seconds = retry_after(login_limiter, request)
+    if seconds is not None:
+        raise rate_limited(seconds)
     if error:
         raise AppError("ACCESS_DENIED", "GitHub OAuth access was denied", 400)
 
