@@ -485,7 +485,7 @@ Screens, texts and rules: "Contacts on the public page" and "Contacts in the pro
 - Checked with Vitest + RTL (686 tests), lint, typecheck and build.
 - Checked by hand on 2026-11-16 against the local stack, all steps of the README's "Manual contacts check": errors under their fields, normalized values with «Сохранено как», no `contacts` in a PATCH without contact changes, a second save with LinkedIn, the limit of 3, no email or phone in the page HTML or the profile JSON, the reveal with the focus on the link, the error and «Повторить» with the backend stopped, a private profile (404), clearing to `[]`, and the layout at 800 and 1280 px.
 
-## 4.5 — Demo and screenshots in the cabinet (M; after backend 4.1–4.2) [planned]
+## 4.5 — Demo and screenshots in the cabinet (M; after backend 4.1–4.2) [done; manual check with the backend pending]
 
 **Goal**: a developer adds a demo link and up to 6 screenshots to a project in the project form (ADR-0022, ADR-0023).
 
@@ -504,6 +504,15 @@ Done when:
 - Vitest + RTL cover: the pre-send checks, every error row of the table, the 6 of 6 state, the reorder body (the whole set), unsaved field edits kept after each screenshot call, the focus after upload, delete and move, the 404 rule;
 - lint, typecheck, build and the tests pass;
 - a manual check against the local stack is written in `frontend/README.md` and done: upload of JPEG, PNG, WebP and a broken file, a file over 5 MB, the 7th upload, caption, reorder, delete, the demo link with `javascript:`, the file opening at its `/media/` URL.
+
+Done (2026-11-19), four commits as planned:
+
+- `apiFetch` takes `form?: FormData` and sets no `Content-Type` for it. `mediaUrl` puts a `/media/` path on the `NEXT_PUBLIC_API_URL` origin (FastAPI in development, Nginx in production) and returns `null` for anything else, so a foreign URL never reaches an `img`.
+- `demo_url` joined `PROJECT_TEXT_FIELDS`, so the existing dirty check, PATCH of changed fields and per-field errors cover it; only the `invalid_url` text is new.
+- `ScreenshotsBlock` follows `RepositoryBlock`: the form passes `busy`, takes only `screenshots` from each answer, and both blocks' requests disable the form's buttons. Unsaved captions are kept by screenshot id, so they move with a reorder. A file with an empty `type` goes to the server.
+- `Account` carries `slug` and `status` from `GET /profile`; the link appears once the profile is loaded. It leads to a 404 until step 4.6.
+- Found while testing: the caption label's hidden part was glued to «Подпись» in the accessible name («Подписьк скриншоту 1»); fixed with a space outside the hidden span.
+- Checked with Vitest + RTL (740 tests), lint and typecheck. Not checked here: `next build` (Google Fonts unreachable from this machine; CI builds it) and the manual check (the dev backend image predates 4.2a and needs a rebuild).
 
 ## 4.6 — The public project page (M; after 4.5 and backend 4.3) [planned]
 

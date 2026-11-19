@@ -182,6 +182,23 @@ Backend running with the C.1 migration applied (`profile_contacts` exists), sign
 10. Stop the backend on an open page, «Показать телефон» → «Не удалось получить телефон.» and «Повторить»; start the backend, «Повторить» → the number.
 11. Remove every contact in the cabinet, save → the PATCH body is `{"contacts": []}`; the public page has no section and no hero button.
 
+## Manual demo and screenshots check
+
+Backend rebuilt with steps 4.1–4.2 (`docker compose up -d --build`, so the `demo_url` column and `project_screenshots` exist and FastAPI serves `/media` in development), signed in, one saved project open at `/me/projects/<id>`. Keep DevTools → Network open. Texts: `DESIGN.md`, "«Демо и скриншоты» in the project form"; mockup `project-media.png`.
+
+1. `/me/projects/new` → the section «Демо и скриншоты» has «Ссылка на демо» and «Скриншоты можно добавить после первого сохранения.»
+2. On a saved project → «Скриншотов: 0 из 6», «[Пока нет скриншотов]», the note about direct links.
+3. Upload a JPEG, a PNG and a WebP → each appears as a row with a thumbnail loaded from `http://localhost:8000/media/...`, «Скриншот добавлен.», the focus in the new row's caption. The upload request is `multipart/form-data` without a preflight `OPTIONS`.
+4. A text file renamed to `.png` → «Не получилось прочитать картинку…» with the file name. A file over 5 MB → «Файл больше 5 МБ.» and no request in Network. A `.gif` → «Подходят JPEG, PNG и WebP.» and no request.
+5. Upload up to 6 → «Добавить скриншот» is disabled with «Можно добавить не больше 6 скриншотов.»
+6. Type a caption, press Enter → «Подпись сохранена.», no `PATCH /projects/<id>` in Network. Clear it and «Сохранить подпись» → the body is `{"caption": null}`.
+7. Edit «Название» without saving, then ▼ on row 1 → the body of `POST …/screenshots/reorder` holds all ids; the rows swap; «Название» keeps the edit and «Сохранить» stays active.
+8. «Удалить» → the dialog with the focus on «Отмена»; Escape closes it without a request; confirm → the row is gone, and the file URL from step 3 now answers 404.
+9. «Ссылка на демо» `javascript:alert(1)`, «Сохранить» → «Допустимы только ссылки http и https.» under the field. `https://example.com`, save → the field shows the stored value and row 1 gets «Превью демо». Clear it, save → the PATCH body is `{"demo_url": null}`.
+10. Publish the project with the profile published → the top panel shows «Открыть публичную страницу ↗» (the page itself is step 4.6); «Скрыть» on the project → the note «Публичная страница появится, когда…».
+11. Open the file URL of a screenshot of a draft project in a private window → it opens (ADR-0022, said in the note of step 2).
+12. At 375 px wide → the rows stack, no horizontal scroll.
+
 ## Manual public projects check
 
 Backend running, signed in, a published profile with slug `<slug>`. Open the public page in a private window (no session) and reload it after each change in the cabinet.
