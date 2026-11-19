@@ -43,6 +43,7 @@ V1 — первый рабочий релиз платформы. Разрабо
 | Продакшн — один origin за Nginx на одном хосте с Compose | [0021](../adr/0021-single-origin-behind-nginx.md) |
 | Скриншоты — в томе на диске хоста, отдаёт Nginx; загрузка через бэкенд с перекодированием | [0022](../adr/0022-media-on-host-volume.md) |
 | Демо — ссылка с превью, без iframe; `demo_url` — столбец проекта | [0023](../adr/0023-demo-link-without-iframe.md) |
+| Rate limit — в памяти процесса бэкенда, по IP | [0024](../adr/0024-rate-limit-in-process.md) |
 
 ## Фаза 0 — Скелет
 
@@ -98,7 +99,7 @@ V1 — первый рабочий релиз платформы. Разрабо
 - [x] C.1: `profile_contacts`, миграция, `PATCH /profile`, `GET /public/profiles/{slug}/contacts` ([0020](../adr/0020-contacts-separate-table.md))
   - Ручки (по факту): `PATCH /api/v1/profile` — поле `contacts` (отсутствует — без изменений, список — замена, `[]` — очистка, `null` — 422); `GET /api/v1/public/profiles/{slug}/contacts?type=EMAIL|PHONE` — без сессии, `Cache-Control: no-store`
   - Коды ошибок: `422 VALIDATION_ERROR`; `404 NOT_FOUND` — тот же, что у публичного профиля, при отсутствии/приватном профиле или без запрошенного контакта
-  - Rate limit ручки раскрытия — шаг 8.3
+  - Rate limit ручки раскрытия — шаг 8.3 ([0024](../adr/0024-rate-limit-in-process.md))
 - [x] Макет: секция на публичной странице и в форме кабинета (`docs/frontend/mockups/profile-contacts.png`)
 - [x] C.2: контакты в кабинете и на публичной странице; `email` и `phone` на клик
   - Ручная проверка против бэкенда пройдена 2026-11-16: шаги — в `frontend/README.md`, «Manual contacts check»
@@ -123,7 +124,9 @@ V1 — первый рабочий релиз платформы. Разрабо
 
 ## Перед запуском
 
-- [ ] 8.3: rate limiting ([0013](../adr/0013-profile-patch-origin-check.md))
+- [x] 8.3: rate limiting ([0024](../adr/0024-rate-limit-in-process.md)) — `app/rate_limit.py`, по IP в памяти процесса
+  - `GET /public/profiles/{slug}/contacts` — 10 в минуту и 50 в час, `429 RATE_LIMITED` с `Retry-After`
+  - `GET /auth/github/login` и `/callback` — 20 в минуту на оба, редирект `/login?error=RATE_LIMITED`; текст на экране входа
 - [ ] 8.4: security review
   - Найдено аудитом 2026-11-19, исправить в этом шаге:
     - Заголовки против встраивания в iframe (clickjacking кабинета): `X-Frame-Options DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options nosniff`, `Referrer-Policy` в `server` на 443 в Nginx, повторить в `location` для `/media/`; проверка заголовка в `check_nginx.sh`

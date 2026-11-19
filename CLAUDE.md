@@ -923,13 +923,15 @@ Phase 4 step 4.5: the demo link and screenshots in the project form — demo_url
 
 Phase 4 step 4.6: the public project page /u/{slug}/projects/{id} — getPublicProject with a whitelist reader (a demo link that is not http or https, a screenshot outside /media/ or with a wrong size and a wrong github object left out with one log line each), the address checked before the API is asked with a 308 to lowercase, one API call per request through perRequest, the demo first with the first screenshot as its preview, the gallery as links to the files, the four texts, the GitHub card block, its own 404 without links and the error screen; the project titles on the profile link to it
 
+Step 8.3: rate limits per IP in the backend process (app/rate_limit.py) — revealing a contact 10 a minute and 50 an hour with 429 RATE_LIMITED and Retry-After; login and callback 20 a minute together, a redirect to /login?error=RATE_LIMITED with its text on the login screen; counters reset on restart, one uvicorn process assumed (ADR-0024)
+
 
 
 Not yet started:
 
 
 
-the rest before the launch — steps 8.3, 8.4, 9.4–9.8
+the rest before the launch — steps 8.4, 9.4–9.8
 
 analytics — Phase 7, V1.1
 
@@ -939,7 +941,7 @@ Current next goal:
 
 
 
-Phase 4 is done. Next: the steps before the launch — 8.3, 8.4 and 9.4–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 and step 8.3 are done. Next: the steps before the launch — 8.4 and 9.4–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
