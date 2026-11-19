@@ -199,6 +199,21 @@ Backend rebuilt with steps 4.1–4.2 (`docker compose up -d --build`, so the `de
 11. Open the file URL of a screenshot of a draft project in a private window → it opens (ADR-0022, said in the note of step 2).
 12. At 375 px wide → the rows stack, no horizontal scroll.
 
+## Manual public project page check
+
+Backend with step 4.3 and frontend running, a published profile with slug `<slug>`. Open the pages in a private window (no session). Texts: `DESIGN.md`, "Public project page"; mockup `project-page.png`.
+
+1. A published public project with a demo link and three screenshots → `/u/<slug>/projects/<id>`: «‹ <name>», the title block with «От автора», every technology and «Моя роль», then «Демо» with the first screenshot as the preview (not a link), «Открыть демо ↗», «<host> · откроется в новой вкладке» and the note about the link. «Скриншоты» starts from the second one; each opens its file in a new tab. The tab title is «<title> — <name>».
+2. «Открыть демо ↗» opens the demo in a new tab; DevTools shows `rel="noopener noreferrer nofollow ugc"`.
+3. Texts with line breaks keep them; empty «Задача», «Результат» or «Подробнее» are not shown at all.
+4. Clear the demo link → no «Демо», all screenshots in «Скриншоты», numbered from 1. Delete the screenshots and set the link again → the host in large text instead of the preview, no «Скриншоты».
+5. A project with neither → the title block and the texts only, no stubs.
+6. A project with a synced repository (see "Manual public GitHub check") → «Данные GitHub» at the bottom with the card block.
+7. On `/u/<slug>` the title of a featured card and of a row opens the project page; there is no «Открыть проект».
+8. `curl -s -o /dev/null -w "%{http_code}"` → 200 for the page; 308 to the lowercase address for an uppercase slug or id; 404 for `projects/not-a-uuid` and for a random UUID.
+9. «Скрыть» on the project in the cabinet → 404 «Проект не найден» without links; «Показать» → the page is back. The same 404 for a draft, an archived project and any project of a hidden profile.
+10. At 375 px wide → one column, the demo button takes the full width, no horizontal scroll.
+
 ## Manual public projects check
 
 Backend running, signed in, a published profile with slug `<slug>`. Open the public page in a private window (no session) and reload it after each change in the cabinet.

@@ -113,7 +113,7 @@ V1 — первый рабочий релиз платформы. Разрабо
 - [x] 4.3: бэкенд — публичная страница проекта `GET /public/profiles/{slug}/projects/{id}` с блоком GitHub
 - [x] 4.4: макет — страница проекта и блок «Демо и скриншоты» в форме (`docs/frontend/mockups/project-page.png`, `project-media.png`; тексты и правила — `DESIGN.md`, план 4.5 и 4.6 — `FRONTEND_PLAN.md`)
 - [x] 4.5: фронтенд — демо и скриншоты в кабинете (проверено вручную с бэкендом 2026-11-19 — `frontend/README.md`, «Manual demo and screenshots check»)
-- [ ] 4.6: фронтенд — публичная страница `/u/{slug}/projects/{id}`, «демо в первую очередь», переход с карточек
+- [x] 4.6: фронтенд — публичная страница `/u/{slug}/projects/{id}`, «демо в первую очередь», переход с карточек (ручная проверка — `frontend/README.md`, «Manual public project page check»)
 
 ## Деплой (9.1–9.3, до фазы 4)
 
