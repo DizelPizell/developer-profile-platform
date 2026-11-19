@@ -10,18 +10,17 @@ on:
       - ".github/workflows/compose.yml"
       - ".github/scripts/check_compose.py"
       - ".github/scripts/check_nginx.sh"
+  # Every check runs on every pull request: a required check that never starts
+  # blocks the merge (step 9.4).
   pull_request:
-    paths:
-      - "docker-compose.yml"
-      - "docker-compose.prod.yml"
-      - "nginx/**"
-      - ".env.example"
-      - ".github/workflows/compose.yml"
-      - ".github/scripts/check_compose.py"
-      - ".github/scripts/check_nginx.sh"
 
 permissions:
   contents: read
+
+# A new push to a pull request cancels its older run; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
