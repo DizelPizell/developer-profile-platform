@@ -941,11 +941,15 @@ Step 9.6: monitoring — an external prober of /api/v1/health, / and the certifi
 
 
 
+Step 9.7a: account deletion in the backend — DELETE /auth/me deletes the user with the database's cascades (profile, contacts, projects, screenshots, links, sessions), the files after the commit, clears the cookie; shared github_repositories stay; a WARNING line account deleted user_id=… and python -m app.identity.delete_user to delete accounts again after a restore (DEPLOY.md); expired sessions of every user deleted at each sign-in (ADR-0028)
+
+
+
 Not yet started:
 
 
 
-the rest before the launch — steps 9.7–9.8
+the rest before the launch — step 9.7b (the frontend of account deletion and the data policy page), then 9.8
 
 analytics — Phase 7, V1.1
 
@@ -955,7 +959,7 @@ Current next goal:
 
 
 
-Phase 4 and steps 8.3, 8.4 and 9.4–9.6 are done. Next: step 9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4, steps 8.3, 8.4, 9.4–9.6 and 9.7a are done. Next: step 9.7b, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

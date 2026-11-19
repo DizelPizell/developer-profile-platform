@@ -90,7 +90,7 @@ github_repositories 1:N github_commits         (отложено)
 | `created_at` | TIMESTAMPTZ NOT NULL | |
 | `expires_at` | TIMESTAMPTZ NOT NULL | Контролируется приложением |
 
-Cookie содержит случайный непрозрачный токен; в БД хранится только хэш. Выход — удаление строки. Подробнее: ADR-0012.
+Cookie содержит случайный непрозрачный токен; в БД хранится только хэш. Выход — удаление строки. Просроченные строки всех пользователей удаляются при каждом входе ([ADR-0028](../release/v1/adr/0028-account-deletion-hard-and-immediate.md)). Подробнее: ADR-0012.
 
 ---
 

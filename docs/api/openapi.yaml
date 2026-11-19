@@ -66,6 +66,19 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "500": {$ref: "#/components/responses/InternalError"}
+    delete:
+      security: [{cookieAuth: []}]
+      summary: Delete own account
+      description: >-
+        Deletes the account at once and for good (ADR-0028): the user, profile,
+        contacts, projects, screenshots with their files, repository links and
+        sessions. Shared GitHub repositories stay. Clears the session cookie.
+        Signing in again creates a new, empty account.
+      responses:
+        "204": {description: Account deleted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /profile:
     get:
       security: [{cookieAuth: []}]
