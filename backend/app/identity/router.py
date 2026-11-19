@@ -11,6 +11,7 @@ from app.errors import AppError, log_app_error, log_unhandled_exception
 from app.identity import service
 from app.identity.github_client import GitHubOAuthClient, get_github_client
 from app.identity.schemas import MeResponse
+from app.media import storage
 from app.models.identity import User
 from app.rate_limit import login_limiter, rate_limited, retry_after
 from app.settings import settings
@@ -165,6 +166,7 @@ def _complete_github_login(
     previous_token = request.cookies.get(settings.session_cookie_name)
     if previous_token:
         service.delete_session(db, previous_token)
+    service.delete_expired_sessions(db)
     token = service.create_session(db, user.id)
     db.commit()
 
@@ -183,6 +185,26 @@ def logout(request: Request, db: Session = Depends(get_db)) -> Response:
     if token:
         service.delete_session(db, token)
     db.commit()
+    resp = Response(status_code=204)
+    resp.delete_cookie(**_session_cookie_attrs())
+    return resp
+
+
+@router.delete("/me", status_code=204)
+def delete_me(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Deletes the account at once and for good (ADR-0028). The confirmation is
+    the frontend's dialog; the Origin check guards against CSRF."""
+    user_id = current_user.id
+    keys = service.delete_account(db, user_id) or []
+    db.commit()
+    # Files go only after the rows are gone (ADR-0022).
+    storage.delete(keys)
+    # The id, not the login: a restore finds accounts to delete again by this line
+    # (DEPLOY.md). WARNING because the API process logs nothing below it.
+    logger.warning("account deleted user_id=%s", user_id)
     resp = Response(status_code=204)
     resp.delete_cookie(**_session_cookie_attrs())
     return resp
