@@ -925,13 +925,15 @@ Phase 4 step 4.6: the public project page /u/{slug}/projects/{id} — getPublicP
 
 Step 8.3: rate limits per IP in the backend process (app/rate_limit.py) — revealing a contact 10 a minute and 50 an hour with 429 RATE_LIMITED and Retry-After; login and callback 20 a minute together, a redirect to /login?error=RATE_LIMITED with its text on the login screen; counters reset on restart, one uvicorn process assumed (ADR-0024)
 
+Step 8.4: security review — Nginx adds X-Frame-Options DENY, CSP frame-ancestors 'none', nosniff and Referrer-Policy to every answer on 443, repeated for /media/ and checked by check_nginx.sh (ADR-0021); at most 2 screenshots re-encoded at once (ADR-0022); next 16.4.6; the rest of the review needed no changes (scope-v1.md)
+
 
 
 Not yet started:
 
 
 
-the rest before the launch — steps 8.4, 9.4–9.8
+the rest before the launch — steps 9.4–9.8
 
 analytics — Phase 7, V1.1
 
@@ -941,7 +943,7 @@ Current next goal:
 
 
 
-Phase 4 and step 8.3 are done. Next: the steps before the launch — 8.4 and 9.4–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 and steps 8.3 and 8.4 are done. Next: the steps before the launch — 9.4–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
