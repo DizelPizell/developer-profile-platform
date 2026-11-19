@@ -249,6 +249,18 @@ Backend, `github-worker` and frontend running, signed in, a published profile wi
 
 Not checked by hand, only by tests: `relation: "NONE"` in the response, a `github` of the wrong shape and its log line, an unsafe `html_url` (`javascript:`, a look-alike host), a sum of 0 bytes, a fork without a parent.
 
+## Manual account deletion check
+
+On a test GitHub account, not your own: the deletion is final.
+
+1. Sign in, fill in the profile with a contact, publish it, add a project with a screenshot and a linked repository.
+2. Cabinet → «Удалить аккаунт» → the dialog has focus on «Отмена»; «Удалить навсегда» is disabled for an empty or partial login and enabled for the login in another case.
+3. «Отмена» and Escape close it; reopened, the field is empty.
+4. Type the login, «Удалить навсегда» → «Удаляем…», then `/login`. The public page `/u/<slug>` gives 404; the screenshot address gives 404.
+5. `docker compose logs backend | grep "account deleted"` → one line with the id, without the login.
+6. Sign in again → an empty cabinet with a private profile.
+7. `/privacy` opens without a session; the footer link and the link in the login note lead to it.
+
 ## Notes for manual checks
 
 Observed by the developer, not proven causes:

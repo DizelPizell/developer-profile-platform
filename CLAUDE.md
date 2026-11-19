@@ -945,11 +945,15 @@ Step 9.7a: account deletion in the backend — DELETE /auth/me deletes the user 
 
 
 
+Step 9.7b: account deletion and the data policy in the frontend — «Удаление аккаунта» under the profile form (an AlertDialog that asks for the GitHub login, DELETE /auth/me once, then /login, a link to revoke the app in GitHub), /privacy as a static draft of the data policy from the system's facts with the operator and the address as placeholders, a footer link on every page and links from the login note and the deletion section
+
+
+
 Not yet started:
 
 
 
-the rest before the launch — step 9.7b (the frontend of account deletion and the data policy page), then 9.8
+the launch — step 9.8
 
 analytics — Phase 7, V1.1
 
@@ -959,7 +963,7 @@ Current next goal:
 
 
 
-Phase 4, steps 8.3, 8.4, 9.4–9.6 and 9.7a are done. Next: step 9.7b, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 and steps 8.3, 8.4 and 9.4–9.7 are done. Next: the launch 9.8 (the owner fills in the operator on /privacy and gets the lawyer's check first). The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

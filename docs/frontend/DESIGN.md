@@ -98,6 +98,7 @@ Rules that follow:
 | `/me/repositories` | «Репозитории GitHub» (F-GH1) | Client |
 | `/u/[slug]` | Public profile | Server (SSR) |
 | `/u/[slug]/projects/[id]` | Public project page (4.6) | Server (SSR) |
+| `/privacy` | «Политика данных» (9.7b) | Server (static) |
 | anything else | 404 | — |
 
 ## Screens
@@ -333,6 +334,19 @@ States and errors:
 | Network error or API unreachable | «Не удалось связаться с сервером.»; entered data is kept and the action can be repeated |
 | 500 `INTERNAL_ERROR`, other errors | «Что-то пошло не так. Попробуйте ещё раз.» and «Код запроса: <request_id>» from the error body (or `X-Request-ID`) when present |
 | Saved | «Сохранено» in `success` |
+
+#### «Удаление аккаунта» (9.7b)
+
+A section under the profile form: a heading with a grey marker, then a panel with «Удалятся профиль, контакты, проекты со скриншотами и привязки репозиториев. Публичная страница перестанет открываться. Отменить нельзя.», «Что мы храним и как долго — в политике данных.» (a link to `/privacy`) and «Удалить аккаунт» (`error` fill). No mockup: one panel and one dialog, built from the parts of the project deletion.
+
+«Удалить аккаунт» opens an `AlertDialog` (focus on «Отмена»):
+
+- «Удалить аккаунт?», «Профиль, контакты, проекты и скриншоты удалятся сразу и навсегда. Отменить нельзя.»;
+- «Доступ приложения к GitHub отзывается отдельно — в настройках GitHub.»: the link opens `https://github.com/settings/applications` in a new tab. We hold no user token, so the app cannot revoke it (ADR-0016);
+- the field «Введите логин «{github_login}», чтобы подтвердить»; «Удалить навсегда» (`error` fill) is disabled until the field equals the login, ignoring case and surrounding spaces; Enter sends only then;
+- «Отмена» and Escape close the dialog and clear the field.
+
+«Удалить навсегда» sends `DELETE /api/v1/auth/me` once and reads «Удаляем…» meanwhile, with the field and both buttons disabled. 204 → `/login`. 401 → `/login` too. Any other failure stays in the dialog with the cabinet's network or generic text and the request id (ADR-0028).
 
 #### Contacts in the profile form (C.2)
 
@@ -818,6 +832,16 @@ Texts for `?error=<CODE>`:
 No `error` parameter: no error block. The texts come from this table only; the value of `error` is never shown.
 
 Logout (from the cabinet): `POST /api/v1/auth/logout` → 204 → redirect to `/login`. A failure keeps the user on the page and shows the network or generic error text from the cabinet table.
+
+The note ends with «Подробнее — в политике данных.», a link to `/privacy` (9.7b).
+
+### «Политика данных» — `/privacy` (9.7b)
+
+A static server page: «DEV.PROFILE» (a link to `/`), the title «Политика данных» (Press Start 2P), then six sections, each a heading with the yellow marker and a panel: «Что мы храним», «Что видят другие», «Технические данные», «Кому передаются данные», «Сроки и удаление», «Оператор и обращения». The text states only what the system does (ADR-0020, ADR-0026, ADR-0028); a change of behavior changes the page in the same PR.
+
+The text is a draft. The operator and the address for requests are placeholders in the page (`OPERATOR`, `CONTACT`): the owner fills them in, and a lawyer checks the text before the launch (9.8).
+
+Every page ends with a footer link «Политика данных» (the root layout).
 
 ### 404
 

@@ -545,6 +545,18 @@ Done (2026-11-19), in five commits instead of four: the route and the page went 
 - Checked with Vitest + RTL (819 tests), lint and typecheck. Not checked here: `next build` (Google Fonts unreachable from this machine; CI builds it).
 - Checked by hand on 2026-11-19 against the local stack, on a test project and the existing ones: the demo with the preview and the gallery from the second screenshot, the lazy images with their sizes, the links and their `rel`, the tab title, the page without a demo (all screenshots, numbered from 1) and without both (texts only), the titles on the profile linking to the pages; with `curl` 200, 308 to the lowercase address, 404 for a malformed id and a random UUID; a hidden project 404 and back to 200; 375 px with no horizontal scroll and the demo button across the width. Not checked by hand: the host in place of the preview (a demo without screenshots), the GitHub section, a draft, an archived project and a hidden profile, the error screen; the tests cover them, and the backend tests of 4.3 cover the 404 cases.
 
+## 9.7b — Account deletion and the data policy page (S; after backend 9.7a) [done]
+
+**Goal**: a developer deletes the account from the cabinet, and anyone reads what is stored and for how long (ADR-0028).
+
+Screens and texts: «Удаление аккаунта» under "Cabinet" and «Политика данных» in `DESIGN.md`. API: `DELETE /auth/me` (step 9.7a).
+
+Done (2026-11-20):
+
+- `deleteAccount()` in `lib/api/auth.ts`; `AccountDeletion` in `app/me/account-deletion.tsx`, under the profile form in `CabinetScreen`.
+- `/privacy` in `app/privacy/page.tsx`; the footer link in the root layout, the link in the login note and in the deletion section.
+- Checked with Vitest + RTL (828 tests), lint, typecheck and `next build`. In the browser against the local stack: the section, the dialog (focus on «Отмена», «Удалить навсегда» disabled for a partial login, «Отмена» closes it), `/privacy` and the footer, without console errors. Not checked by hand: a real deletion (the tests and the backend tests of 9.7a cover it); see "Manual account deletion check" in `frontend/README.md`.
+
 ## F7+ — Demos, GitHub data, contacts
 
 **Goal**: add project pages and technical evidence as the backend provides them.
