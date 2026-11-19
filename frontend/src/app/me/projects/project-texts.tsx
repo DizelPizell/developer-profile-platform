@@ -76,6 +76,12 @@ export const PROJECT_FIELD_TEXT: Record<
     hint: "Необязательно",
     placeholder: "К чему пришли",
   },
+  demo_url: {
+    label: "Ссылка на демо",
+    short: "ссылка на демо",
+    hint: "Только http и https. У посетителя откроется в новой вкладке; превью — первый скриншот",
+    placeholder: "https://demo.example.com",
+  },
 };
 
 export const UNTITLED = "[Без названия]";

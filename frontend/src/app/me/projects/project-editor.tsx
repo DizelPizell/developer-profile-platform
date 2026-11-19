@@ -79,6 +79,9 @@ function fieldErrorMessage(field: ProjectField, { type, item }: ProjectFieldErro
     }
     return type === "too_long" ? `Не больше ${TECHNOLOGIES_MAX} технологий.` : "Некорректное значение.";
   }
+  if (field === "demo_url" && type === "invalid_url") {
+    return "Допустимы только ссылки http и https.";
+  }
   if (type === "string_too_long") {
     return `Не больше ${PROJECT_FIELD_MAX_LENGTH[field]} символов.`;
   }
@@ -259,7 +262,7 @@ export function ProjectEditor({
     return field === "technologies" ? "Нужна хотя бы одна" : "Заполните это поле";
   }
 
-  function field(name: ProjectTextField, multiline = false) {
+  function field(name: ProjectTextField, multiline = false, counter = true) {
     const text = PROJECT_FIELD_TEXT[name];
     return (
       <FormField
@@ -273,6 +276,7 @@ export function ProjectEditor({
         error={fieldErrors[name] ?? missingError(name)}
         readOnly={busy}
         multiline={multiline}
+        counter={counter}
         onChange={(value) => change({ [name]: value })}
       />
     );
@@ -336,6 +340,20 @@ export function ProjectEditor({
           {field("problem", true)}
           {field("results", true)}
         </div>
+
+        <section
+          aria-labelledby="media-heading"
+          className="flex flex-col gap-4 border-t-4 border-outline pt-6"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 id="media-heading" className="caps-label">
+              Демо и скриншоты
+            </h2>
+            <span className="text-sm text-text-muted">Необязательно</span>
+          </div>
+          {/* No counter, like contact links (project-media.png). */}
+          {field("demo_url", false, false)}
+        </section>
 
         <RepositoryBlock
           project={saved}
