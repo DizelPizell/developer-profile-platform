@@ -43,6 +43,14 @@ server {
 
     # No preload: leaving the preload list takes months.
     add_header Strict-Transport-Security "max-age=31536000" always;
+    # No page of the site may be framed (clickjacking of the cabinet); the old
+    # header for old browsers, frame-ancestors for the rest. Only the framing
+    # rule: a full CSP for Next.js is not part of V1.
+    add_header X-Frame-Options DENY always;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    add_header X-Content-Type-Options nosniff always;
+    # Other sites get the origin only, never the path of a cabinet page.
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
 
     # JSON bodies; only the screenshot upload below takes more.
     client_max_body_size 1m;
@@ -79,10 +87,13 @@ server {
     location ~ "^/media/(projects/[0-9a-f-]{36}/[0-9a-f-]{36}\.webp)$" {
         alias /srv/media/$1;
         # A name never gets other content: a new upload gets a new name.
-        # add_header here drops the server's ones, so HSTS is repeated.
+        # add_header here drops the server's ones, so they are all repeated.
         add_header Cache-Control "public, max-age=31536000, immutable";
-        add_header X-Content-Type-Options nosniff;
         add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header X-Frame-Options DENY always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
     }
 
     location / {
