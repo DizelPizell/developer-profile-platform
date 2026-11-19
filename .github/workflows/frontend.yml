@@ -57,7 +57,7 @@ jobs:
         run: npm run build
 
   image:
-    name: Build the Docker image
+    name: Build the frontend image
     runs-on: ubuntu-latest
 
     steps:

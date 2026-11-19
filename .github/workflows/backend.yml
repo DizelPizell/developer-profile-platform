@@ -74,7 +74,7 @@ jobs:
   # The image runs backend, migrate and github-worker; a broken Dockerfile must
   # fail here, not on the server (step 9.4).
   image:
-    name: Build the Docker image
+    name: Build the backend image
     runs-on: ubuntu-latest
 
     steps:
