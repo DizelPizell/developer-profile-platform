@@ -4,7 +4,7 @@ FROM postgres:17-alpine
 
 RUN apk add --no-cache restic
 
-COPY --chmod=755 backup.sh restore.sh /usr/local/bin/
+COPY --chmod=755 backup.sh restore.sh daily.sh /usr/local/bin/
 
 # Not the Postgres entrypoint: this image never runs a server.
 ENTRYPOINT []

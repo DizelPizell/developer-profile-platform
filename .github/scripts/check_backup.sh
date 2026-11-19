@@ -12,7 +12,7 @@ media=$name-media
 repo=$name-repo
 
 cleanup() {
-    docker rm -f "$name-pg" > /dev/null 2>&1 || true
+    docker rm -f "$name-pg" "$name-hc" > /dev/null 2>&1 || true
     docker network rm "$name" > /dev/null 2>&1 || true
     docker volume rm "$media" "$repo" > /dev/null 2>&1 || true
 }
@@ -62,4 +62,28 @@ files=$(run sh -c 'cd /srv/media && find . -type f | sort | tr "\n" " "')
 owner=$(run stat -c %u:%g /srv/media/projects/a.webp)
 [ "$owner" = "2000:2000" ] || fail "the files keep the volume's owner, got: $owner"
 
-echo "backup: backup and restore checked"
+# daily.sh pings its dead-man's switches (ADR-0027): a server that logs the paths.
+docker run -d --name "$name-hc" --network "$name" --network-alias hc \
+    python:3.13-alpine python -u -m http.server 8000 > /dev/null
+tries=0
+until docker logs "$name-hc" 2>&1 | grep -q "Serving HTTP"; do
+    tries=$((tries + 1))
+    [ "$tries" -lt 30 ] || fail "the ping server did not start"
+    sleep 1
+done
+daily() {
+    docker run --rm --network "$name" \
+        -e PGHOST=postgres -e PGUSER=ci -e PGPASSWORD=ci -e PGDATABASE=app \
+        -e RESTIC_REPOSITORY=/repo -e "RESTIC_PASSWORD=$1" -e "DISK_ALERT_PERCENT=$2" \
+        -e BACKUP_HEARTBEAT_URL=http://hc:8000/backup -e DISK_HEARTBEAT_URL=http://hc:8000/disk \
+        -v "$media:/srv/media:ro" -v "$repo:/repo" "$image" daily.sh > /dev/null 2>&1
+}
+pings() { docker logs "$name-hc" 2>&1 | sed -n 's/.*"GET \([^ ]*\) HTTP.*/\1/p' | tr "\n" " "; }
+
+daily ci 100
+[ "$(pings)" = "/backup /disk " ] || fail "a good round pings both, got: $(pings)"
+daily wrong 0
+[ "$(pings)" = "/backup /disk /backup/fail /disk/fail " ] \
+    || fail "a failed backup and a full disk ping /fail, got: $(pings)"
+
+echo "backup: backup, restore and pings checked"
