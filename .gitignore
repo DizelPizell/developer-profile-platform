@@ -45,3 +45,5 @@ docker-compose.override.yml
 # Temporary
 tmp/
 temp/
+# The commit before the last deploy (deploy.sh).
+.deploy/
