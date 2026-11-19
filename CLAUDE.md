@@ -917,11 +917,15 @@ Phase 4 step 4.4: the mockups project-page.png (the public project page: demo wi
 
 
 
+Phase 4 step 4.5: the demo link and screenshots in the project form — demo_url as a form field, the screenshot block (upload with size and type checked first, captions, ▲▼ order, delete behind a dialog, every answer replacing the list only), thumbnails only through mediaUrl, apiFetch with FormData, the link to the public page in the top panel (manual check against the backend pending)
+
+
+
 Not yet started:
 
 
 
-the cabinet for the demo and screenshots, and the public project page — Phase 4 steps 4.5–4.6
+the public project page — Phase 4 step 4.6
 
 the rest before the launch — steps 8.3, 8.4, 9.4–9.8
 
@@ -933,7 +937,7 @@ Current next goal:
 
 
 
-Phase 4 — Demo and Media, step by step (4.1–4.4 are done): 4.5 the cabinet; 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 — Demo and Media, step by step (4.1–4.5 are done): 4.6 the public page /u/{slug}/projects/{id}, demo first. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
