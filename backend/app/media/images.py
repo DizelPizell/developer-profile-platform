@@ -3,6 +3,7 @@
 Re-encoding drops EXIF (GPS included) and proves the file is an image.
 """
 
+import threading
 from dataclasses import dataclass
 from io import BytesIO
 
@@ -19,6 +20,11 @@ _WEBP_QUALITY = 82
 
 # Pillow's own guard, for any path that decodes without the check below.
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
+
+# A 40 Mpx PNG takes about 160 MB decoded; parallel uploads would exhaust the
+# backend's memory. Others wait for a slot in the thread pool.
+MAX_CONCURRENT_REENCODES = 2
+_reencode_slots = threading.BoundedSemaphore(MAX_CONCURRENT_REENCODES)
 
 # What a broken or hostile file makes Pillow raise.
 _DECODE_ERRORS = (OSError, SyntaxError, ValueError, EOFError, Image.DecompressionBombError)
@@ -43,6 +49,11 @@ class EncodedImage:
 def reencode(data: bytes) -> EncodedImage:
     if len(data) > MAX_UPLOAD_BYTES:
         raise ImageRejected("image_too_large")
+    with _reencode_slots:
+        return _reencode(data)
+
+
+def _reencode(data: bytes) -> EncodedImage:
     try:
         # The format comes from the content; the name and Content-Type are ignored.
         image = Image.open(BytesIO(data), formats=_FORMATS)
