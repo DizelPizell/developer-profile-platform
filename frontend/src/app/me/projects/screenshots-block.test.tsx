@@ -130,6 +130,40 @@ function pick(file: File) {
 const png = (bytes = 10, name = "shot.png", type = "image/png") =>
   new File([new Uint8Array(bytes)], name, { type });
 
+describe("the public page link", () => {
+  const published = { status: "PUBLISHED" as const, visibility: "PUBLIC" as const };
+
+  async function renderWith(project: Partial<ProjectResponse>, profileStatus: string) {
+    routes({
+      "GET /profile": [Response.json({ ...PROFILE, status: profileStatus })],
+      [`GET /projects/${ID}`]: [Response.json({ ...PROJECT, ...project })],
+    });
+    render(<ProjectEditScreen projectId={ID} />);
+    await screen.findByRole("form", { name: "Проект" });
+  }
+
+  test("a public project of a published profile links to its page in a new tab", async () => {
+    await renderWith(published, "PUBLISHED");
+    const link = await screen.findByRole("link", { name: "Открыть публичную страницу" });
+    expect(link.getAttribute("href")).toBe(`/u/ann/projects/${ID}`);
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  test.each([
+    ["a draft", {}, "PUBLISHED"],
+    ["a hidden project", { status: "PUBLISHED" as const, visibility: "PRIVATE" as const }, "PUBLISHED"],
+    ["a private profile", published, "PRIVATE"],
+  ])("%s shows the note instead", async (_case, project, profileStatus) => {
+    await renderWith(project, profileStatus);
+    await waitFor(() => expect(calls("GET /profile")).toHaveLength(1));
+    expect(
+      await screen.findByText("Публичная страница появится, когда проект и профиль будут опубликованы."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Открыть публичную страницу" })).toBeNull();
+  });
+});
+
 describe("states", () => {
   test("a new project shows only the note", async () => {
     routes({ "GET /profile": [Response.json(PROFILE)] });
