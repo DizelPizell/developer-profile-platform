@@ -929,11 +929,15 @@ Step 8.4: security review — Nginx adds X-Frame-Options DENY, CSP frame-ancesto
 
 
 
+Step 9.4: CI/CD — every check runs on every pull request (no paths filter on pull_request, older runs cancelled), the backend image built in CI; ./deploy.sh run by hand on the server: origin/main or a commit, stops on a migration without --with-migrations, waits for /api/v1/health and / through Nginx, --rollback to the commit before the last deploy; shellcheck and check_deploy.sh in CI; main protected with required checks in the GitHub settings (ADR-0025)
+
+
+
 Not yet started:
 
 
 
-the rest before the launch — steps 9.4–9.8
+the rest before the launch — steps 9.5–9.8
 
 analytics — Phase 7, V1.1
 
@@ -943,7 +947,7 @@ Current next goal:
 
 
 
-Phase 4 and steps 8.3 and 8.4 are done. Next: the steps before the launch — 9.4–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 and steps 8.3, 8.4 and 9.4 are done. Next: the steps before the launch — 9.5–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
