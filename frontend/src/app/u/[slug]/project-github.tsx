@@ -76,11 +76,14 @@ function CardLanguages({ github }: { github: PublicGitHub }) {
   );
 }
 
-/** The full block, at the bottom of a featured card. */
-export function CardGitHub({ github }: { github: PublicGitHub }) {
+/**
+ * The full block, at the bottom of a featured card. The project page shows it in a
+ * section of its own, where the divider would be a second top edge.
+ */
+export function CardGitHub({ github, divided = true }: { github: PublicGitHub; divided?: boolean }) {
   const hasMarks = github.is_fork || github.is_archived;
   return (
-    <div className={`flex flex-col gap-3 pt-4 ${DIVIDER}`}>
+    <div className={divided ? `flex flex-col gap-3 pt-4 ${DIVIDER}` : "flex flex-col gap-3"}>
       <p className={SOURCE}>{SOURCE_GITHUB}</p>
       <p className="text-text-muted">
         <RepositoryName fullName={github.full_name} htmlUrl={github.html_url} />

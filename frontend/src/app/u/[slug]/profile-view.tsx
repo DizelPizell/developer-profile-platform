@@ -1,7 +1,5 @@
 import { cn } from "cn";
-import Link from "next/link";
 
-import { BrandMark } from "@/components/brand-mark";
 import { PixelAvatar } from "@/components/pixel-avatar";
 import { SectionHeading } from "@/components/section-heading";
 import { Button } from "@/components/ui/button";
@@ -9,6 +7,7 @@ import type { PublicFeaturedProject, PublicProfile, PublicProject } from "@/lib/
 
 import { ProfileContacts } from "./profile-contacts";
 import { CardGitHub, CHIP, RowGitHub } from "./project-github";
+import { AuthorMark, PublicHeader } from "./public-parts";
 
 /** Technology chips on a featured card (DESIGN.md). */
 const FEATURED_TECHNOLOGIES = 3;
@@ -23,12 +22,7 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <BrandMark />
-        <Button asChild>
-          <Link href="/login">Войти через GitHub</Link>
-        </Button>
-      </header>
+      <PublicHeader />
 
       <main className="flex flex-col gap-8">
         <section className="flex flex-col gap-8 bg-panel px-8 py-8 shadow-panel sm:flex-row sm:items-center">
@@ -121,15 +115,6 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
         )}
       </main>
     </div>
-  );
-}
-
-/** The developer is the source of these blocks (DESIGN.md, content rules). */
-function AuthorMark() {
-  return (
-    <span className="shrink-0 border-2 border-text-muted px-2 py-1 caps-label text-text-muted">
-      От автора
-    </span>
   );
 }
 
