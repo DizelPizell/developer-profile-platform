@@ -244,3 +244,13 @@ def login(client: TestClient) -> str:
 def auth_client(make_auth_client) -> TestClient:
     """TestClient with the default GitHub mock (user id=10001, login='testuser')."""
     return make_auth_client()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> Generator[None]:
+    """The limiters are process-wide; every test starts with empty counters."""
+    from app.rate_limit import contacts_limiter, login_limiter
+
+    contacts_limiter.reset()
+    login_limiter.reset()
+    yield

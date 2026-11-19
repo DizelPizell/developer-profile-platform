@@ -27,6 +27,7 @@ from app.projects.schemas import (
     PublicProjectPage,
     PublicScreenshot,
 )
+from app.rate_limit import limit_contacts
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 public_router = APIRouter(prefix="/public/profiles", tags=["public"])
@@ -148,16 +149,15 @@ def get_public_profile(slug: str, db: Session = Depends(get_db)) -> PublicProfil
     )
 
 
-@public_router.get("/{slug}/contacts")
+@public_router.get("/{slug}/contacts", dependencies=[Depends(limit_contacts)])
 def get_public_contact(
     slug: str,
     contact_type: Annotated[Literal["EMAIL", "PHONE"], Query(alias="type")],
     response: Response,
     db: Session = Depends(get_db),
 ) -> PublicContactValue:
-    """The value of the profile's email or phone, asked for by a click (ADR-020)."""
-    # shortcut: no rate limit, so a script can read values one profile at a time;
-    # step 8.3 adds the limit (ADR-020, "Negative").
+    """The value of the profile's email or phone, asked for by a click (ADR-020),
+    limited per IP (ADR-024)."""
     found = service.get_public_profile(db, slug)
     value = found and service.contact_value(db, found[0].id, contact_type)
     if not value:
