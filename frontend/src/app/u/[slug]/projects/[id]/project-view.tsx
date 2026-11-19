@@ -33,7 +33,10 @@ export function ProjectView({ project }: { project: PublicProjectPage }) {
         </Link>
 
         <section className={`flex flex-col gap-4 ${PANEL}`}>
-          <AuthorMark />
+          {/* A row of its own, so the mark keeps its width in the column. */}
+          <div className="flex">
+            <AuthorMark />
+          </div>
           <h1 className="text-3xl font-medium wrap-anywhere sm:text-4xl">{project.title}</h1>
           <p className="text-lg break-words whitespace-pre-line">{project.summary}</p>
           {project.technologies.length > 0 && (
