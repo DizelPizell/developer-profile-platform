@@ -4,13 +4,14 @@ import secrets
 import uuid
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.clock import utcnow
 from app.errors import AppError
 from app.models.identity import AuthSession, GitHubAccount, Profile, User
+from app.models.projects import Project, ProjectScreenshot
 from app.settings import settings
 
 RESERVED_SLUGS: frozenset[str] = frozenset(
@@ -139,6 +140,38 @@ def update_user_fields(
     if avatar_url is not None:
         user.github_account.avatar_url = avatar_url
     db.flush()
+
+
+def delete_expired_sessions(db: Session) -> None:
+    """Expired sessions of every user, at each sign-in (ADR-0028): they are never
+    read again, and nothing else removes them."""
+    db.execute(delete(AuthSession).where(AuthSession.expires_at <= utcnow()))
+
+
+def delete_account(db: Session, user_id: uuid.UUID) -> list[str] | None:
+    """Deletes the user and, by the database's cascades, the profile, contacts,
+    projects, screenshots, links and sessions (ADR-0028). Shared GitHub
+    repositories stay. Returns the media keys to delete after the commit, or None
+    when there is no such user.
+
+    The profile lock comes first, as in the project routes (ADR-015), so a
+    concurrent project change waits and then finds no owner."""
+    locked = db.execute(
+        select(Profile.id).where(Profile.user_id == user_id).with_for_update()
+    ).first()
+    if locked is None and db.get(User, user_id) is None:
+        return None
+    keys = list(
+        db.execute(
+            select(ProjectScreenshot.storage_key)
+            .join(Project, Project.id == ProjectScreenshot.project_id)
+            .where(Project.owner_id == user_id)
+        ).scalars()
+    )
+    db.execute(delete(User).where(User.id == user_id))
+    # The ORM's copies of the deleted rows are stale now.
+    db.expire_all()
+    return keys
 
 
 def create_session(db: Session, user_id: uuid.UUID) -> str:
