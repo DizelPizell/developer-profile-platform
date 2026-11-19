@@ -85,6 +85,50 @@ services:
       - certbot_www:/var/www/certbot
       - certbot_certs:/etc/letsencrypt
 
+  # A backup of the database and the media volume once a day and at every start,
+  # to the restic repository off this host (ADR-0026, DEPLOY.md). deploy.sh runs
+  # one more before an update with a migration.
+  backup:
+    build:
+      context: ./backup
+    container_name: developer-platform-backup
+    logging: *logging
+    restart: unless-stopped
+    environment: &backup-environment
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?set RESTIC_REPOSITORY in .env (DEPLOY.md)}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:?set RESTIC_PASSWORD in .env (DEPLOY.md)}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+    command:
+      - /bin/sh
+      - -c
+      - trap exit TERM; while :; do backup.sh || echo "backup failed"; sleep 86400 & wait $${!}; done
+    volumes:
+      - media:/srv/media:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Only by hand, with backend and github-worker stopped: `docker compose run
+  # --rm restore [snapshot]` (DEPLOY.md, "Восстановление"). Writes the volume.
+  restore:
+    image: ${COMPOSE_PROJECT_NAME}-backup
+    pull_policy: never
+    profiles: [restore]
+    logging: *logging
+    environment: *backup-environment
+    entrypoint: ["restore.sh"]
+    volumes:
+      - media:/srv/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 networks:
   # A fixed subnet gives Nginx a fixed address to trust (FORWARDED_ALLOW_IPS).
   default:

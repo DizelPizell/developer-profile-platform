@@ -12,6 +12,8 @@ on:
       - ".github/scripts/check_nginx.sh"
       - "deploy.sh"
       - ".github/scripts/check_deploy.sh"
+      - "backup/**"
+      - ".github/scripts/check_backup.sh"
   # Every check runs on every pull request: a required check that never starts
   # blocks the merge (step 9.4).
   pull_request:
@@ -56,8 +58,14 @@ jobs:
         run: sh .github/scripts/check_nginx.sh nginx-check
 
       # shellcheck is installed on the GitHub runner image.
-      - name: Lint the deploy script
-        run: shellcheck deploy.sh .github/scripts/check_deploy.sh
+      - name: Lint the shell scripts
+        run: shellcheck deploy.sh backup/*.sh .github/scripts/check_deploy.sh .github/scripts/check_backup.sh
 
       - name: Check the deploy script
         run: sh .github/scripts/check_deploy.sh
+
+      # A backup that was never restored is not a backup (ADR-0026).
+      - name: Back up and restore
+        run: |
+          docker build -t backup-check backup
+          sh .github/scripts/check_backup.sh backup-check

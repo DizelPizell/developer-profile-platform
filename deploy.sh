@@ -3,8 +3,9 @@
 #
 #   ./deploy.sh                    # to origin/main
 #   ./deploy.sh <commit>           # to a given commit
-#   ./deploy.sh --with-migrations  # the update has migrations, a backup is made
 #   ./deploy.sh --rollback         # back to the commit before the last deploy
+#
+# An update with a migration makes a backup first (step 9.5, ADR-0026).
 #
 # Run by hand on the server, from the checkout with .env (DEPLOY.md).
 set -eu
@@ -17,12 +18,10 @@ die() {
     exit 1
 }
 
-with_migrations=0
 rollback=0
 target=origin/main
 for arg in "$@"; do
     case "$arg" in
-        --with-migrations) with_migrations=1 ;;
         --rollback) rollback=1 ;;
         -*) die "unknown option $arg" ;;
         *) target=$arg ;;
@@ -54,7 +53,8 @@ fi
 # backup of the database and the media volume, a rollback over one a restore.
 if ! git diff --quiet "$current" "$target" -- backend/alembic/versions; then
     [ "$rollback" = 0 ] || die "migrations changed since $target; restore from the backup instead (DEPLOY.md)"
-    [ "$with_migrations" = 1 ] || die "the update has migrations; make a backup (DEPLOY.md), then rerun with --with-migrations"
+    echo "deploy: the update has migrations, backing up first"
+    docker compose run --rm backup backup.sh || die "the backup failed; nothing is updated"
 fi
 
 mkdir -p .deploy
