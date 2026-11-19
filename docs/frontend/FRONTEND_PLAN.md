@@ -485,7 +485,7 @@ Screens, texts and rules: "Contacts on the public page" and "Contacts in the pro
 - Checked with Vitest + RTL (686 tests), lint, typecheck and build.
 - Checked by hand on 2026-11-16 against the local stack, all steps of the README's "Manual contacts check": errors under their fields, normalized values with «Сохранено как», no `contacts` in a PATCH without contact changes, a second save with LinkedIn, the limit of 3, no email or phone in the page HTML or the profile JSON, the reveal with the focus on the link, the error and «Повторить» with the backend stopped, a private profile (404), clearing to `[]`, and the layout at 800 and 1280 px.
 
-## 4.5 — Demo and screenshots in the cabinet (M; after backend 4.1–4.2) [done; manual check with the backend pending]
+## 4.5 — Demo and screenshots in the cabinet (M; after backend 4.1–4.2) [done]
 
 **Goal**: a developer adds a demo link and up to 6 screenshots to a project in the project form (ADR-0022, ADR-0023).
 
@@ -512,7 +512,8 @@ Done (2026-11-19), four commits as planned:
 - `ScreenshotsBlock` follows `RepositoryBlock`: the form passes `busy`, takes only `screenshots` from each answer, and both blocks' requests disable the form's buttons. Unsaved captions are kept by screenshot id, so they move with a reorder. A file with an empty `type` goes to the server.
 - `Account` carries `slug` and `status` from `GET /profile`; the link appears once the profile is loaded. It leads to a 404 until step 4.6.
 - Found while testing: the caption label's hidden part was glued to «Подпись» in the accessible name («Подписьк скриншоту 1»); fixed with a space outside the hidden span.
-- Checked with Vitest + RTL (740 tests), lint and typecheck. Not checked here: `next build` (Google Fonts unreachable from this machine; CI builds it) and the manual check (the dev backend image predates 4.2a and needs a rebuild).
+- Checked with Vitest + RTL (740 tests), lint and typecheck. Not checked here: `next build` (Google Fonts unreachable from this machine; CI builds it).
+- Checked by hand on 2026-11-19 against the local stack (backend image rebuilt with migrations up to 4.2a), all steps of the README's "Manual demo and screenshots check": JPEG, PNG and WebP uploaded and shown from `/media/`, the upload sent without a preflight, the focus in the new caption; a broken file, a file over 5 MB and a GIF refused, the last two without a request; 6 of 6 with the button off; a caption saved with Enter and cleared to `null`; a reorder keeping an unsaved title; delete behind the dialog, Escape sending nothing, the old file answering 404; `javascript:` refused, `HTTPS://Example.com` saved as `https://Example.com` with «Превью демо» on row 1, then cleared to `null`; the public page link for a published project in a published profile and the note once it was hidden; a hidden project's file opening without cookies (as ADR-0022 allows); 375 px with no horizontal scroll. Found: the caption counter wrapped to two lines at 375 px; it no longer wraps.
 
 ## 4.6 — The public project page (M; after 4.5 and backend 4.3) [planned]
 
