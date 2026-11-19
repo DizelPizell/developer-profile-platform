@@ -125,6 +125,9 @@ V1 — первый рабочий релиз платформы. Разрабо
 
 - [ ] 8.3: rate limiting ([0013](../adr/0013-profile-patch-origin-check.md))
 - [ ] 8.4: security review
+  - Найдено аудитом 2026-11-19, исправить в этом шаге:
+    - Заголовки против встраивания в iframe (clickjacking кабинета): `X-Frame-Options DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options nosniff`, `Referrer-Policy` в `server` на 443 в Nginx, повторить в `location` для `/media/`; проверка заголовка в `check_nginx.sh`
+    - Не больше 2 одновременных перекодирований скриншотов (семафор вокруг `reencode`): параллельные загрузки PNG по 40 Мпикс исчерпывают память процесса бэкенда; тест, что третий вызов ждёт
 - [ ] 9.4: CI/CD
 - [ ] 9.5: бэкапы
 - [ ] 9.6: мониторинг (включая health check воркера)
