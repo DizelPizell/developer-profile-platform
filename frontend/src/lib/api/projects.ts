@@ -21,6 +21,7 @@ export const PROJECT_TEXT_FIELDS = [
   "description",
   "problem",
   "results",
+  "demo_url",
 ] as const;
 export type ProjectTextField = (typeof PROJECT_TEXT_FIELDS)[number];
 
@@ -34,10 +35,11 @@ export const PROJECT_FIELDS = [
   "description",
   "problem",
   "results",
+  "demo_url",
 ] as const;
 export type ProjectField = (typeof PROJECT_FIELDS)[number];
 
-/** API limits in characters (ADR-015). */
+/** API limits in characters (ADR-015; demo_url ADR-0023). */
 export const PROJECT_FIELD_MAX_LENGTH: Record<ProjectTextField, number> = {
   title: 100,
   summary: 300,
@@ -46,6 +48,7 @@ export const PROJECT_FIELD_MAX_LENGTH: Record<ProjectTextField, number> = {
   description: 5000,
   problem: 2000,
   results: 2000,
+  demo_url: 2048,
 };
 export const TECHNOLOGY_MAX_LENGTH = 50;
 export const TECHNOLOGIES_MAX = 20;

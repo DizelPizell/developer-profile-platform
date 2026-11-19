@@ -211,6 +211,54 @@ describe("fields", () => {
   });
 });
 
+describe("demo link", () => {
+  test("a field of the «Демо и скриншоты» section, without a counter", async () => {
+    await renderEdit({ demo_url: "https://demo.example.com" });
+    const section = screen.getByRole("region", { name: "Демо и скриншоты" });
+    const demo = within(section).getByRole("textbox", { name: "Ссылка на демо" }) as HTMLInputElement;
+    expect(demo.value).toBe("https://demo.example.com");
+    expect(demo.maxLength).toBe(2048);
+    expect(document.getElementById("project-demo_url-count")).toBeNull();
+  });
+
+  test("a new value is saved with the form and the stored one is shown", async () => {
+    const stored = { ...PROJECT, demo_url: "https://demo.example.com/" };
+    await renderEdit({}, { [`PATCH /projects/${ID}`]: [Response.json(stored)] });
+    type("Ссылка на демо", " HTTPS://demo.example.com ");
+    fireEvent.click(button("Сохранить"));
+    await screen.findByText("Сохранено");
+    expect(body(`PATCH /projects/${ID}`)).toEqual({ demo_url: " HTTPS://demo.example.com " });
+    expect(field("Ссылка на демо").value).toBe("https://demo.example.com/");
+  });
+
+  test("an emptied link is sent as null", async () => {
+    await renderEdit(
+      { demo_url: "https://demo.example.com" },
+      { [`PATCH /projects/${ID}`]: [Response.json(PROJECT)] },
+    );
+    type("Ссылка на демо", "");
+    fireEvent.click(button("Сохранить"));
+    await screen.findByText("Сохранено");
+    expect(body(`PATCH /projects/${ID}`)).toEqual({ demo_url: null });
+  });
+
+  test.each([
+    ["invalid_url", "Допустимы только ссылки http и https."],
+    ["string_too_long", "Не больше 2048 символов."],
+    ["string_too_short", "Некорректное значение."],
+  ])("422 %s is shown under the field", async (errorType, text) => {
+    await renderEdit({}, {
+      [`PATCH /projects/${ID}`]: [
+        apiError(422, "VALIDATION_ERROR", { fields: [{ loc: ["body", "demo_url"], type: errorType }] }),
+      ],
+    });
+    type("Ссылка на демо", "javascript:alert(1)");
+    fireEvent.click(button("Сохранить"));
+    expect(await screen.findByText(text)).toBeTruthy();
+    expect(field("Ссылка на демо").getAttribute("aria-invalid")).toBe("true");
+  });
+});
+
 describe("technologies", () => {
   test("Enter and «Добавить» add trimmed names in order; Enter does not submit", async () => {
     await renderNew();
