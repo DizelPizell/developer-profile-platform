@@ -67,3 +67,15 @@ export function assertApiEnv(env: Record<string, string | undefined>): void {
     throw new ApiConfigError(`Invalid API configuration: ${problems.join("; ")}`);
   }
 }
+
+/**
+ * Browser address of a media path from the API (/media/...): in development the
+ * backend serves it on its own origin, in production Nginx on the site's origin.
+ * Anything else is null, so a foreign URL never reaches an img.
+ */
+export function mediaUrl(path: string): string | null {
+  if (!/^\/media\/[\w./-]+$/.test(path) || path.includes("..")) {
+    return null;
+  }
+  return `${parseBaseUrl("NEXT_PUBLIC_API_URL", process.env.NEXT_PUBLIC_API_URL)}${path}`;
+}

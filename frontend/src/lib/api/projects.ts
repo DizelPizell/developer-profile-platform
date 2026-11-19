@@ -67,7 +67,26 @@ export type ProjectResponse = {
   featured_position: number | null;
   /** The linked repository, or null (ADR-017). */
   github: ProjectGitHub | null;
+  /** The live demo link (ADR-0023); the server never requests it. */
+  demo_url: string | null;
+  /** In their order, at most 6 (ADR-0022). */
+  screenshots: Screenshot[];
 };
+
+/** url is a path on the site origin, such as /media/projects/{id}/{uuid}.webp. */
+export type Screenshot = {
+  id: string;
+  url: string;
+  caption: string | null;
+  width: number;
+  height: number;
+};
+
+export const SCREENSHOTS_MAX = 6;
+/** The upload limit of the API (ADR-0022); Nginx allows 6 MB on the upload path. */
+export const SCREENSHOT_MAX_BYTES = 5 * 1024 * 1024;
+export const SCREENSHOT_CAPTION_MAX_LENGTH = 200;
+export const SCREENSHOT_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export type ProjectSummary = Pick<
   ProjectResponse,
@@ -200,6 +219,49 @@ export function reorderFeatured(projectIds: string[]) {
   return apiFetch<FeaturedProjectsResponse>("/profile/featured-projects/reorder", {
     method: "POST",
     json: { project_ids: projectIds },
+  });
+}
+
+async function fetchScreenshots(path: string, init: ApiRequestInit): Promise<Screenshot[]> {
+  const body = await apiFetch<unknown>(path, init);
+  if (!isRecord(body) || !Array.isArray(body.items)) {
+    throw invalidResponse("screenshot list");
+  }
+  return body.items as Screenshot[];
+}
+
+function screenshotPath(projectId: string, screenshotId: string): string {
+  return projectPath(projectId, `screenshots/${encodeURIComponent(screenshotId)}`);
+}
+
+/** Adds a screenshot after the last one (201) and answers with the whole list. */
+export function uploadScreenshot(projectId: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return fetchScreenshots(projectPath(projectId, "screenshots"), { method: "POST", form });
+}
+
+/** null clears the caption; the server trims and treats blank as none. */
+export function updateScreenshotCaption(
+  projectId: string,
+  screenshotId: string,
+  caption: string | null,
+) {
+  return fetchScreenshots(screenshotPath(projectId, screenshotId), {
+    method: "PATCH",
+    json: { caption },
+  });
+}
+
+export function deleteScreenshot(projectId: string, screenshotId: string) {
+  return fetchScreenshots(screenshotPath(projectId, screenshotId), { method: "DELETE" });
+}
+
+/** The complete current set in the new order (SCREENSHOT_ORDER_MISMATCH otherwise). */
+export function reorderScreenshots(projectId: string, screenshotIds: string[]) {
+  return fetchScreenshots(projectPath(projectId, "screenshots/reorder"), {
+    method: "POST",
+    json: { screenshot_ids: screenshotIds },
   });
 }
 

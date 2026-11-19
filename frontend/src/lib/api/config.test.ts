@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { ApiConfigError, apiUrl, assertApiEnv } from "./config";
+import { ApiConfigError, apiUrl, assertApiEnv, mediaUrl } from "./config";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -39,4 +39,19 @@ describe("assertApiEnv", () => {
   test.each(["not a url", "ftp://backend"])("rejects %s", (value) => {
     expect(() => assertApiEnv({ ...valid, API_INTERNAL_URL: value })).toThrow(ApiConfigError);
   });
+});
+
+describe("mediaUrl", () => {
+  test("puts a media path on the API origin", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8000/");
+    expect(mediaUrl("/media/projects/p1/a-b.webp")).toBe("http://localhost:8000/media/projects/p1/a-b.webp");
+  });
+
+  test.each(["https://evil.test/a.webp", "//evil.test/a.webp", "/api/v1/x", "/media/../x", "/media/a b", "javascript:x"])(
+    "rejects %s",
+    (path) => {
+      vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8000");
+      expect(mediaUrl(path)).toBeNull();
+    },
+  );
 });

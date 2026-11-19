@@ -60,6 +60,8 @@ const PROJECT: ProjectResponse = {
   contribution: null,
   technologies: ["Python"],
   featured_position: null,
+  demo_url: null,
+  screenshots: [],
   github: GITHUB,
 };
 

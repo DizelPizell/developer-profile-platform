@@ -18,6 +18,10 @@ import {
   unfeatureProject,
   unlinkRepository,
   updateProject,
+  updateScreenshotCaption,
+  uploadScreenshot,
+  deleteScreenshot,
+  reorderScreenshots,
 } from "./projects";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -348,5 +352,74 @@ describe("projectFieldErrors", () => {
     ["a plain error", new Error("x")],
   ])("is empty for %s", (_name, error) => {
     expect(projectFieldErrors(error)).toEqual({});
+  });
+});
+
+const SHOT_ID = "0b6b2f8e-3c55-4a8d-9f3e-2a1c4d5e6f70";
+const shots = {
+  items: [{ id: SHOT_ID, url: `/media/projects/${ID}/x.webp`, caption: null, width: 1280, height: 800 }],
+};
+
+describe.each([
+  [
+    "updateScreenshotCaption",
+    () => updateScreenshotCaption(ID, SHOT_ID, "Main screen"),
+    "PATCH",
+    `${BASE}/projects/${ID}/screenshots/${SHOT_ID}`,
+    { caption: "Main screen" },
+  ],
+  [
+    "deleteScreenshot",
+    () => deleteScreenshot(ID, SHOT_ID),
+    "DELETE",
+    `${BASE}/projects/${ID}/screenshots/${SHOT_ID}`,
+    undefined,
+  ],
+  [
+    "reorderScreenshots",
+    () => reorderScreenshots(ID, [SHOT_ID]),
+    "POST",
+    `${BASE}/projects/${ID}/screenshots/reorder`,
+    { screenshot_ids: [SHOT_ID] },
+  ],
+])("%s", (_name, call, method, url, body) => {
+  test("sends the request and returns the list items", async () => {
+    fetchMock.mockResolvedValue(Response.json(shots));
+
+    await expect(call()).resolves.toEqual(shots.items);
+
+    const sent = lastCall();
+    expect(sent.url).toBe(url);
+    expect(sent.method).toBe(method);
+    expect(sent.body).toEqual(body);
+  });
+
+  test("a body without items is an invalid response", async () => {
+    fetchMock.mockResolvedValue(Response.json({}));
+    await expect(call()).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+});
+
+describe("uploadScreenshot", () => {
+  test("posts the file as multipart form data and returns the list", async () => {
+    fetchMock.mockResolvedValue(Response.json(shots, { status: 201 }));
+    const file = new File(["png"], "shot.png", { type: "image/png" });
+
+    await expect(uploadScreenshot(ID, file)).resolves.toEqual(shots.items);
+
+    const [url, init] = fetchMock.mock.calls.at(-1)!;
+    expect(url).toBe(`${BASE}/projects/${ID}/screenshots`);
+    expect(init?.method).toBe("POST");
+    const form = init?.body as FormData;
+    expect(form.get("file")).toBe(file);
+    expect([...form.keys()]).toEqual(["file"]);
+  });
+
+  test("a 413 from Nginx without a JSON body keeps its status", async () => {
+    fetchMock.mockResolvedValue(new Response("<html>413</html>", { status: 413 }));
+    await expect(uploadScreenshot(ID, new File(["x"], "a.png"))).rejects.toMatchObject({
+      constructor: ApiError,
+      status: 413,
+    });
   });
 });

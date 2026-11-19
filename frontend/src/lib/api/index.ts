@@ -1,6 +1,6 @@
 export { getMe, githubLoginUrl, logout, type MeResponse } from "./auth";
 export { apiFetch, type ApiRequestInit } from "./client";
-export { ApiConfigError, apiUrl } from "./config";
+export { ApiConfigError, apiUrl, mediaUrl } from "./config";
 export { ApiError, NetworkError } from "./errors";
 export {
   CONTACT_TYPES,
@@ -60,6 +60,7 @@ export {
   archiveProject,
   createProject,
   deleteProject,
+  deleteScreenshot,
   FEATURED_MAX,
   featureProject,
   getProject,
@@ -74,12 +75,19 @@ export {
   PROJECTS_MAX,
   publishProject,
   reorderFeatured,
+  reorderScreenshots,
+  SCREENSHOT_CAPTION_MAX_LENGTH,
+  SCREENSHOT_MAX_BYTES,
+  SCREENSHOT_TYPES,
+  SCREENSHOTS_MAX,
   setProjectVisibility,
   TECHNOLOGIES_MAX,
   TECHNOLOGY_MAX_LENGTH,
   unfeatureProject,
   unlinkRepository,
   updateProject,
+  updateScreenshotCaption,
+  uploadScreenshot,
   type FeaturedProjectsResponse,
   type ProjectField,
   type ProjectFieldError,
@@ -90,4 +98,5 @@ export {
   type ProjectTextField,
   type ProjectVisibility,
   type ProjectWrite,
+  type Screenshot,
 } from "./projects";
