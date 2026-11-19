@@ -61,6 +61,17 @@ check "it is cached for good" "public, max-age=31536000, immutable" \
 check "nosniff" nosniff "$(header "/media/$key" X-Content-Type-Options)"
 check "HSTS is kept beside the media headers" "max-age=31536000" \
     "$(header "/media/$key" Strict-Transport-Security)"
+check "media cannot be framed" DENY "$(header "/media/$key" X-Frame-Options)"
+check "media frame-ancestors" "frame-ancestors 'none'"     "$(header "/media/$key" Content-Security-Policy)"
+check "media Referrer-Policy" strict-origin-when-cross-origin     "$(header "/media/$key" Referrer-Policy)"
+# The server's headers, on its own answers too (always): the 404 of /media/
+# and the 502 of a page with no frontend behind it.
+check "a page cannot be framed" DENY "$(header / X-Frame-Options)"
+check "a page frame-ancestors" "frame-ancestors 'none'"     "$(header / Content-Security-Policy)"
+check "a page nosniff" nosniff "$(header / X-Content-Type-Options)"
+check "a page Referrer-Policy" strict-origin-when-cross-origin "$(header / Referrer-Policy)"
+check "a page HSTS" "max-age=31536000" "$(header / Strict-Transport-Security)"
+check "the API cannot be framed" DENY "$(header /api/v1/health X-Frame-Options)"
 check "a temporary file is not served" 404 \
     "$(status "$(url "/media/$dir/.22222222-2222-4222-8222-222222222222.webp.tmp")")"
 check "no listing" 404 "$(status "$(url "/media/$dir/")")"
