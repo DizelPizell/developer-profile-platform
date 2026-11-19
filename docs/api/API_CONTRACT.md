@@ -9,6 +9,7 @@ GET  /auth/github/login
 GET  /auth/github/callback
 POST /auth/logout
 GET  /auth/me
+DELETE /auth/me
 ```
 
 | Endpoint | Success | Errors |
@@ -17,6 +18,7 @@ GET  /auth/me
 | `GET /auth/github/callback` | 302 to the frontend, sets the session cookie | 302 to `{FRONTEND_URL}/login?error=<CODE>`, no JSON body (see below) |
 | `POST /auth/logout` | 204, deletes the session and clears the cookie | 403 `CSRF_ORIGIN_INVALID`; 500 `INTERNAL_ERROR` |
 | `GET /auth/me` | 200 `MeResponse` | 401 `UNAUTHORIZED`; 500 `INTERNAL_ERROR` |
+| `DELETE /auth/me` | 204, deletes the account and everything it owns (shared GitHub repositories stay) and clears the cookie (ADR-0028) | 401 `UNAUTHORIZED`; 403 `CSRF_ORIGIN_INVALID`; 500 `INTERNAL_ERROR` |
 
 The session is an HttpOnly cookie set by the callback (ADR-012). Its name comes from `SESSION_COOKIE_NAME`: `developer_session` in `.env.example`, `session` when the variable is unset. OpenAPI declares it as the `cookieAuth` security scheme. Login, callback, logout, `GET /public/profiles/{slug}`, `GET /public/profiles/{slug}/projects/{id}` and `GET /public/profiles/{slug}/contacts` need no session (logout clears one if present); every other implemented endpoint requires it and answers 401 `UNAUTHORIZED` without it.
 

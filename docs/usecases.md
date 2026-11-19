@@ -11,7 +11,7 @@
 ### UC-A1. Вход через GitHub OAuth
 
 - **Актор:** неаутентифицированный пользователь. **С релиза:** v1.
-- **Поток:** открывает `GET /api/v1/auth/github/login` → редирект на GitHub OAuth → GitHub редиректит на `GET /api/v1/auth/github/callback?code=…` → сервер обменивает code на access token → получает `github_user_id`, `github_login`, email → upsert `users` и `github_accounts` → создаёт `auth_sessions`, пишет `token_hash` → устанавливает HttpOnly cookie → редирект на `/me`.
+- **Поток:** открывает `GET /api/v1/auth/github/login` → редирект на GitHub OAuth → GitHub редиректит на `GET /api/v1/auth/github/callback?code=…` → сервер обменивает code на access token → получает `github_user_id`, `github_login`, email → upsert `users` и `github_accounts` → удаляет просроченные `auth_sessions` всех пользователей → создаёт `auth_sessions`, пишет `token_hash` → устанавливает HttpOnly cookie → редирект на `/me`.
 - **Отклонения:** любая ошибка callback — редирект на `/login?error=<CODE>` (`ACCESS_DENIED`, `INVALID_STATE`, `MISSING_CODE`, `OAUTH_CODE_INVALID`, `GITHUB_UNAVAILABLE`, `RATE_LIMITED`, `INTERNAL_ERROR`), экран входа показывает текст по коду. Больше 20 запросов `login` и `callback` в минуту с одного IP → `RATE_LIMITED` («Слишком много попыток входа. Подождите минуту и попробуйте снова.»), `state` не выдаётся и не проверяется.
 - **ADR:** [ADR-0012](release/v1/adr/0012-github-oauth-only.md), [ADR-0024](release/v1/adr/0024-rate-limit-in-process.md) — лимит.
 
@@ -24,8 +24,15 @@
 ### UC-A3. Выход
 
 - **Актор:** аутентифицированный пользователь. **С релиза:** v1.
-- **Поток:** `POST /api/v1/auth/logout` → сервер удаляет строку из `auth_sessions` → очищает cookie → `200`.
-- **Отклонения:** нет активной сессии → `200` (идемпотентно).
+- **Поток:** `POST /api/v1/auth/logout` → сервер удаляет строку из `auth_sessions` → очищает cookie → `204`.
+- **Отклонения:** нет активной сессии → `204` (идемпотентно).
+
+### UC-A4. Удаление аккаунта
+
+- **Актор:** аутентифицированный пользователь. **С релиза:** v1.
+- **Поток:** `DELETE /api/v1/auth/me` → блокировка профиля → удаление `users`; каскадом уходят профиль, контакты, проекты, скриншоты, технологии проектов, витрина, привязки репозиториев, сессии и `github_accounts` → коммит → удаление файлов скриншотов из тома `media` → строка лога `account deleted user_id=<uuid>` → очистка cookie → `204`. Общие строки `github_repositories` остаются. Повторный вход через GitHub создаёт новый пустой аккаунт.
+- **Отклонения:** нет сессии → `401 UNAUTHORIZED`; чужой Origin → `403 CSRF_ORIGIN_INVALID`. Файл, который не удалось удалить, пишется в лог и убирается `app.media.sweep`.
+- **ADR:** [ADR-0028](release/v1/adr/0028-account-deletion-hard-and-immediate.md).
 
 ---
 
