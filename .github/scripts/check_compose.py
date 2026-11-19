@@ -1,6 +1,7 @@
 """Checks the github-worker service and the media volume in the resolved Compose file
 (ADR-018, step 6.6; ADR-0022, step 4.2b),
-and with --production the file merged with docker-compose.prod.yml (ADR-0021, 9.3).
+and with --production the file merged with docker-compose.prod.yml (ADR-0021, 9.3;
+the backup and restore services, ADR-0026, 9.5).
 
 Run from the repository root, with a .env beside docker-compose.yml:
 
@@ -37,10 +38,11 @@ def duration_seconds(value: object) -> float | None:
     return sum(float(amount) * UNIT_SECONDS[unit] for amount, unit in parts)
 
 
-PRODUCTION_FILES = ("-f", "docker-compose.yml", "-f", "docker-compose.prod.yml")
+# Every profile: the restore service runs only by hand and is hidden otherwise.
+PRODUCTION_FILES = ("-f", "docker-compose.yml", "-f", "docker-compose.prod.yml", "--profile", "*")
 # The only service reachable from outside, and the ones that must get no secrets.
 PUBLIC_SERVICE = "nginx"
-NO_ENV_FILE = ("frontend", "nginx", "certbot")
+NO_ENV_FILE = ("frontend", "nginx", "certbot", "backup", "restore")
 # The screenshot volume (ADR-0022): written by the backend, read by Nginx.
 MEDIA_VOLUME = "media"
 MEDIA_TARGET = "/srv/media"
@@ -113,7 +115,22 @@ def production_checks(config: dict) -> list[tuple[str, str, bool]]:
     services = config["services"]
     published = sorted(name for name, service in services.items() if service.get("ports"))
     nginx_media = media_mount(services.get(PUBLIC_SERVICE) or {}) or {}
+    backup_media = media_mount(services.get("backup") or {}) or {}
+    restore = services.get("restore") or {}
+    restore_media = media_mount(restore) or {}
     return [
+        (
+            "p5",
+            f"backup mounts {MEDIA_VOLUME} at {MEDIA_TARGET} read-only",
+            backup_media.get("target") == MEDIA_TARGET and backup_media.get("read_only") is True,
+        ),
+        (
+            "p6",
+            f"restore runs only by hand and mounts {MEDIA_VOLUME} for writing",
+            restore.get("profiles") == ["restore"]
+            and restore_media.get("target") == MEDIA_TARGET
+            and not restore_media.get("read_only"),
+        ),
         (
             "p4",
             f"{PUBLIC_SERVICE} mounts {MEDIA_VOLUME} at {MEDIA_TARGET} read-only",

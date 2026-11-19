@@ -10,7 +10,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 mkdir "$work/bin"
-printf '#!/bin/sh\necho "docker $*" >> "%s/docker.log"\n' "$work" > "$work/bin/docker"
+# The stub logs its call and fails a backup while $work/backup-fails exists.
+printf '#!/bin/sh\necho "docker $*" >> "%s/docker.log"\ncase "$*" in *backup.sh*) [ ! -f "%s/backup-fails" ] ;; esac\n' "$work" "$work" > "$work/bin/docker"
 printf '#!/bin/sh\n[ ! -f "%s/down" ]\n' "$work" > "$work/bin/curl"
 printf '#!/bin/sh\n' > "$work/bin/sleep"
 chmod +x "$work/bin/"*
@@ -47,11 +48,18 @@ deploy || fail "a plain update"
 [ "$(at)" = "$second" ] || fail "a plain update ends at origin/main"
 grep -q "up -d --build" "$work/docker.log" || fail "a plain update runs docker compose up"
 
+grep -q "backup.sh" "$work/docker.log" && fail "a plain update makes no backup"
+
 third=$(commit backend/alembic/versions/0001.py)
-deploy && fail "an update with a migration needs --with-migrations"
-[ "$(at)" = "$second" ] || fail "a refused update keeps the commit"
-deploy --with-migrations || fail "an update with --with-migrations"
-[ "$(at)" = "$third" ] || fail "an update with --with-migrations ends at origin/main"
+touch "$work/backup-fails"
+deploy && fail "an update with a migration stops when the backup fails"
+[ "$(at)" = "$second" ] || fail "an update without a backup keeps the commit"
+rm "$work/backup-fails"
+: > "$work/docker.log"
+deploy || fail "an update with a migration"
+[ "$(at)" = "$third" ] || fail "an update with a migration ends at origin/main"
+[ "$(head -n 1 "$work/docker.log")" = "docker compose run --rm backup backup.sh" ] ||
+    fail "an update with a migration backs up before anything else"
 
 deploy --rollback && fail "a rollback over a migration is refused"
 [ "$(at)" = "$third" ] || fail "a refused rollback keeps the commit"
