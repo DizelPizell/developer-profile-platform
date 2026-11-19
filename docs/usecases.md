@@ -12,8 +12,8 @@
 
 - **Актор:** неаутентифицированный пользователь. **С релиза:** v1.
 - **Поток:** открывает `GET /api/v1/auth/github/login` → редирект на GitHub OAuth → GitHub редиректит на `GET /api/v1/auth/github/callback?code=…` → сервер обменивает code на access token → получает `github_user_id`, `github_login`, email → upsert `users` и `github_accounts` → создаёт `auth_sessions`, пишет `token_hash` → устанавливает HttpOnly cookie → редирект на `/me`.
-- **Отклонения:** GitHub вернул ошибку → редирект на `/auth/error`; недопустимый `state` → `400`.
-- **ADR:** [ADR-0012](release/v1/adr/0012-github-oauth-only.md).
+- **Отклонения:** любая ошибка callback — редирект на `/login?error=<CODE>` (`ACCESS_DENIED`, `INVALID_STATE`, `MISSING_CODE`, `OAUTH_CODE_INVALID`, `GITHUB_UNAVAILABLE`, `RATE_LIMITED`, `INTERNAL_ERROR`), экран входа показывает текст по коду. Больше 20 запросов `login` и `callback` в минуту с одного IP → `RATE_LIMITED` («Слишком много попыток входа. Подождите минуту и попробуйте снова.»), `state` не выдаётся и не проверяется.
+- **ADR:** [ADR-0012](release/v1/adr/0012-github-oauth-only.md), [ADR-0024](release/v1/adr/0024-rate-limit-in-process.md) — лимит.
 
 ### UC-A2. Получение текущего пользователя
 
@@ -162,9 +162,9 @@
 
 - **Актор:** любой посетитель. **С релиза:** v1 (бэкенд — C.1; кнопки «Показать email» и «Показать телефон» — C.2).
 - **Поток:** `GET /api/v1/public/profiles/{slug}/contacts?type=EMAIL|PHONE` без сессии → профиль `PUBLISHED` и контакт этого типа есть → `200 {type, value, url}` с `Cache-Control: no-store`.
-- **Отклонения:** профиль не найден, `PRIVATE`, slug некорректный или контакта нет → тот же `404 NOT_FOUND`, что у UC-E1; другой `type` или его нет → `422 VALIDATION_ERROR`. Rate limit — шаг 8.3, до него ручка не ограничена.
+- **Отклонения:** профиль не найден, `PRIVATE`, slug некорректный или контакта нет → тот же `404 NOT_FOUND`, что у UC-E1; другой `type` или его нет → `422 VALIDATION_ERROR`. Больше 10 запросов в минуту или 50 в час с одного IP, `404` тоже считаются → `429 RATE_LIMITED` с `Retry-After`; на странице — тот же текст ошибки и «Повторить».
 - **Страница:** в секции «Контакты» кнопка «Показать email» или «Показать телефон» → «Загрузка…» → ссылка `mailto:` или `tel:`. Любая ошибка, включая ответ другого типа или с другой ссылкой, — «Не удалось получить email.» / «Не удалось получить телефон.» и «Повторить». Значения нет в HTML страницы и в JSON профиля.
-- **ADR:** [ADR-0020](release/v1/adr/0020-contacts-separate-table.md).
+- **ADR:** [ADR-0020](release/v1/adr/0020-contacts-separate-table.md), [ADR-0024](release/v1/adr/0024-rate-limit-in-process.md) — лимит.
 
 ### UC-E4. Просмотр публичной страницы проекта
 

@@ -31,6 +31,7 @@ Callback errors are redirects, not JSON (ADR-012), because the user arrives by b
 | `MISSING_CODE` | No `code` in the callback |
 | `OAUTH_CODE_INVALID` | GitHub rejected the code (expired or already used) |
 | `GITHUB_UNAVAILABLE` | GitHub timed out, returned an error status, or an unexpected response |
+| `RATE_LIMITED` | More than 20 login and callback requests a minute from one IP (ADR-024), checked before `state` |
 | `INTERNAL_ERROR` | Any other failure |
 
 Nothing from the request or from GitHub is copied into the redirect URL. No session cookie is set. The response carries `X-Request-ID`. This is the only endpoint whose errors are not JSON.
@@ -120,9 +121,9 @@ GET /public/profiles/{slug}/projects/{id}
 |---|---|---|
 | `GET /public/profiles/{slug}` | 200 `PublicProfileResponse` | 404 `NOT_FOUND`; 500 `INTERNAL_ERROR` |
 | `GET /public/profiles/{slug}/projects/{id}` | 200 `PublicProjectPage` | 404 `NOT_FOUND`; 500 `INTERNAL_ERROR` |
-| `GET /public/profiles/{slug}/contacts` | 200 `{type, value, url}`, `Cache-Control: no-store` | 404 `NOT_FOUND`; 422 `VALIDATION_ERROR` (`type` missing or not `EMAIL`/`PHONE`, `loc` `["query", "type"]`); 500 `INTERNAL_ERROR` |
+| `GET /public/profiles/{slug}/contacts` | 200 `{type, value, url}`, `Cache-Control: no-store` | 404 `NOT_FOUND`; 422 `VALIDATION_ERROR` (`type` missing or not `EMAIL`/`PHONE`, `loc` `["query", "type"]`); 429 `RATE_LIMITED` with `Retry-After`; 500 `INTERNAL_ERROR` |
 
-No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A private profile, a missing profile and a malformed slug return the same 404 body as an unknown URL (only `request_id` differs). The contacts endpoint returns that same 404 when the profile has no contact of the requested type. It has no rate limit until step 8.3 (ADR-020).
+No session needed. Only `PUBLISHED` profiles; the slug is case-insensitive. A private profile, a missing profile and a malformed slug return the same 404 body as an unknown URL (only `request_id` differs). The contacts endpoint returns that same 404 when the profile has no contact of the requested type. It allows 10 requests a minute and 50 an hour from one IP, 404s included; past that it answers 429 `RATE_LIMITED` with `Retry-After` in seconds (ADR-024). The counters live in the backend process and reset on its restart.
 
 ```json
 {"type": "EMAIL | PHONE", "value": "string", "url": "mailto:… | tel:…"}

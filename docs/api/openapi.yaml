@@ -10,9 +10,12 @@ paths:
     get:
       security: []
       summary: Start GitHub OAuth login
-      description: Sets the HttpOnly `oauth_state` cookie and redirects to GitHub.
+      description: >-
+        Sets the HttpOnly `oauth_state` cookie and redirects to GitHub. Past 20
+        requests a minute from one IP, shared with the callback (ADR-024),
+        redirects to `{FRONTEND_URL}/login?error=RATE_LIMITED` without the cookie.
       responses:
-        "302": {description: Redirect to GitHub}
+        "302": {description: Redirect to GitHub, or to the login screen with RATE_LIMITED}
         "500": {$ref: "#/components/responses/InternalError"}
   /auth/github/callback:
     get:
@@ -23,7 +26,7 @@ paths:
         error redirects to `{FRONTEND_URL}/login?error=<CODE>` without a JSON
         body and without a session cookie; CODE is one of ACCESS_DENIED,
         INVALID_STATE, MISSING_CODE, OAUTH_CODE_INVALID, GITHUB_UNAVAILABLE,
-        INTERNAL_ERROR. Nothing from the request or from GitHub is copied into
+        RATE_LIMITED, INTERNAL_ERROR. Nothing from the request or from GitHub is copied into
         the URL. The `oauth_state` cookie is deleted on every response.
       parameters:
         - {name: code, in: query, required: false, schema: {type: string}}
@@ -188,7 +191,8 @@ paths:
         The value of one EMAIL or PHONE contact, requested by a click (ADR-020).
         No session; Cache-Control no-store. A private, missing or malformed
         profile, or a profile without that contact, returns the same 404 as
-        GET /public/profiles/{slug}. No rate limit until step 8.3.
+        GET /public/profiles/{slug}. At most 10 requests a minute and 50 an
+        hour from one IP, 404s included (ADR-024).
       parameters:
         - name: slug
           in: path
@@ -213,6 +217,15 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "422": {$ref: "#/components/responses/ValidationError"}
+        "429":
+          description: RATE_LIMITED
+          headers:
+            Retry-After:
+              description: Seconds until the limit's window ends
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "500": {$ref: "#/components/responses/InternalError"}
   /projects:
     get:
