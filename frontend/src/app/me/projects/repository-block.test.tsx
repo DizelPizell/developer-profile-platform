@@ -169,8 +169,7 @@ describe("the block's states", () => {
       "/me/repositories",
     );
     expect(within(region).getByText(/Привязка и отвязка работают сразу и не зависят от кнопки «Сохранить»/)).toBeTruthy();
-    expect(screen.getByText("Демо и скриншоты добавим в следующих версиях.")).toBeTruthy();
-    expect(screen.queryByText(/репозиторий GitHub добавим/)).toBeNull();
+    expect(screen.queryByText(/добавим в следующих версиях/)).toBeNull();
   });
 
   test("linked: GitHub data only, the relation as a fact and the placeholder for languages", async () => {

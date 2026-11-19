@@ -92,6 +92,7 @@ export function ProjectEditScreen({
       {loaded.status === "ready" && (
         <ProjectEditor
           initialProject={loaded.project}
+          account={account}
           imported={imported}
           onNotFound={() => setLoaded({ status: "not-found" })}
         />

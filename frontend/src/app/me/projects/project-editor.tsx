@@ -33,6 +33,7 @@ import {
   ProjectStateBadge,
   UNTITLED,
 } from "./project-texts";
+import type { Account } from "../cabinet-page";
 import { RepositoryBlock } from "./repository-block";
 import { ScreenshotsBlock } from "./screenshots-block";
 import { TechnologiesInput } from "./technologies-input";
@@ -99,11 +100,14 @@ function fieldList(fields: ProjectField[]): string {
 
 export function ProjectEditor({
   initialProject,
+  account = null,
   imported = false,
   onNotFound,
 }: {
   /** null on /me/projects/new. */
   initialProject: ProjectResponse | null;
+  /** The own profile, for the link to the public page; null until it loads. */
+  account?: Account | null;
   /** Shows «Проект создан» until the next save (DESIGN.md, import). */
   imported?: boolean;
   onNotFound: () => void;
@@ -145,6 +149,13 @@ export function ProjectEditor({
   const status = saved?.status ?? null;
   const canPublish = saved !== null && status !== "PUBLISHED" && !dirty;
   const canArchive = status === "PUBLISHED";
+  // The public page answers 404 unless both the project and the profile are public.
+  const publicPath =
+    saved?.status === "PUBLISHED" &&
+    saved.visibility === "PUBLIC" &&
+    account?.status === "PUBLISHED"
+      ? `/u/${encodeURIComponent(account.slug)}/projects/${encodeURIComponent(saved.id)}`
+      : null;
 
   async function run(action: Action, call: () => Promise<"stay" | "leave">) {
     if (inFlight.current) {
@@ -295,7 +306,20 @@ export function ProjectEditor({
         </h1>
         <div className="flex flex-wrap items-center gap-4">
           {saved && <ProjectStateBadge status={saved.status} visibility={saved.visibility} />}
-          <p className="text-sm text-text-muted">Публичная страница проекта появится позже</p>
+          {publicPath !== null ? (
+            <a
+              href={publicPath}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-4"
+            >
+              Открыть публичную страницу <span aria-hidden="true">↗</span>
+            </a>
+          ) : (
+            <p className="text-sm text-text-muted">
+              Публичная страница появится, когда проект и профиль будут опубликованы.
+            </p>
+          )}
         </div>
       </section>
 
@@ -381,7 +405,6 @@ export function ProjectEditor({
         />
 
         <div className="flex flex-col gap-4 border-t-4 border-outline pt-6">
-          <p className="text-text-muted">Демо и скриншоты добавим в следующих версиях.</p>
           <div className="flex flex-wrap items-center gap-4">
             <Button type="submit" size="lg" disabled={!dirty || busy}>
               Сохранить

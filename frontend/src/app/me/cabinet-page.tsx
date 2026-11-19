@@ -10,8 +10,11 @@ import { RequestErrorAlert } from "@/components/request-error";
 import { Button } from "@/components/ui/button";
 import { ApiError, getProfile, logout, type OwnProfileResponse } from "@/lib/api";
 
-/** What the header shows: GitHub data from the own profile. */
-export type Account = Pick<OwnProfileResponse, "avatar_url" | "github_login">;
+/**
+ * What the header shows (GitHub data from the own profile), plus the slug and
+ * status the project form needs for the link to the public page.
+ */
+export type Account = Pick<OwnProfileResponse, "avatar_url" | "github_login" | "slug" | "status">;
 
 /**
  * Loads the header's account for screens that do not load the profile
