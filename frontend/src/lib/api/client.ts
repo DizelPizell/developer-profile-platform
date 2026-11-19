@@ -4,6 +4,8 @@ import { ApiError, NetworkError } from "./errors";
 export type ApiRequestInit = Omit<RequestInit, "body" | "credentials"> & {
   /** Sent as a JSON body with Content-Type: application/json. */
   json?: unknown;
+  /** Sent as multipart/form-data; the browser sets the Content-Type with its boundary. */
+  form?: FormData;
 };
 
 type ErrorBody = {
@@ -52,7 +54,7 @@ async function toApiError(response: Response): Promise<ApiError> {
  * readable response. Returns undefined for an empty body (204).
  */
 export async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
-  const { json, headers, ...rest } = init;
+  const { json, form, headers, ...rest } = init;
   const requestHeaders = new Headers(headers);
   requestHeaders.set("Accept", "application/json");
   if (json !== undefined) {
@@ -65,7 +67,7 @@ export async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Prom
     response = await fetch(apiUrl(path), {
       ...rest,
       headers: requestHeaders,
-      body: json === undefined ? undefined : JSON.stringify(json),
+      body: form ?? (json === undefined ? undefined : JSON.stringify(json)),
       credentials: "include",
     });
   } catch (error) {

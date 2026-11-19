@@ -29,6 +29,8 @@ const PROJECT: ProjectResponse = {
   contribution: null,
   technologies: ["Python", "Go"],
   featured_position: null,
+  demo_url: null,
+  screenshots: [],
   github: null,
 };
 

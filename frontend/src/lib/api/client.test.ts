@@ -55,6 +55,19 @@ describe("success", () => {
     expect(new Headers(init?.headers).get("Content-Type")).toBe("application/json");
   });
 
+  test("sends FormData without setting Content-Type", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, {}));
+    const form = new FormData();
+    form.append("file", new File(["x"], "a.png", { type: "image/png" }));
+
+    await apiFetch("/projects/p1/screenshots", { method: "POST", form });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init?.body).toBe(form);
+    // The browser adds multipart/form-data with its boundary.
+    expect(new Headers(init?.headers).get("Content-Type")).toBeNull();
+  });
+
   test("returns undefined for 204", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
     await expect(apiFetch("/auth/logout", { method: "POST" })).resolves.toBeUndefined();
