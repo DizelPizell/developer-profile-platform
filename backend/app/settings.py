@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, HttpUrl, SecretStr, model_validator
+from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The OAuth callback route: /api/v1 + the auth router's /auth/github/callback.
@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     github_periodic_sync_batch: int = Field(default=30, ge=1)
     # The media volume: screenshots written by the API, served by Nginx (ADR-0022).
     media_root: Path = Path("/srv/media")
+    # The worker's dead-man's switch (ADR-0027): a GET after a good iteration, at
+    # most every 5 minutes. Empty turns it off; production requires it. A secret:
+    # anyone with the URL can report the worker alive.
+    worker_heartbeat_url: HttpUrl | None = None
+
+    @field_validator("worker_heartbeat_url", mode="before")
+    @classmethod
+    def _empty_url_is_none(cls, value: object) -> object:
+        return None if value == "" else value
 
     @model_validator(mode="after")
     def _retry_max_not_below_base(self) -> "Settings":
@@ -67,6 +76,9 @@ class Settings(BaseSettings):
         # A wrong value here would only show up as a broken sign-in.
         if self.app_env != "production":
             return self
+        if self.worker_heartbeat_url is None:
+            # ADR-0027: without it a dead worker goes unnoticed.
+            raise ValueError("WORKER_HEARTBEAT_URL is required in production")
         front, callback = self.frontend_url, self.github_callback_url
         if front.scheme != "https":
             raise ValueError("FRONTEND_URL must use https in production")

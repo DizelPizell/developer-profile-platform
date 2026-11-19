@@ -41,6 +41,7 @@ from app.github.worker import (
     check_credentials,
     claim_job,
     install_stop_handlers,
+    make_heartbeat,
     recover_stale_jobs,
     retry_delay,
 )
@@ -668,6 +669,94 @@ def test_sigterm_and_sigint_request_a_stop(monkeypatch):
         stop.clear()
         handler(signum, None)
         assert stop.is_set()
+
+
+# ---------------------------------------------------------------------------
+# The heartbeat (ADR-0027)
+# ---------------------------------------------------------------------------
+
+
+def test_the_heartbeat_is_pinged_at_most_every_five_minutes():
+    clock = Clock()
+    pings = []
+    worker = _worker(_ok, clock)
+    worker.heartbeat = lambda: pings.append(clock.now)
+
+    for minutes in (0, 1, 4, 5, 6, 10):
+        clock.now = T0 + timedelta(minutes=minutes)
+        worker.beat()
+
+    assert pings == [T0, T0 + timedelta(minutes=5), T0 + timedelta(minutes=10)]
+
+
+def test_the_loop_pings_after_a_good_iteration_and_not_after_a_failed_one(db_session):
+    loop = Loop(db_session, _ok, max_waits=2)
+    pings = []
+    loop.worker.heartbeat = lambda: pings.append(1)
+    calls = []
+
+    def sessions():
+        calls.append(1)
+        if len(calls) == 1:
+            raise OperationalError("SELECT 1", {}, Exception("connection refused"))
+        return nullcontext(db_session)
+
+    loop.sessions = sessions
+    loop.run()
+
+    # The failed first iteration did not ping; the second, with nothing due, did.
+    assert len(calls) == 2 and pings == [1]
+
+
+def test_the_loop_pings_while_claims_are_held(db_session):
+    job_id = _job(db_session)
+    # 400 left is within the reserve of 500: a hold, not a failure.
+    loop = Loop(db_session, _ok, handler=_rate_limit_answer(5000, remaining=400))
+    pings = []
+    loop.worker.heartbeat = lambda: pings.append(1)
+
+    loop.run()
+
+    assert pings == [1]
+    assert _state(db_session, job_id)["status"] == "QUEUED"
+
+
+def test_no_heartbeat_without_a_url():
+    assert make_heartbeat(httpx.Client(), None) is None
+
+
+def test_the_heartbeat_gets_the_url():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, str(request.url)))
+        return httpx.Response(200)
+
+    ping = make_heartbeat(
+        httpx.Client(transport=httpx.MockTransport(handler)), "https://hc.example/ping-id"
+    )
+    ping()
+
+    assert seen == [("GET", "https://hc.example/ping-id")]
+
+
+@pytest.mark.parametrize(
+    "handler",
+    [
+        lambda request: httpx.Response(500),
+        lambda request: (_ for _ in ()).throw(httpx.ConnectError("refused", request=request)),
+    ],
+)
+def test_a_failed_heartbeat_is_logged_without_the_url(worker_log, handler):
+    ping = make_heartbeat(
+        httpx.Client(transport=httpx.MockTransport(handler)), "https://hc.example/secret-id"
+    )
+
+    ping()
+
+    [record] = _worker_records(worker_log)
+    assert record.levelno == logging.WARNING and "heartbeat failed" in record.getMessage()
+    assert "secret-id" not in record.getMessage()
 
 
 # ---------------------------------------------------------------------------

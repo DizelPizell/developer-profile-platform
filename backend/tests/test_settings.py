@@ -154,6 +154,7 @@ _PRODUCTION = {
     "app_env": "production",
     "frontend_url": "https://example.com",
     "github_callback_url": "https://example.com/api/v1/auth/github/callback",
+    "worker_heartbeat_url": "https://hc.example/ping-id",
 }
 
 
@@ -182,3 +183,13 @@ def test_production_rejects_another_origin_or_path(overrides):
 def test_only_production_requires_one_https_origin():
     # The local setup: two ports over http (the defaults of _VALID).
     assert _settings(app_env="development").frontend_url.scheme == "http"
+
+
+def test_production_requires_the_worker_heartbeat():
+    # ADR-0027: a dead worker would otherwise go unnoticed.
+    with pytest.raises(ValidationError):
+        _settings(**{**_PRODUCTION, "worker_heartbeat_url": ""})
+
+
+def test_an_empty_worker_heartbeat_is_off_outside_production():
+    assert _settings(worker_heartbeat_url="").worker_heartbeat_url is None
