@@ -18,6 +18,11 @@ export function logout(): Promise<void> {
   return apiFetch<void>("/auth/logout", { method: "POST" });
 }
 
+/** DELETE /auth/me: 204, the account and everything it owns are gone (ADR-0028). */
+export function deleteAccount(): Promise<void> {
+  return apiFetch<void>("/auth/me", { method: "DELETE" });
+}
+
 /** Sign-in starts with a full-page navigation to this address, not a fetch (ADR-014). */
 export function githubLoginUrl(): string {
   return browserApiUrl("/auth/github/login");

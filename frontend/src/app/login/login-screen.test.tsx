@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { LoginScreen } from "./login-screen";
@@ -51,7 +51,7 @@ describe("sign-in button", () => {
 
     const button = screen.getByRole("button", { name: "Войти через GitHub" });
     expect((button as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Войти через GitHub" })).toBeNull();
   });
 
   test("without a session links to the API sign-in endpoint", async () => {
@@ -83,13 +83,15 @@ describe("sign-in button", () => {
 
 test("the note names the public data that is read (DESIGN.md)", async () => {
   await renderSignedOut();
-  expect(
-    screen.getByText(
-      "Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и " +
-        "публичные репозитории, которые вы привяжете к проектам. Доступа к приватным " +
-        "репозиториям нет.",
-    ),
-  ).toBeTruthy();
+  const note = screen.getByText(/^Мы читаем только публичные данные GitHub/);
+  expect(note.textContent).toBe(
+    "Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и " +
+      "публичные репозитории, которые вы привяжете к проектам. Доступа к приватным " +
+      "репозиториям нет. Подробнее — в политике данных.",
+  );
+  expect(within(note).getByRole("link", { name: "политике данных" }).getAttribute("href")).toBe(
+    "/privacy",
+  );
   expect(screen.queryByText(/Доступа к вашим репозиториям нет/)).toBeNull();
 });
 
