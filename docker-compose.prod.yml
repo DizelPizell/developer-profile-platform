@@ -86,8 +86,9 @@ services:
       - certbot_certs:/etc/letsencrypt
 
   # A backup of the database and the media volume once a day and at every start,
-  # to the restic repository off this host (ADR-0026, DEPLOY.md). deploy.sh runs
-  # one more before an update with a migration.
+  # to the restic repository off this host (ADR-0026, DEPLOY.md), then the free
+  # disk space; both ping their dead-man's switches (ADR-0027). deploy.sh runs
+  # one more backup, without pings, before an update with a migration.
   backup:
     build:
       context: ./backup
@@ -104,10 +105,13 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      # Used by daily.sh only; restore shares the map and ignores them.
+      BACKUP_HEARTBEAT_URL: ${BACKUP_HEARTBEAT_URL:?set BACKUP_HEARTBEAT_URL in .env (DEPLOY.md)}
+      DISK_HEARTBEAT_URL: ${DISK_HEARTBEAT_URL:?set DISK_HEARTBEAT_URL in .env (DEPLOY.md)}
     command:
       - /bin/sh
       - -c
-      - trap exit TERM; while :; do backup.sh || echo "backup failed"; sleep 86400 & wait $${!}; done
+      - trap exit TERM; while :; do daily.sh; sleep 86400 & wait $${!}; done
     volumes:
       - media:/srv/media:ro
     depends_on:
