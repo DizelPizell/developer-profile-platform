@@ -91,12 +91,20 @@ describe("featured projects", () => {
     expect(within(items[1]).getByText("Главный 2")).toBeTruthy();
   });
 
-  test("no link to a project page and no «Открыть проект»", () => {
+  test("the title of a card and of a row is the one link to the project page", () => {
     renderView({ featured: [featured(1, "Shop")], other: [project("o1", "Bot")] });
 
     expect(screen.queryByText(/Открыть проект/)).toBeNull();
     const links = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
-    expect(links).toEqual(["/login", "https://github.com/ann-gh", "#projects"]);
+    expect(links).toEqual([
+      "/login",
+      "https://github.com/ann-gh",
+      "#projects",
+      "/u/ann/projects/f1",
+      "/u/ann/projects/o1",
+    ]);
+    expect(screen.getByRole("heading", { level: 3, name: "Shop" }).querySelector("a")?.textContent).toBe("Shop");
+    expect(screen.getByRole("heading", { level: 3, name: "Bot" }).querySelector("a")?.textContent).toBe("Bot");
   });
 
   test("a long title wraps and the summary is limited to four lines", () => {
