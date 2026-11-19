@@ -15,7 +15,7 @@
 | `github-worker` | Синхронизация GitHub, один процесс |
 | `postgres` | Без портов наружу: `docker compose exec postgres psql -U <POSTGRES_USER> <POSTGRES_DB>` |
 | `certbot` | Продлевает сертификат дважды в сутки; Nginx перечитывает его раз в 6 часов |
-| `backup` | Бэкап базы и тома `media` в restic-репозиторий вне хоста: при старте и раз в сутки ([ADR-0026](docs/release/v1/adr/0026-backups-with-restic.md)) |
+| `backup` | Бэкап базы и тома `media` в restic-репозиторий вне хоста при старте и раз в сутки ([ADR-0026](docs/release/v1/adr/0026-backups-with-restic.md)); после него — проверка свободного места и пинги мониторинга ([ADR-0027](docs/release/v1/adr/0027-monitoring-external-heartbeats.md)) |
 | `restore` | Только вручную (`docker compose run --rm restore`), в `up` не входит: восстановление из бэкапа |
 
 У всех сервисов логи `json-file` с ротацией: 5 файлов по 10 МБ. Опубликованные Docker порты обходят ufw, поэтому наружу их нет ни у кого, кроме Nginx; CI это проверяет (`check_compose.py --production`).
@@ -37,7 +37,7 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Его читают `backend`, `migrate` и `github-worker` (`env_file`); `postgres` получает только `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`; `backup` и `restore` — данные Postgres, `RESTIC_*` и `AWS_*`; `frontend`, `nginx` и `certbot` секретов не получают. Секретов нет в образах.
+Его читают `backend`, `migrate` и `github-worker` (`env_file`); `postgres` получает только `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`; `backup` и `restore` — данные Postgres, `RESTIC_*`, `AWS_*`, `BACKUP_HEARTBEAT_URL` и `DISK_HEARTBEAT_URL`; `frontend`, `nginx` и `certbot` секретов не получают. Секретов нет в образах.
 
 Что поменять относительно примера:
 
@@ -54,8 +54,9 @@ chmod 600 .env
 | `RESTIC_REPOSITORY` | хранилище бэкапов вне хоста, для S3-совместимого — `s3:https://<endpoint>/<bucket>/<path>` |
 | `RESTIC_PASSWORD` | `openssl rand -hex 32`; без него бэкапы не прочитать |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | ключ хранилища с доступом только к этому бакету |
+| `WORKER_HEARTBEAT_URL`, `BACKUP_HEARTBEAT_URL`, `DISK_HEARTBEAT_URL` | URL трёх проверок у сервиса мониторинга («Мониторинг» ниже), без `/` на конце |
 
-При `APP_ENV=production` бэкенд, `migrate` и воркер не стартуют, если `FRONTEND_URL` не https или `GITHUB_CALLBACK_URL` не на том же origin с путём `/api/v1/auth/github/callback`: ошибка в домене видна сразу, а не при входе.
+При `APP_ENV=production` бэкенд, `migrate` и воркер не стартуют, если `FRONTEND_URL` не https, `GITHUB_CALLBACK_URL` не на том же origin с путём `/api/v1/auth/github/callback` или пуст `WORKER_HEARTBEAT_URL`: ошибка видна сразу, а не при входе или при первом сбое.
 
 `.env` — единственное место секретов: его копия, вместе с `RESTIC_PASSWORD`, хранится в менеджере паролей владельца, отдельно от сервера и репозитория. В бэкап он не входит: в нём пароль от самого бэкапа.
 
@@ -121,7 +122,7 @@ chmod 600 .env
 
 ## Файлы скриншотов
 
-Скриншоты лежат в именованном томе `media` ([ADR-0022](docs/release/v1/adr/0022-media-on-host-volume.md)); в базе — только путь к файлу. Том и база бэкапятся вместе (ниже): без тома ссылки в базе ведут в `404`, без базы файлы ничьи. Свободное место на диске — в мониторинге (9.6).
+Скриншоты лежат в именованном томе `media` ([ADR-0022](docs/release/v1/adr/0022-media-on-host-volume.md)); в базе — только путь к файлу. Том и база бэкапятся вместе (ниже): без тома ссылки в базе ведут в `404`, без базы файлы ничьи. Свободное место на диске проверяет мониторинг («Мониторинг» ниже).
 
 Файл удаляется вместе со скриншотом или проектом. Если процесс упал между записью файла и строки, файл остаётся без строки. Такие файлы старше суток убирает ручная команда — раз в месяц или после сбоя бэкенда:
 
@@ -141,7 +142,7 @@ docker compose exec backend python -m app.media.sweep
 3. `restic forget --prune`: остаются 7 ежедневных, 4 еженедельных и 6 ежемесячных снимков;
 4. по понедельникам `restic check` — целостность репозитория.
 
-Ошибка пишется в `docker compose logs backup` (`backup failed`), следующая попытка — через сутки; оповещение о ней — мониторинг (9.6). Бэкап вручную:
+Ошибка пишется в `docker compose logs backup` (`backup failed`) и уходит пингом `/fail` в мониторинг; следующая попытка — через сутки. Бэкап вручную:
 
 ```sh
 docker compose run --rm backup backup.sh
@@ -173,6 +174,29 @@ docker compose run --rm backup restic snapshots
 На новом хосте: «Первый запуск» с копией `.env` из менеджера паролей (без `restic init` — репозиторий уже есть), затем шаги 2–4.
 
 До запуска (9.8) восстановление проверяется один раз по-настоящему: из продакшн-хранилища на отдельной машине. CI проверяет его на каждом PR, но на временной базе и локальном репозитории (`check_backup.sh`).
+
+## Мониторинг
+
+Сервис мониторинга — внешний, не на этом хосте: иначе он молчит, когда хост лежит ([ADR-0027](docs/release/v1/adr/0027-monitoring-external-heartbeats.md)). Подходит любой с HTTP-пробером и dead-man's switch, у которого GET на URL — «жив», `<URL>/fail` — «сбой» (Healthchecks.io, Better Stack). Что завести:
+
+| Проверка | Что делает | Срок / запас |
+|---|---|---|
+| Пробер `https://SERVER_NAME/api/v1/health` | ждёт `200`; заодно срок сертификата | раз в 5 минут |
+| Пробер `https://SERVER_NAME/` | ждёт `200` | раз в 5 минут |
+| Воркер → `WORKER_HEARTBEAT_URL` | пинг после итерации без ошибки, не чаще раза в 5 минут | 5 минут / 10 минут |
+| Бэкап → `BACKUP_HEARTBEAT_URL` | пинг после бэкапа, `/fail` при ошибке | сутки / 2 часа |
+| Диск → `DISK_HEARTBEAT_URL` | пинг раз в сутки, `/fail` при 80% занятого диска | сутки / 2 часа |
+
+Алерты — на почту или в Telegram владельца. URL проверок — секреты: они в `.env` и в логи не пишутся. Ошибка самого пинга не останавливает ни воркер, ни бэкап: в логах `heartbeat failed` и `monitoring: a ping failed`.
+
+Что делать по алерту:
+
+- **Пробер:** `docker compose ps`, `docker compose logs --tail 100 nginx backend frontend`.
+- **Воркер:** `docker compose logs --tail 100 github-worker`. `rejected the app credentials` — сменились `GITHUB_CLIENT_ID` или `GITHUB_CLIENT_SECRET` («Ротация»); `an iteration failed` — смотреть базу.
+- **Бэкап:** `docker compose logs backup` («Бэкапы»).
+- **Диск:** `df -h`, `docker system df`; лишние образы — `docker image prune`.
+
+До запуска (9.8) один раз проверить, что алерт доходит: `docker compose stop github-worker`, дождаться письма, `docker compose start github-worker`.
 
 ## Проверка после запуска
 
