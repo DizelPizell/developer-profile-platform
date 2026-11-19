@@ -395,7 +395,7 @@ export function ScreenshotsBlock({
                     className="flex justify-between gap-4 text-sm text-text-muted"
                   >
                     <span>Для тех, кто не видит картинку. До 200 символов</span>
-                    <span>
+                    <span className="shrink-0 whitespace-nowrap">
                       {caption.length} / {SCREENSHOT_CAPTION_MAX_LENGTH}
                     </span>
                   </div>
