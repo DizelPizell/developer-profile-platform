@@ -13,8 +13,8 @@ export function MessageScreen({
   code?: string;
   title: string;
   text?: string;
-  /** Buttons under the text. */
-  children: ReactNode;
+  /** Buttons under the text, if any. */
+  children?: ReactNode;
 }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
@@ -30,7 +30,7 @@ export function MessageScreen({
         )}
         <h1 className="font-heading text-2xl leading-relaxed text-balance uppercase">{title}</h1>
         {text && <p className="text-xl leading-relaxed">{text}</p>}
-        <div className="flex flex-wrap justify-center gap-4">{children}</div>
+        {children && <div className="flex flex-wrap justify-center gap-4">{children}</div>}
       </section>
     </main>
   );
