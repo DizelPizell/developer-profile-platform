@@ -91,14 +91,27 @@ chmod 600 .env
 
 ## Обновление
 
+Выкладывается только `main`, прошедшая CI: ветка защищена (ниже). На сервере, в каталоге репозитория ([ADR-0025](docs/release/v1/adr/0025-manual-deploy-script.md)):
+
 ```sh
-git pull
-docker compose up -d --build
+./deploy.sh
 ```
 
-`migrate` применяет новые миграции до старта бэкенда и воркера. Миграции не откатываются автоматически: перед обновлением, в котором есть миграция, нужен свежий бэкап базы (9.5).
+Скрипт переходит на `origin/main` (или на коммит: `./deploy.sh <commit>`), запоминает прошлый коммит в `.deploy/previous`, запускает `docker compose up -d --build` и ждёт до 60 секунд ответа `/api/v1/health` и `/` через Nginx. Не дождался — ошибка: смотреть `docker compose logs`. Checkout остаётся в detached HEAD, `git pull` не нужен.
 
-Откат кода без миграций: `git checkout <предыдущий коммит>` и `docker compose up -d --build`. С миграцией — восстановление из бэкапа.
+`migrate` применяет новые миграции до старта бэкенда и воркера; упал — `up` завершается ошибкой, бэкенд и воркер не перезапускаются. Миграции не откатываются автоматически: если в обновлении есть миграция, скрипт остановится. Сделать свежий бэкап базы и тома `media` (9.5) и запустить `./deploy.sh --with-migrations`.
+
+Откат на коммит до последней выкладки:
+
+```sh
+./deploy.sh --rollback
+```
+
+Если между ними миграция, скрипт откажет: откат с миграцией — восстановление из бэкапа.
+
+### Защита `main`
+
+В GitHub: Settings → Branches → правило для `main` — «Require a pull request before merging» и «Require status checks to pass» с проверками `Lint and test`, `Build the backend image`, `Lint, typecheck, test and build`, `Build the frontend image`, `Check the Compose file`. Скрипт не проверяет CI сам и опирается на это правило.
 
 ## Файлы скриншотов
 
