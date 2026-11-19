@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { ApiError, getProfile, type OwnProfileResponse } from "@/lib/api";
 
+import { AccountDeletion } from "./account-deletion";
 import { CabinetPage, LoadErrorPanel, LoadingPanel } from "./cabinet-page";
 import { ProfileEditor } from "./profile-editor";
 
@@ -46,7 +47,12 @@ export function CabinetScreen() {
     <CabinetPage account={loaded.status === "ready" ? loaded.profile : null} tab="profile">
       {loaded.status === "loading" && <LoadingPanel />}
       {loaded.status === "error" && <LoadErrorPanel error={loaded.error} onRetry={retry} />}
-      {loaded.status === "ready" && <ProfileEditor initialProfile={loaded.profile} />}
+      {loaded.status === "ready" && (
+        <>
+          <ProfileEditor initialProfile={loaded.profile} />
+          <AccountDeletion githubLogin={loaded.profile.github_login} />
+        </>
+      )}
     </CabinetPage>
   );
 }

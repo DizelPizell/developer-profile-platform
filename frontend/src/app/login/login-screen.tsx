@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -75,7 +76,11 @@ export function LoginLayout({
         <p className="text-base leading-relaxed text-text-muted">
           Мы читаем только публичные данные GitHub: логин, аватар, email, если он открыт, и
           публичные репозитории, которые вы привяжете к проектам. Доступа к приватным
-          репозиториям нет.
+          репозиториям нет. Подробнее — в{" "}
+          <Link href="/privacy" className="underline underline-offset-4">
+            политике данных
+          </Link>
+          .
         </p>
       </section>
     </main>

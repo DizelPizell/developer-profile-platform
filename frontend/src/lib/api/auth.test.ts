@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { getMe, githubLoginUrl, logout } from "./auth";
+import { deleteAccount, getMe, githubLoginUrl, logout } from "./auth";
 import { ApiError, NetworkError } from "./errors";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -109,4 +109,18 @@ describe("logout", () => {
 
 test("githubLoginUrl points at the API sign-in endpoint", () => {
   expect(githubLoginUrl()).toBe("http://api.test/api/v1/auth/github/login");
+});
+
+describe("deleteAccount", () => {
+  test("DELETE /auth/me with credentials and no body; 204 resolves", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(deleteAccount()).resolves.toBeUndefined();
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://api.test/api/v1/auth/me");
+    expect(init?.method).toBe("DELETE");
+    expect(init?.credentials).toBe("include");
+    expect(init?.body).toBeUndefined();
+  });
 });
