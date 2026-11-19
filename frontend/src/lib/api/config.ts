@@ -68,13 +68,18 @@ export function assertApiEnv(env: Record<string, string | undefined>): void {
   }
 }
 
+/** A path on the media volume (/media/...), with no way out of it. */
+export function isMediaPath(path: string): boolean {
+  return /^\/media\/[\w./-]+$/.test(path) && !path.includes("..");
+}
+
 /**
  * Browser address of a media path from the API (/media/...): in development the
  * backend serves it on its own origin, in production Nginx on the site's origin.
  * Anything else is null, so a foreign URL never reaches an img.
  */
 export function mediaUrl(path: string): string | null {
-  if (!/^\/media\/[\w./-]+$/.test(path) || path.includes("..")) {
+  if (!isMediaPath(path)) {
     return null;
   }
   return `${parseBaseUrl("NEXT_PUBLIC_API_URL", process.env.NEXT_PUBLIC_API_URL)}${path}`;
