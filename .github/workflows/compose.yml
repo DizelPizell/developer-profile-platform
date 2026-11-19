@@ -10,6 +10,8 @@ on:
       - ".github/workflows/compose.yml"
       - ".github/scripts/check_compose.py"
       - ".github/scripts/check_nginx.sh"
+      - "deploy.sh"
+      - ".github/scripts/check_deploy.sh"
   # Every check runs on every pull request: a required check that never starts
   # blocks the merge (step 9.4).
   pull_request:
@@ -52,3 +54,10 @@ jobs:
 
       - name: Check how Nginx answers
         run: sh .github/scripts/check_nginx.sh nginx-check
+
+      # shellcheck is installed on the GitHub runner image.
+      - name: Lint the deploy script
+        run: shellcheck deploy.sh .github/scripts/check_deploy.sh
+
+      - name: Check the deploy script
+        run: sh .github/scripts/check_deploy.sh
