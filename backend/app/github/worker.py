@@ -65,6 +65,10 @@ UNAUTHENTICATED_LIMIT = 60
 # How often the worker looks for repositories due a periodic sync (ADR-018).
 PERIODIC_ENQUEUE_INTERVAL = timedelta(minutes=1)
 
+# How often a live worker pings its dead-man's switch (ADR-0027).
+HEARTBEAT_INTERVAL = timedelta(minutes=5)
+HEARTBEAT_TIMEOUT_SECONDS = 5
+
 
 @dataclass(frozen=True)
 class ClaimedJob:
@@ -93,6 +97,23 @@ class CredentialsError(Exception):
 
 Processor = Callable[[Session, ClaimedJob], None]
 SessionFactory = Callable[[], AbstractContextManager[Session]]
+Heartbeat = Callable[[], None]
+
+
+def make_heartbeat(http_client: httpx.Client, url: str | None) -> Heartbeat | None:
+    """The ping of the worker's dead-man's switch (ADR-0027), or None without a
+    URL. A failed ping is only logged, by type: the URL is a secret, and the
+    monitoring must not stop the sync."""
+    if url is None:
+        return None
+
+    def ping() -> None:
+        try:
+            http_client.get(url, timeout=HEARTBEAT_TIMEOUT_SECONDS).raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.warning("GitHub sync worker: heartbeat failed, %s", type(exc).__name__)
+
+    return ping
 
 
 def check_credentials(client: GitHubApiClient) -> None:
@@ -281,12 +302,15 @@ class SyncWorker:
         process: Processor,
         *,
         now: Callable[[], datetime] = get_now,
+        heartbeat: Heartbeat | None = None,
     ) -> None:
         self.client = client
         self.process = process
         self.now = now
+        self.heartbeat = heartbeat
         self._hold: str | None = None
         self._next_enqueue: datetime | None = None
+        self._next_heartbeat: datetime | None = None
 
     def hold_reason(self, now: datetime) -> str | None:
         """Why no job may be claimed now (ADR-018), or None.
@@ -334,9 +358,22 @@ class SyncWorker:
             except Exception:
                 logger.exception("GitHub sync worker: an iteration failed")
                 ran = False
+            else:
+                self.beat()
             if not ran:
                 wait(settings.github_worker_poll_seconds)
         logger.info("GitHub sync worker: stopped")
+
+    def beat(self) -> None:
+        """A ping after a good iteration, a hold included. None while iterations
+        fail or a job hangs, so the switch alerts (ADR-0027)."""
+        if self.heartbeat is None:
+            return
+        now = self.now()
+        if self._next_heartbeat is not None and now < self._next_heartbeat:
+            return
+        self._next_heartbeat = now + HEARTBEAT_INTERVAL
+        self.heartbeat()
 
     def enqueue_due(self, db: Session, now: datetime) -> None:
         """Periodic syncs, at most once a minute (ADR-018). The time moves first:
@@ -457,7 +494,12 @@ def main() -> int:
             rate_limits=RateLimitState(),
             pause=RateLimitPause(),
         )
-        worker = SyncWorker(client, make_processor(client, get_now))
+        heartbeat_url = settings.worker_heartbeat_url
+        worker = SyncWorker(
+            client,
+            make_processor(client, get_now),
+            heartbeat=make_heartbeat(http_client, heartbeat_url and str(heartbeat_url)),
+        )
         try:
             worker.run_forever(SessionLocal, stop)
         except CredentialsError as exc:
