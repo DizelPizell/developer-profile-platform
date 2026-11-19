@@ -933,11 +933,15 @@ Step 9.4: CI/CD — every check runs on every pull request (no paths filter on p
 
 
 
+Step 9.5: backups — a backup service in the production Compose (postgres:17-alpine with restic): pg_dump and the media volume to a restic repository off the host at start and once a day, 7 daily, 4 weekly, 6 monthly kept, restic check on Mondays; the restore service only by hand (profile restore), the database dropped and created from the dump; deploy.sh backs up before an update with a migration, no --with-migrations; check_backup.sh in CI backs up and restores a throwaway database and volume (ADR-0026)
+
+
+
 Not yet started:
 
 
 
-the rest before the launch — steps 9.5–9.8
+the rest before the launch — steps 9.6–9.8
 
 analytics — Phase 7, V1.1
 
@@ -947,7 +951,7 @@ Current next goal:
 
 
 
-Phase 4 and steps 8.3, 8.4 and 9.4 are done. Next: the steps before the launch — 9.5–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 and steps 8.3, 8.4, 9.4 and 9.5 are done. Next: the steps before the launch — 9.6–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 

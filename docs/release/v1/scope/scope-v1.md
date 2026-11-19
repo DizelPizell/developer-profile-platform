@@ -45,6 +45,7 @@ V1 — первый рабочий релиз платформы. Разрабо
 | Демо — ссылка с превью, без iframe; `demo_url` — столбец проекта | [0023](../adr/0023-demo-link-without-iframe.md) |
 | Rate limit — в памяти процесса бэкенда, по IP | [0024](../adr/0024-rate-limit-in-process.md) |
 | Выкладка — `deploy.sh` на сервере вручную, без реестра и без деплоя из GitHub; CI на каждом PR | [0025](../adr/0025-manual-deploy-script.md) |
+| Бэкапы — restic из сервиса Compose в хранилище вне хоста; база и `media` вместе | [0026](../adr/0026-backups-with-restic.md) |
 
 ## Фаза 0 — Скелет
 
@@ -138,7 +139,12 @@ V1 — первый рабочий релиз платформы. Разрабо
   - CI: у `pull_request` нет фильтров `paths:`, `concurrency` отменяет старые прогоны PR, образ бэкенда собирается в `backend.yml`
   - `deploy.sh`: выкладка `origin/main` или коммита, остановка на миграции без `--with-migrations`, проверка `/api/v1/health` и `/` через Nginx, `--rollback`; `shellcheck` и `.github/scripts/check_deploy.sh` в CI
   - Защита `main` с обязательными проверками — настройка GitHub, делает владелец ([DEPLOY.md](../../../../DEPLOY.md))
-- [ ] 9.5: бэкапы
+- [x] 9.5: бэкапы ([0026](../adr/0026-backups-with-restic.md))
+  - Образ `backup/` (`postgres:17-alpine` с `restic`), `backup.sh`: `pg_dump`, снимок дампа и тома `media`, хранение 7/4/6, `restic check` по понедельникам
+  - Сервис `backup` — при старте и раз в сутки; `restore` — только вручную, профиль `restore`
+  - `deploy.sh` делает бэкап перед обновлением с миграцией, флага `--with-migrations` нет
+  - `check_backup.sh` в CI: бэкап и восстановление временной базы и тома; `check_compose.py --production` — тома `backup` и `restore`
+  - Хранилище и `restic init`, одно восстановление настоящего бэкапа на отдельной машине — владелец до 9.8 ([DEPLOY.md](../../../../DEPLOY.md))
 - [ ] 9.6: мониторинг (включая health check воркера)
 - [ ] 9.7: удаление аккаунта, политика данных, юридические вопросы ([0020](../adr/0020-contacts-separate-table.md))
 - [ ] 9.8: запуск
