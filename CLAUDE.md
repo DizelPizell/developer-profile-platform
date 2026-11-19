@@ -937,11 +937,15 @@ Step 9.5: backups — a backup service in the production Compose (postgres:17-al
 
 
 
+Step 9.6: monitoring — an external prober of /api/v1/health, / and the certificate set up by the owner; dead-man's switches at an external service: the worker pings WORKER_HEARTBEAT_URL after a good iteration at most every 5 minutes (required with APP_ENV=production), backup/daily.sh pings BACKUP_HEARTBEAT_URL after the backup and DISK_HEARTBEAT_URL with /fail at 80% disk used; check_backup.sh checks the pings in CI (ADR-0027)
+
+
+
 Not yet started:
 
 
 
-the rest before the launch — steps 9.6–9.8
+the rest before the launch — steps 9.7–9.8
 
 analytics — Phase 7, V1.1
 
@@ -951,7 +955,7 @@ Current next goal:
 
 
 
-Phase 4 and steps 8.3, 8.4, 9.4 and 9.5 are done. Next: the steps before the launch — 9.6–9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 and steps 8.3, 8.4 and 9.4–9.6 are done. Next: step 9.7, then the launch 9.8. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
