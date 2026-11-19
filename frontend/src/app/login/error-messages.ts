@@ -6,6 +6,7 @@ const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   MISSING_CODE: "GitHub не вернул код входа. Начните вход заново.",
   OAUTH_CODE_INVALID: "Код входа истёк или уже использован. Начните вход заново.",
   GITHUB_UNAVAILABLE: "GitHub сейчас недоступен. Попробуйте позже.",
+  RATE_LIMITED: "Слишком много попыток входа. Подождите минуту и попробуйте снова.",
   INTERNAL_ERROR: "Что-то пошло не так на нашей стороне. Попробуйте позже.",
 };
 
