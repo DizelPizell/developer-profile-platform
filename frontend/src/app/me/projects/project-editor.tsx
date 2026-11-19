@@ -34,6 +34,7 @@ import {
   UNTITLED,
 } from "./project-texts";
 import { RepositoryBlock } from "./repository-block";
+import { ScreenshotsBlock } from "./screenshots-block";
 import { TechnologiesInput } from "./technologies-input";
 
 type Values = Record<ProjectTextField, string> & { technologies: string[] };
@@ -113,6 +114,8 @@ export function ProjectEditor({
   const [pending, setPending] = useState<Action | null>(null);
   // A link or unlink in the repository block; it disables the form's buttons too.
   const [githubPending, setGithubPending] = useState(false);
+  // A screenshot request; it disables the form's buttons too.
+  const [mediaPending, setMediaPending] = useState(false);
   // Blocks a second request before the disabled state reaches the DOM.
   const inFlight = useRef(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProjectField, string>>>({});
@@ -138,7 +141,7 @@ export function ProjectEditor({
 
   const update = changedFields(values, saved);
   const dirty = Object.keys(update).length > 0;
-  const busy = pending !== null || githubPending;
+  const busy = pending !== null || githubPending || mediaPending;
   const status = saved?.status ?? null;
   const canPublish = saved !== null && status !== "PUBLISHED" && !dirty;
   const canArchive = status === "PUBLISHED";
@@ -353,11 +356,22 @@ export function ProjectEditor({
           </div>
           {/* No counter, like contact links (project-media.png). */}
           {field("demo_url", false, false)}
+          <ScreenshotsBlock
+            project={saved}
+            demoSaved={saved?.demo_url != null}
+            busy={pending !== null || githubPending}
+            onPendingChange={setMediaPending}
+            // Only screenshots are taken from the answer: unsaved edits stay.
+            onScreenshots={(screenshots) =>
+              setSaved((current) => current && { ...current, screenshots })
+            }
+            onNotFound={onNotFound}
+          />
         </section>
 
         <RepositoryBlock
           project={saved}
-          busy={pending !== null}
+          busy={pending !== null || mediaPending}
           onPendingChange={setGithubPending}
           // Only github is taken from the answer: unsaved edits and «Сохранить» stay as they are.
           onGitHub={(update) =>
