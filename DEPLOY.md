@@ -117,11 +117,12 @@ docker compose exec backend python -m app.media.sweep
 
 - `curl -I http://SERVER_NAME/` → `301` на `https://`.
 - `curl -I https://SERVER_NAME/api/v1/health` → `200` и `Strict-Transport-Security`.
+- `curl -I https://SERVER_NAME/` → `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
 - `curl -s -o /dev/null -H "X-Forwarded-For: 1.2.3.4" https://SERVER_NAME/api/v1/health`, затем `docker compose logs backend | tail` — в строке реальный адрес клиента, не `1.2.3.4`.
 - `curl -I -H "Host: other.example" http://SERVER_NAME/` — соединение закрыто без ответа.
 - `POST /api/v1/auth/logout` с `Origin: https://evil.example` → `403 CSRF_ORIGIN_INVALID`.
 - `docker compose ps` — порты наружу только у `nginx`; снаружи `nc -z SERVER_NAME 5432` и `8000` не соединяются.
 - Вход через GitHub и публикация профиля проходят в браузере.
-- Скриншот загружается в форме проекта; `curl -I https://SERVER_NAME/media/projects/<id>/<id>.webp` (адрес — из `url` в ответе) → `200`, `Content-Type: image/webp`, `Cache-Control: public, max-age=31536000, immutable`, `X-Content-Type-Options: nosniff` и `Strict-Transport-Security`. `curl -I https://SERVER_NAME/media/` → `404`.
+- Скриншот загружается в форме проекта; `curl -I https://SERVER_NAME/media/projects/<id>/<id>.webp` (адрес — из `url` в ответе) → `200`, `Content-Type: image/webp`, `Cache-Control: public, max-age=31536000, immutable`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security` и те же заголовки против встраивания. `curl -I https://SERVER_NAME/media/` → `404`.
 
 Локально те же проверки проходят с `SERVER_NAME=localhost` и самоподписанным сертификатом (`curl -k`); вход через GitHub — только с отдельным OAuth App, у которого callback `https://localhost/api/v1/auth/github/callback`.

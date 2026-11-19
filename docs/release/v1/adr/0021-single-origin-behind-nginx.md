@@ -40,6 +40,8 @@ _Правка 2026-11-17 (шаг 9.2, механика пунктов 4 и 5): c
 
 _Правка 2026-11-17 (шаг 9.3): секреты — в `.env` на сервере (права `600`, вне git), а не Compose secrets, потому что на одном хосте доступ к Docker и так равен root: кто видит `docker inspect`, прочтёт и `/run/secrets`; разделение по сервисам уже есть (`env_file` только у `backend`, `migrate`, `github-worker`). Пересматривается при нескольких хостах, оркестраторе или доступе к Docker у людей, которым нельзя видеть секреты. При `APP_ENV=production` `Settings` требует https у `FRONTEND_URL` и тот же origin у `GITHUB_CALLBACK_URL`. Порты `backend` и `postgres` в продакшне сняты, логи ротируются. uvicorn — один процесс: бюджет GitHub и кеш списка репозиториев живут в памяти._
 
+_Правка 2026-11-19 (шаг 8.4): Nginx на 443 добавляет каждому ответу `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` и `Referrer-Policy: strict-origin-when-cross-origin` (с `always`, то есть и на свои ошибки): без них кабинет можно встроить в чужую страницу и подсунуть клик (clickjacking). Заголовки ставит Nginx, а не Next.js и FastAPI, потому что он один отвечает за весь origin, включая `/media/`. В `location` для медиа они повторены: `add_header` внутри `location` отменяет заголовки `server`. Полный CSP для Next.js в V1 не вводится — только запрет встраивания. Проверка — `check_nginx.sh` в CI._
+
 ## Отвергнуто
 
 - **Отдельный API-хост (`api.example.com`).** Работает — запросы same-site, `Lax` проходит, — но добавляет CORS с `credentials` в продакшне, второе имя в DNS и сертификате и соблазн поставить `Domain=.example.com`, который отдаёт cookie сессии всем поддоменам. Выгоды в V1 нет: у API один клиент — свой фронтенд.

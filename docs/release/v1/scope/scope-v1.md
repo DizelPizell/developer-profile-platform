@@ -127,10 +127,12 @@ V1 — первый рабочий релиз платформы. Разрабо
 - [x] 8.3: rate limiting ([0024](../adr/0024-rate-limit-in-process.md)) — `app/rate_limit.py`, по IP в памяти процесса
   - `GET /public/profiles/{slug}/contacts` — 10 в минуту и 50 в час, `429 RATE_LIMITED` с `Retry-After`
   - `GET /auth/github/login` и `/callback` — 20 в минуту на оба, редирект `/login?error=RATE_LIMITED`; текст на экране входа
-- [ ] 8.4: security review
-  - Найдено аудитом 2026-11-19, исправить в этом шаге:
+- [x] 8.4: security review
+  - Найдено аудитом 2026-11-19, исправлено в этом шаге:
     - Заголовки против встраивания в iframe (clickjacking кабинета): `X-Frame-Options DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options nosniff`, `Referrer-Policy` в `server` на 443 в Nginx, повторить в `location` для `/media/`; проверка заголовка в `check_nginx.sh`
     - Не больше 2 одновременных перекодирований скриншотов (семафор вокруг `reencode`): параллельные загрузки PNG по 40 Мпикс исчерпывают память процесса бэкенда; тест, что третий вызов ждёт
+  - Проверено 2026-11-19, правок не нужно: Origin-проверка на всех POST/PUT/PATCH/DELETE; проверка владельца во всех ручках кабинета (скриншоты, синхронизация и витрина — в пределах своего проекта или пользователя); `/docs` и `/openapi.json` наружу не попадают (Nginx ведёт в бэкенд только `/api/v1/`); выход удаляет сессию на сервере, у сессии срок (`SESSION_TTL_DAYS`, по умолчанию 14 дней); токены и секреты не пишутся в логи; внешние ссылки с `target="_blank"` — с `noopener`; `dangerouslySetInnerHTML` не используется
+  - Зависимости: `pip-audit` по `requirements.lock` — уязвимостей нет; `npm audit --omit=dev` — два moderate у `next` 16.4.3 (`'use cache'`, в проекте не используется), обновлён до 16.4.6
 - [ ] 9.4: CI/CD
 - [ ] 9.5: бэкапы
 - [ ] 9.6: мониторинг (включая health check воркера)
