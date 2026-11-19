@@ -112,7 +112,7 @@ V1 — первый рабочий релиз платформы. Разрабо
   - [x] 4.2b: том `media` у Nginx в prod (только чтение), `location /media/` только для ключей вида `projects/<uuid>/<uuid>.webp` и 6 МБ на пути загрузки, команда `python -m app.media.sweep [--dry-run]`, проверки в `check_compose.py` и живая проверка Nginx через curl в CI (`check_nginx.sh`), `DEPLOY.md`
 - [x] 4.3: бэкенд — публичная страница проекта `GET /public/profiles/{slug}/projects/{id}` с блоком GitHub
 - [x] 4.4: макет — страница проекта и блок «Демо и скриншоты» в форме (`docs/frontend/mockups/project-page.png`, `project-media.png`; тексты и правила — `DESIGN.md`, план 4.5 и 4.6 — `FRONTEND_PLAN.md`)
-- [x] 4.5: фронтенд — демо и скриншоты в кабинете (ручная проверка с бэкендом — `frontend/README.md`, «Manual demo and screenshots check»)
+- [x] 4.5: фронтенд — демо и скриншоты в кабинете (проверено вручную с бэкендом 2026-11-19 — `frontend/README.md`, «Manual demo and screenshots check»)
 - [ ] 4.6: фронтенд — публичная страница `/u/{slug}/projects/{id}`, «демо в первую очередь», переход с карточек
 
 ## Деплой (9.1–9.3, до фазы 4)

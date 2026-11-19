@@ -917,7 +917,7 @@ Phase 4 step 4.4: the mockups project-page.png (the public project page: demo wi
 
 
 
-Phase 4 step 4.5: the demo link and screenshots in the project form — demo_url as a form field, the screenshot block (upload with size and type checked first, captions, ▲▼ order, delete behind a dialog, every answer replacing the list only), thumbnails only through mediaUrl, apiFetch with FormData, the link to the public page in the top panel (manual check against the backend pending)
+Phase 4 step 4.5: the demo link and screenshots in the project form — demo_url as a form field, the screenshot block (upload with size and type checked first, captions, ▲▼ order, delete behind a dialog, every answer replacing the list only), thumbnails only through mediaUrl, apiFetch with FormData, the link to the public page in the top panel
 
 
 
