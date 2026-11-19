@@ -515,7 +515,7 @@ Done (2026-11-19), four commits as planned:
 - Checked with Vitest + RTL (740 tests), lint and typecheck. Not checked here: `next build` (Google Fonts unreachable from this machine; CI builds it).
 - Checked by hand on 2026-11-19 against the local stack (backend image rebuilt with migrations up to 4.2a), all steps of the README's "Manual demo and screenshots check": JPEG, PNG and WebP uploaded and shown from `/media/`, the upload sent without a preflight, the focus in the new caption; a broken file, a file over 5 MB and a GIF refused, the last two without a request; 6 of 6 with the button off; a caption saved with Enter and cleared to `null`; a reorder keeping an unsaved title; delete behind the dialog, Escape sending nothing, the old file answering 404; `javascript:` refused, `HTTPS://Example.com` saved as `https://Example.com` with «Превью демо» on row 1, then cleared to `null`; the public page link for a published project in a published profile and the note once it was hidden; a hidden project's file opening without cookies (as ADR-0022 allows); 375 px with no horizontal scroll. Found: the caption counter wrapped to two lines at 375 px; it no longer wraps.
 
-## 4.6 — The public project page (M; after 4.5 and backend 4.3) [planned]
+## 4.6 — The public project page (M; after 4.5 and backend 4.3) [done]
 
 **Goal**: a visitor opens a project from the profile and sees the demo first, then the screenshots, the developer's texts and the GitHub data (PRD «Demo-first project page», ADR-0023).
 
@@ -531,15 +531,25 @@ One PR, one commit per item:
 Done when:
 
 - the page matches `project-page.png` at 1280 and 375 px in the four states, and the 404;
-- tests cover: the whitelist, a wrong `github` hiding only its section, a `demo_url` with another scheme hiding the demo block, a screenshot with a foreign `url` dropped, the preview not repeated in the gallery, the hidden empty blocks, the status codes (200, 404, 308, 500) against a mock API, the escaped text;
+- tests cover: the whitelist, a wrong `github` hiding only its section, a `demo_url` with another scheme hiding the demo block, a screenshot with a foreign `url` dropped, the preview not repeated in the gallery, the hidden empty blocks, the route's calls of `notFound()`, `permanentRedirect()` and the thrown error against a mocked fetch (the real codes 200, 404, 308 by hand: there is no Playwright yet), the escaped text;
 - lint, typecheck, build and the tests pass;
 - a manual check against the local stack is written in `frontend/README.md` and done: a published project with and without a demo and screenshots, a draft, a hidden and an archived project (404), a private profile (404), the link from a card and a row.
+
+Done (2026-11-19), in five commits instead of four: the route and the page went together, as the route has nothing to render without the page, and a layout fix came from the browser check.
+
+- `perRequest(key, load)` in `src/lib/per-request.ts` holds the one-call-per-request rule of the profile (the `WeakMap` keyed by `headers()`); the profile uses it too. The slug pattern, the UUID pattern and the site title moved to `app/u/[slug]/address.ts`, since a page file may not export them.
+- `getPublicProject` and its reader sit next to `getPublicProfile` in `public-profile.ts` and share its helpers. The owner's `avatar_url` is not read: the page does not show it. `isMediaPath` is the check `mediaUrl` already made, now also used by the reader.
+- The header and «От автора» moved out of `ProfileView` into `public-parts.tsx`; `CardGitHub` takes `divided={false}` for its own section; `MessageScreen` may have no buttons, for the project 404.
+- The view is tested with RTL in jsdom (`project-view.test.tsx`), the route in node against a mocked fetch (`page.test.tsx`): `jsdom` has no types here, so the route tests read the HTML as a string.
+- Found in the browser: «От автора» stretched to the full width in the column of the title block; it now sits in a row of its own.
+- Checked with Vitest + RTL (819 tests), lint and typecheck. Not checked here: `next build` (Google Fonts unreachable from this machine; CI builds it).
+- Checked by hand on 2026-11-19 against the local stack, on a test project and the existing ones: the demo with the preview and the gallery from the second screenshot, the lazy images with their sizes, the links and their `rel`, the tab title, the page without a demo (all screenshots, numbered from 1) and without both (texts only), the titles on the profile linking to the pages; with `curl` 200, 308 to the lowercase address, 404 for a malformed id and a random UUID; a hidden project 404 and back to 200; 375 px with no horizontal scroll and the demo button across the width. Not checked by hand: the host in place of the preview (a demo without screenshots), the GitHub section, a draft, an archived project and a hidden profile, the error screen; the tests cover them, and the backend tests of 4.3 cover the 404 cases.
 
 ## F7+ — Demos, GitHub data, contacts
 
 **Goal**: add project pages and technical evidence as the backend provides them.
 
-- The public project page `/u/{slug}/projects/{id}`, demos and screenshots — steps 4.5 and 4.6, planned above.
+- The public project page `/u/{slug}/projects/{id}`, demos and screenshots — steps 4.5 and 4.6, done above.
 - GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 and F-GH2 are planned above. There is no profile-level «Данные GitHub» block in V1.
 - Contacts on the cabinet and the public page — step C.2, done above.
 - Analytics — V1.1: steps 7.3 and 7.4 in DEVELOPMENT_PLAN, after the V1 launch.

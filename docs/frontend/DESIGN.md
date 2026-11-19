@@ -154,7 +154,7 @@ The layout comes from `public-profile.png`; only what the Phase 3 API provides i
   - `summary`, at most four lines (`line-clamp`), then cut;
   - up to three technology chips, in the developer's order; the rest are not shown;
   - «Моя роль: {role}» at the bottom of the card, with the GitHub block, when there is one, under it. Cards of a line keep one height: the role and the block are pushed down together.
-  - The mockup's striped image area and «Открыть проект ›» are not rendered. Until step 4.6 no element links to a project; from 4.6 the title does (see "Public project page").
+  - The mockup's striped image area and «Открыть проект ›» are not rendered. The title links to the project page (see "Public project page").
 - **«Другие проекты»** — a row per project, in API order (newest first):
   - `title`, wrapped like on cards;
   - `summary` on one line, cut with an ellipsis;
