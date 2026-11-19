@@ -5,13 +5,17 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
+  # Every check runs on every pull request: a required check that never starts
+  # blocks the merge (step 9.4).
   pull_request:
-    paths:
-      - "frontend/**"
-      - ".github/workflows/frontend.yml"
 
 permissions:
   contents: read
+
+# A new push to a pull request cancels its older run; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint-test-build:

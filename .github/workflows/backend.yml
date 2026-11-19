@@ -5,13 +5,17 @@ on:
     paths:
       - "backend/**"
       - ".github/workflows/backend.yml"
+  # Every check runs on every pull request: a required check that never starts
+  # blocks the merge (step 9.4).
   pull_request:
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend.yml"
 
 permissions:
   contents: read
+
+# A new push to a pull request cancels its older run; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint-and-test:
@@ -66,3 +70,15 @@ jobs:
 
       - name: Test (pytest)
         run: pytest
+
+  # The image runs backend, migrate and github-worker; a broken Dockerfile must
+  # fail here, not on the server (step 9.4).
+  image:
+    name: Build the Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build backend
