@@ -335,10 +335,26 @@ UNIQUE `(github_repository_id, category)`. `last_error` и `last_error_at` ус�
 | `b7e2d4c81a3f_profile_contacts` | `profile_contacts` | нет |
 | `c4d8a2f6e913_project_demo_url` | `projects.demo_url`, `ck_projects_demo_url` | нет |
 | `d5e9b3a7f204_project_screenshots` | `project_screenshots` | нет |
+| `e7a1c5d93b62_analytics_daily_counts` | `analytics_daily_counts` | нет |
 
 ## Аналитика
 
-V1.1: таблицы ещё нет, она создаётся в шаге 7.1. `analytics_daily_counts` — дневные счётчики событий (`profile_id`, `project_id` nullable, `event_type`, `day` в UTC, `count`), уникальность `NULLS NOT DISTINCT` по первым четырём, каскад от профиля и проекта. Данных о посетителе нет, поэтому нет и срока хранения ([ADR-0029](../release/v1/adr/0029-analytics-anonymous-daily-counters.md)). Прежнее название `analytics_events` заменено: сырые события не хранятся.
+### `analytics_daily_counts` (V1.1, шаг 7.1)
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | UUID PK | |
+| `profile_id` | UUID FK → profiles | ON DELETE CASCADE |
+| `project_id` | UUID FK → projects | Nullable, ON DELETE CASCADE; индекс `ix_analytics_daily_counts_project_id` для каскада |
+| `event_type` | VARCHAR(20) NOT NULL | `PROFILE_VIEW` / `PROJECT_VIEW` / `DEMO_CLICK` / `GITHUB_CLICK` / `CONTACT_CLICK` (`ck_analytics_event_type`) |
+| `day` | DATE NOT NULL | День события в UTC |
+| `count` | INTEGER NOT NULL | > 0 (`ck_analytics_count`) |
+
+- `ck_analytics_project`: `PROJECT_VIEW` и `DEMO_CLICK` — с `project_id`, `PROFILE_VIEW` и `CONTACT_CLICK` — без; `GITHUB_CLICK` — с ним (репозиторий проекта) или без (GitHub профиля).
+- UNIQUE `NULLS NOT DISTINCT (profile_id, project_id, event_type, day)` (`uq_analytics_daily_counts`) — одна строка на счётчик и день, в том числе без проекта. Запись — `INSERT … ON CONFLICT DO UPDATE SET count = count + 1`.
+- Что проект принадлежит профилю, проверяет сервис, а не база.
+
+Данных о посетителе нет, поэтому нет и срока хранения: строки живут, пока жив профиль или проект ([ADR-0029](../release/v1/adr/0029-analytics-anonymous-daily-counters.md)). Прежнее название `analytics_events` заменено: сырые события не хранятся.
 
 ## Приоритеты индексов
 

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.access_log import install_access_log_filter
+from app.analytics.router import router as analytics_router
 from app.errors import UnhandledErrorMiddleware, register_error_handlers
 from app.github.router import router as github_router
 from app.identity.router import router as auth_router
@@ -43,6 +44,7 @@ app.include_router(projects_router, prefix="/api/v1")
 app.include_router(featured_projects_router, prefix="/api/v1")
 app.include_router(github_router, prefix="/api/v1")
 app.include_router(github_import_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

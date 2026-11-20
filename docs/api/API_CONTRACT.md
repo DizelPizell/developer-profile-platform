@@ -468,16 +468,15 @@ The repository list is not stored in the database; a page GitHub returned is kep
 
 ## Analytics
 
-V1.1, right after the V1 launch (DEVELOPMENT_PLAN, Phase 7). These endpoints do not exist in V1.
+V1.1 (Phase 7), [ADR-0029](../release/v1/adr/0029-analytics-anonymous-daily-counters.md).
 
 ```http
-POST /analytics/events
-GET  /analytics/profile
-GET  /analytics/projects/{id}
+POST /analytics/events            (step 7.1, done)
+GET  /analytics/profile           (step 7.2)
+GET  /analytics/projects/{id}     (step 7.2)
 ```
 
-Proposed in [ADR-0029](../release/v1/adr/0029-analytics-anonymous-daily-counters.md); the exact schemas go into OpenAPI with steps 7.1 and 7.2:
-- `POST /analytics/events` — public, body `{"type", "slug", "project_id"}`; `202` with no body when counted or silently dropped (profile not PUBLISHED, project not PUBLISHED + PUBLIC, the owner's own session); `422 VALIDATION_ERROR`; `429 RATE_LIMITED` (60 a minute per IP).
+- `POST /analytics/events` — public, no session needed, the frontend Origin required. Body `{"type", "slug", "project_id"}`, `type` one of `PROFILE_VIEW`, `PROJECT_VIEW`, `DEMO_CLICK`, `GITHUB_CLICK`, `CONTACT_CLICK`. `202` with no body when counted and when silently dropped (profile not PUBLISHED, project not PUBLISHED + PUBLIC on that profile, a malformed `project_id`, `project_id` missing for `PROJECT_VIEW`/`DEMO_CLICK` or present for `PROFILE_VIEW`/`CONTACT_CLICK`, the owner's own session); `422 VALIDATION_ERROR` for a body of the wrong shape; `429 RATE_LIMITED` with `Retry-After` past 60 events a minute from one IP. Schema: `openapi.yaml`.
 - `GET /analytics/profile`, `GET /analytics/projects/{id}` — owner only; daily counters, no visitor data, no unique visitors.
 
 ## Principles

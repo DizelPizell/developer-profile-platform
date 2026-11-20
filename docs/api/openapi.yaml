@@ -734,10 +734,38 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /analytics/events:
     post:
+      operationId: trackAnalyticsEvent
+      security: []
       summary: Track analytics event
-      description: V1.1, not in V1 (DEVELOPMENT_PLAN, Phase 7).
+      description: >-
+        One event from a public page, added to today's counter (UTC) of the
+        profile or the project (ADR-0029). No visitor data is stored. The same
+        202 when the event is counted and when it is dropped: the profile is
+        not PUBLISHED, the project is not PUBLISHED + PUBLIC on that profile,
+        project_id is malformed, missing for PROJECT_VIEW and DEMO_CLICK or
+        present for PROFILE_VIEW and CONTACT_CLICK, or the session is the
+        owner's. GITHUB_CLICK has project_id for a repository link and none for
+        the profile's GitHub link. At most 60 events a minute from one IP
+        (ADR-024).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AnalyticsEvent"}
       responses:
-        "202": {description: Event accepted}
+        "202": {description: Counted or dropped; no body}
+        "403": {$ref: "#/components/responses/OriginInvalid"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "429":
+          description: RATE_LIMITED
+          headers:
+            Retry-After:
+              description: Seconds until the limit's window ends
+              schema: {type: integer}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /analytics/profile:
     get:
       summary: Profile analytics
@@ -796,6 +824,20 @@ components:
         integer without a sign or leading zeros; anything else is 404 NOT_FOUND.
       schema: {type: integer, format: int64, minimum: 1}
   schemas:
+    AnalyticsEvent:
+      type: object
+      additionalProperties: false
+      required: [type, slug]
+      properties:
+        type:
+          type: string
+          enum: [PROFILE_VIEW, PROJECT_VIEW, DEMO_CLICK, GITHUB_CLICK, CONTACT_CLICK]
+        slug: {type: string, maxLength: 100}
+        project_id:
+          type: string
+          nullable: true
+          maxLength: 36
+          description: The project's id in the canonical form; anything else drops the event
     Error:
       type: object
       required: [error]
