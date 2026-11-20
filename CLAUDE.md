@@ -953,13 +953,17 @@ Step 9.8a: the launch checklist «Запуск V1» in DEPLOY.md — the conditi
 
 
 
+Phase 7 step 7.0: the analytics ADR — anonymous daily counters per profile, project and event type in analytics_daily_counts, no IP, User-Agent, referrer, cookie or visitor id, so no consent and no retention; events only from the browser by fetch with keepalive to POST /analytics/events (202 counted or dropped, 60 a minute per IP, the owner's own views dropped), no views counted in SSR; the funnel as totals per stage; /privacy changed with 7.3; documents only, no code (ADR-0029)
+
+
+
 Not yet started:
 
 
 
 the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), deferred by the owner on 2026-11-20 until production: there is no lawyer, and the legal part (a paid one-off check, or the strict variant with a consent step before the launch) is an open question in scope-v1.md; then 9.8c (the release closed in the docs, post-v1.md)
 
-analytics — Phase 7, V1.1
+analytics — Phase 7, V1.1: steps 7.1–7.4 (7.0 is done)
 
 
 

@@ -678,6 +678,8 @@ Privacy requirements still need to define:
 - privacy implications;
 - whether consent is required for any particular analytics mechanism.
 
+**Resolved (2026-11-20):** no visitor data is collected — no IP, User-Agent, referrer, cookie or visitor id. Events from the browser are stored as daily counters per profile, project and type, kept while the profile exists, so no consent is needed. The funnel shows event totals per stage, not conversion of people. See docs/release/v1/adr/0029-analytics-anonymous-daily-counters.md.
+
 ---
 
 # 23. Database Principles
