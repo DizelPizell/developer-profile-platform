@@ -472,12 +472,14 @@ V1.1 (Phase 7), [ADR-0029](../release/v1/adr/0029-analytics-anonymous-daily-coun
 
 ```http
 POST /analytics/events            (step 7.1, done)
-GET  /analytics/profile           (step 7.2)
-GET  /analytics/projects/{id}     (step 7.2)
+GET  /analytics/profile           (step 7.2, done)
+GET  /analytics/projects/{id}     (step 7.2, done)
 ```
 
 - `POST /analytics/events` — public, no session needed, the frontend Origin required. Body `{"type", "slug", "project_id"}`, `type` one of `PROFILE_VIEW`, `PROJECT_VIEW`, `DEMO_CLICK`, `GITHUB_CLICK`, `CONTACT_CLICK`. `202` with no body when counted and when silently dropped (profile not PUBLISHED, project not PUBLISHED + PUBLIC on that profile, a malformed `project_id`, `project_id` missing for `PROJECT_VIEW`/`DEMO_CLICK` or present for `PROFILE_VIEW`/`CONTACT_CLICK`, the owner's own session); `422 VALIDATION_ERROR` for a body of the wrong shape; `429 RATE_LIMITED` with `Retry-After` past 60 events a minute from one IP. Schema: `openapi.yaml`.
-- `GET /analytics/profile`, `GET /analytics/projects/{id}` — owner only; daily counters, no visitor data, no unique visitors.
+- `GET /analytics/profile?days=7|30|90` (default 30) — owner only. `period` (`days`, `start`, `end`: UTC days, today included), `totals` (`profile_views`, `project_views`, `demo_clicks`, `github_clicks`, `contact_clicks`) and `projects`: every own project in the order of `GET /projects` with `id`, `title`, `status`, `visibility` and `counts` (`project_views`, `demo_clicks`, `github_clicks`), zeros included. The funnel is the stages of `totals`; there is no separate field.
+- `GET /analytics/projects/{id}?days=7|30|90` — owner only, any lifecycle state. `period`, `totals` and `daily`: every day of the period, oldest first, with the same `counts`, zeros included. Another user's project, a missing one and a malformed id → `404 NOT_FOUND`.
+- Both: `401 UNAUTHORIZED` without a session, `422 VALIDATION_ERROR` for another `days`. Sums of events, no visitor data, no unique visitors.
 
 ## Principles
 

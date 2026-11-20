@@ -768,18 +768,48 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
   /analytics/profile:
     get:
-      summary: Profile analytics
-      description: V1.1, not in V1 (DEVELOPMENT_PLAN, Phase 7).
+      operationId: getProfileAnalytics
+      security: [{cookieAuth: []}]
+      summary: Own profile analytics
+      description: >-
+        Sums of events for the last `days` UTC days, today included
+        (ADR-0029): totals of the profile and every own project in the order
+        of GET /projects, zeros included. Events, not visitors. github_clicks
+        in totals counts repository links and the profile's GitHub link.
+      parameters:
+        - {$ref: "#/components/parameters/AnalyticsDays"}
       responses:
-        "200": {description: Analytics}
+        "200":
+          description: The profile's counters
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ProfileAnalyticsResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /analytics/projects/{id}:
     parameters:
-      - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      - {$ref: "#/components/parameters/ProjectId"}
     get:
-      summary: Project analytics
-      description: V1.1, not in V1 (DEVELOPMENT_PLAN, Phase 7).
+      operationId: getProjectAnalytics
+      security: [{cookieAuth: []}]
+      summary: Own project analytics by day
+      description: >-
+        The project's counters for every UTC day of the last `days` days,
+        oldest first, zeros included (ADR-0029). Any lifecycle state; another
+        user's project is the same 404 as in GET /projects/{id}.
+      parameters:
+        - {$ref: "#/components/parameters/AnalyticsDays"}
       responses:
-        "200": {description: Analytics}
+        "200":
+          description: The project's counters
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ProjectAnalyticsResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+        "500": {$ref: "#/components/responses/InternalError"}
 components:
   securitySchemes:
     cookieAuth:
@@ -797,6 +827,12 @@ components:
         canonical UUID, otherwise generated. Present on every response.
       schema: {type: string, format: uuid}
   parameters:
+    AnalyticsDays:
+      name: days
+      in: query
+      required: false
+      description: The period in UTC days, today included; any other value is 422
+      schema: {type: integer, enum: [7, 30, 90], default: 30}
     ProjectId:
       name: id
       in: path
@@ -824,6 +860,59 @@ components:
         integer without a sign or leading zeros; anything else is 404 NOT_FOUND.
       schema: {type: integer, format: int64, minimum: 1}
   schemas:
+    AnalyticsPeriod:
+      type: object
+      required: [days, start, end]
+      properties:
+        days: {type: integer, enum: [7, 30, 90]}
+        start: {type: string, format: date, description: First UTC day, inclusive}
+        end: {type: string, format: date, description: Today in UTC, inclusive}
+    ProjectCounts:
+      type: object
+      required: [project_views, demo_clicks, github_clicks]
+      properties:
+        project_views: {type: integer}
+        demo_clicks: {type: integer}
+        github_clicks: {type: integer}
+    ProfileCounts:
+      allOf:
+        - {$ref: "#/components/schemas/ProjectCounts"}
+        - type: object
+          required: [profile_views, contact_clicks]
+          properties:
+            profile_views: {type: integer}
+            contact_clicks: {type: integer}
+    ProfileAnalyticsResponse:
+      type: object
+      required: [period, totals, projects]
+      properties:
+        period: {$ref: "#/components/schemas/AnalyticsPeriod"}
+        totals: {$ref: "#/components/schemas/ProfileCounts"}
+        projects:
+          type: array
+          items:
+            type: object
+            required: [id, title, status, visibility, counts]
+            properties:
+              id: {type: string, format: uuid}
+              title: {type: string}
+              status: {type: string, enum: [DRAFT, PUBLISHED, ARCHIVED]}
+              visibility: {type: string, enum: [PUBLIC, PRIVATE]}
+              counts: {$ref: "#/components/schemas/ProjectCounts"}
+    ProjectAnalyticsResponse:
+      type: object
+      required: [period, totals, daily]
+      properties:
+        period: {$ref: "#/components/schemas/AnalyticsPeriod"}
+        totals: {$ref: "#/components/schemas/ProjectCounts"}
+        daily:
+          type: array
+          items:
+            type: object
+            required: [day, counts]
+            properties:
+              day: {type: string, format: date}
+              counts: {$ref: "#/components/schemas/ProjectCounts"}
     AnalyticsEvent:
       type: object
       additionalProperties: false

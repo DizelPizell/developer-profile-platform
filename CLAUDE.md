@@ -961,13 +961,17 @@ Phase 7 step 7.1: event ingestion in the backend — app/analytics, the analytic
 
 
 
+Phase 7 step 7.2: analytics reading in the backend — GET /analytics/profile (totals of the five counters and every own project in the order of GET /projects, zeros included) and GET /analytics/projects/{id} (every UTC day of the period with zeros, any lifecycle state, 404 for another user's project), owner only, days=7|30|90 with 30 by default, one grouped query each; the funnel is the stages of totals, no separate field (ADR-0029)
+
+
+
 Not yet started:
 
 
 
 the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), deferred by the owner on 2026-11-20 until production: there is no lawyer, and the legal part (a paid one-off check, or the strict variant with a consent step before the launch) is an open question in scope-v1.md; then 9.8c (the release closed in the docs, post-v1.md)
 
-analytics — Phase 7, V1.1: steps 7.2–7.4 (7.0 and 7.1 are done)
+analytics — Phase 7, V1.1: steps 7.3 and 7.4 (7.0–7.2 are done)
 
 
 

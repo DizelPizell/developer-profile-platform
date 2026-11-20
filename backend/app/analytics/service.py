@@ -1,3 +1,8 @@
+import uuid
+from collections import Counter, defaultdict
+from datetime import date
+
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -47,3 +52,44 @@ def record_event(db: Session, event: EventIn, session_token: str | None) -> bool
         )
     )
     return True
+
+
+def profile_counts(
+    db: Session, profile_id: uuid.UUID, start: date
+) -> tuple[Counter[str], dict[uuid.UUID, Counter[str]]]:
+    """Sums since `start` by event type: for the whole profile and per project.
+    One query whatever the number of projects."""
+    rows = db.execute(
+        select(
+            AnalyticsDailyCount.project_id,
+            AnalyticsDailyCount.event_type,
+            func.sum(AnalyticsDailyCount.count),
+        )
+        .where(AnalyticsDailyCount.profile_id == profile_id, AnalyticsDailyCount.day >= start)
+        .group_by(AnalyticsDailyCount.project_id, AnalyticsDailyCount.event_type)
+    )
+    totals: Counter[str] = Counter()
+    per_project: dict[uuid.UUID, Counter[str]] = defaultdict(Counter)
+    for project_id, event_type, count in rows:
+        totals[event_type] += count
+        if project_id is not None:
+            per_project[project_id][event_type] += count
+    return totals, per_project
+
+
+def project_daily(db: Session, project_id: uuid.UUID, start: date) -> dict[date, Counter[str]]:
+    """Counts of the project since `start` by UTC day and event type; days without
+    events are absent."""
+    rows = db.execute(
+        select(
+            AnalyticsDailyCount.day,
+            AnalyticsDailyCount.event_type,
+            func.sum(AnalyticsDailyCount.count),
+        )
+        .where(AnalyticsDailyCount.project_id == project_id, AnalyticsDailyCount.day >= start)
+        .group_by(AnalyticsDailyCount.day, AnalyticsDailyCount.event_type)
+    )
+    daily: dict[date, Counter[str]] = defaultdict(Counter)
+    for day, event_type, count in rows:
+        daily[day][event_type] += count
+    return daily
