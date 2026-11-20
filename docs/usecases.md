@@ -99,7 +99,7 @@
 ### UC-C5. Удаление проекта
 
 - **Актор:** владелец проекта. **С релиза:** v1.
-- **Поток:** `DELETE /api/v1/projects/{id}` → CASCADE удаляет связанные `project_technologies`, `featured_projects`, `project_repositories`, `project_screenshots` → после коммита удаляются файлы скриншотов → `204`.
+- **Поток:** `DELETE /api/v1/projects/{id}` → CASCADE удаляет связанные `project_technologies`, `featured_projects`, `project_repositories`, `project_screenshots`, счётчики аналитики проекта (`analytics_daily_counts`) → после коммита удаляются файлы скриншотов → `204`.
 - **Отклонения:** проект не найден или чужой → `404`.
 
 ### UC-C6. Скриншоты проекта
@@ -186,3 +186,21 @@
 - **Поток:** `POST /api/v1/analytics/events` с `{type, slug, project_id}` → профиль `PUBLISHED`, проект (если есть) его владельца в `PUBLISHED + PUBLIC`, сессия не владельца → `+1` к счётчику типа за сегодняшний день в UTC → `202` без тела. IP, User-Agent, referrer и cookie не сохраняются.
 - **Отклонения:** профиль или проект не показан, `project_id` некорректный или не подходит к типу, сессия владельца → тот же `202`, событие не засчитано. Тело другой формы (неизвестный тип, лишнее поле) → `422 VALIDATION_ERROR`; без `Origin` фронтенда → `403 CSRF_ORIGIN_INVALID`; больше 60 событий в минуту с одного IP → `429 RATE_LIMITED` с `Retry-After`.
 - **ADR:** [ADR-0029](release/v1/adr/0029-analytics-anonymous-daily-counters.md), [ADR-0024](release/v1/adr/0024-rate-limit-in-process.md) — лимит.
+
+---
+
+## F. Аналитика
+
+### UC-F1. Аналитика профиля
+
+- **Актор:** владелец профиля. **С релиза:** V1.1 (бэкенд — 7.2; экран — 7.4).
+- **Поток:** `GET /api/v1/analytics/profile?days=7|30|90` (по умолчанию 30) → `200`: `period` (`days`, `start`, `end` — дни UTC включительно, сегодня последний), `totals` (`profile_views`, `project_views`, `demo_clicks`, `github_clicks`, `contact_clicks`; `github_clicks` — ссылки на репозитории и на GitHub профиля) и `projects` — все свои проекты в порядке `GET /projects` (`id`, `title`, `status`, `visibility`, `counts` с `project_views`, `demo_clicks`, `github_clicks`), без событий — нули. Это суммы событий, не посетители.
+- **Отклонения:** без сессии → `401 UNAUTHORIZED`; другое значение `days` → `422 VALIDATION_ERROR`.
+- **ADR:** [ADR-0029](release/v1/adr/0029-analytics-anonymous-daily-counters.md).
+
+### UC-F2. Аналитика проекта по дням
+
+- **Актор:** владелец проекта. **С релиза:** V1.1 (бэкенд — 7.2; экран — 7.4).
+- **Поток:** `GET /api/v1/analytics/projects/{id}?days=7|30|90` (по умолчанию 30) → `200`: `period`, `totals` (`project_views`, `demo_clicks`, `github_clicks`) и `daily` — каждый день периода от старого к новому с теми же `counts`, дни без событий — нули. Проект в любом состоянии: счётчики черновика или скрытого проекта остаются с тех пор, когда он был виден.
+- **Отклонения:** без сессии → `401 UNAUTHORIZED`; проект не найден, чужой или id некорректный → `404 NOT_FOUND`, как у `GET /projects/{id}`; другое значение `days` → `422 VALIDATION_ERROR`.
+- **ADR:** [ADR-0029](release/v1/adr/0029-analytics-anonymous-daily-counters.md).
