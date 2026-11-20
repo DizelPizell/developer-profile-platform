@@ -476,6 +476,10 @@ GET  /analytics/profile
 GET  /analytics/projects/{id}
 ```
 
+Proposed in [ADR-0029](../release/v1/adr/0029-analytics-anonymous-daily-counters.md); the exact schemas go into OpenAPI with steps 7.1 and 7.2:
+- `POST /analytics/events` — public, body `{"type", "slug", "project_id"}`; `202` with no body when counted or silently dropped (profile not PUBLISHED, project not PUBLISHED + PUBLIC, the owner's own session); `422 VALIDATION_ERROR`; `429 RATE_LIMITED` (60 a minute per IP).
+- `GET /analytics/profile`, `GET /analytics/projects/{id}` — owner only; daily counters, no visitor data, no unique visitors.
+
 ## Principles
 
 - Explicit request/response schemas.

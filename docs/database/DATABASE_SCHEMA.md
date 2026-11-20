@@ -31,7 +31,7 @@ github_contributors       (отложено, не V1 — ADR-0010, ADR-0018)
 github_commits            (отложено, не V1 — ADR-0010, ADR-0018)
 
 -- Аналитика
-analytics_events          (V1.1)
+analytics_daily_counts    (V1.1)
 ```
 
 Нет отдельной сущности `PROJECT_CONTRIBUTION`: поля `role` и `contribution` — обычные текстовые поля `projects` (ADR-0004).
@@ -338,7 +338,7 @@ UNIQUE `(github_repository_id, category)`. `last_error` и `last_error_at` ус�
 
 ## Аналитика
 
-V1.1: таблица `analytics_events` не существует в V1. Поля при создании: тип события, ссылка на профиль/проект, timestamp, privacy-safe метаданные сессии.
+V1.1: таблицы ещё нет, она создаётся в шаге 7.1. `analytics_daily_counts` — дневные счётчики событий (`profile_id`, `project_id` nullable, `event_type`, `day` в UTC, `count`), уникальность `NULLS NOT DISTINCT` по первым четырём, каскад от профиля и проекта. Данных о посетителе нет, поэтому нет и срока хранения ([ADR-0029](../release/v1/adr/0029-analytics-anonymous-daily-counters.md)). Прежнее название `analytics_events` заменено: сырые события не хранятся.
 
 ## Приоритеты индексов
 
