@@ -957,7 +957,7 @@ Not yet started:
 
 
 
-the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), then 9.8c (the release closed in the docs, post-v1.md)
+the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), deferred by the owner on 2026-11-20 until production: there is no lawyer, and the legal part (a paid one-off check, or the strict variant with a consent step before the launch) is an open question in scope-v1.md; then 9.8c (the release closed in the docs, post-v1.md)
 
 analytics — Phase 7, V1.1
 
@@ -967,7 +967,7 @@ Current next goal:
 
 
 
-Phase 4 and steps 8.3, 8.4, 9.4–9.7 and 9.8a are done. Step 9.8a is done. Next: the owner launches by «Запуск V1» in DEPLOY.md (9.8b: the lawyer and the operator on /privacy first), then 9.8c. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 and steps 8.3, 8.4, 9.4–9.7 and 9.8a are done. Step 9.8a is done. Step 9.8b (the launch) is deferred by the owner until production, with its legal part undecided; the next step is the owner's choice. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
