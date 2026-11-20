@@ -949,11 +949,15 @@ Step 9.7b: account deletion and the data policy in the frontend — «Удале
 
 
 
+Step 9.8a: the launch checklist «Запуск V1» in DEPLOY.md — the conditions (the lawyer, /privacy filled, main protected, the OAuth App, a real restore, an alert received), the order, a walk through the product on production with a test account deleted at the end, the tag v1.0.0, what to do after; connect_timeout of 5 seconds on database connections; 8.1, 8.2, 8.5, the repository README and the project goals left out of the launch (scope-v1.md)
+
+
+
 Not yet started:
 
 
 
-the launch — step 9.8
+the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), then 9.8c (the release closed in the docs, post-v1.md)
 
 analytics — Phase 7, V1.1
 
@@ -963,7 +967,7 @@ Current next goal:
 
 
 
-Phase 4 and steps 8.3, 8.4 and 9.4–9.7 are done. Next: the launch 9.8 (the owner fills in the operator on /privacy and gets the lawyer's check first). The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
+Phase 4 and steps 8.3, 8.4, 9.4–9.7 and 9.8a are done. Step 9.8a is done. Next: the owner launches by «Запуск V1» in DEPLOY.md (9.8b: the lawyer and the operator on /privacy first), then 9.8c. The full order is in docs/release/v1/scope/scope-v1.md, "Порядок реализации (оставшееся)".
 
 Do not start a step before the previous one is merged.
 
