@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 
 # Nine hours from UTC, so a session in it cannot pass for UTC.
 _OTHER_TIME_ZONE = "Asia/Tokyo"
@@ -54,3 +55,34 @@ def test_test_session_runs_in_utc(db_engine, non_utc_database_default):
     db_engine.dispose()
     with db_engine.connect() as conn:
         assert conn.execute(text("SHOW timezone")).scalar_one() == "UTC"
+
+
+def test_a_silent_database_fails_the_connection_in_time():
+    """A server that accepts TCP but never answers does not hold a request."""
+    import socket
+    import threading
+
+    from app.database import CONNECT_ARGS
+
+    outcome: list[BaseException] = []
+
+    def connect(port: int) -> None:
+        engine = create_engine(
+            f"postgresql+psycopg://u:p@127.0.0.1:{port}/db", connect_args=CONNECT_ARGS
+        )
+        try:
+            engine.connect()
+        except OperationalError as error:
+            outcome.append(error)
+        finally:
+            engine.dispose()
+
+    with socket.socket() as silent:
+        silent.bind(("127.0.0.1", 0))
+        silent.listen()
+        # A thread, so a missing timeout fails the test instead of hanging it.
+        attempt = threading.Thread(target=connect, args=(silent.getsockname()[1],), daemon=True)
+        attempt.start()
+        attempt.join(timeout=15)
+        assert not attempt.is_alive(), "the connection waited past its timeout"
+    assert len(outcome) == 1
