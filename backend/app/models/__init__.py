@@ -1,3 +1,4 @@
+from app.models.analytics import AnalyticsDailyCount
 from app.models.github import (
     GitHubRepository,
     GitHubSyncCategoryStatus,
@@ -28,4 +29,5 @@ __all__ = [
     "ProjectRepository",
     "GitHubSyncJob",
     "GitHubSyncCategoryStatus",
+    "AnalyticsDailyCount",
 ]

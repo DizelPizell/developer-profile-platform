@@ -249,8 +249,9 @@ def auth_client(make_auth_client) -> TestClient:
 @pytest.fixture(autouse=True)
 def _reset_rate_limits() -> Generator[None]:
     """The limiters are process-wide; every test starts with empty counters."""
-    from app.rate_limit import contacts_limiter, login_limiter
+    from app.rate_limit import contacts_limiter, events_limiter, login_limiter
 
     contacts_limiter.reset()
     login_limiter.reset()
+    events_limiter.reset()
     yield

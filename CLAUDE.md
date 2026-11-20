@@ -957,13 +957,17 @@ Phase 7 step 7.0: the analytics ADR — anonymous daily counters per profile, pr
 
 
 
+Phase 7 step 7.1: event ingestion in the backend — app/analytics, the analytics_daily_counts table and migration (CHECK of project_id by type, UNIQUE NULLS NOT DISTINCT, cascade from profiles and projects), POST /analytics/events with an upsert of today's UTC counter, the same 202 for counted and dropped events (profile not PUBLISHED, project not PUBLISHED + PUBLIC on it, project_id not fitting the type, the owner's session), events_limiter 60 a minute per IP (ADR-0029, ADR-0024)
+
+
+
 Not yet started:
 
 
 
 the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), deferred by the owner on 2026-11-20 until production: there is no lawyer, and the legal part (a paid one-off check, or the strict variant with a consent step before the launch) is an open question in scope-v1.md; then 9.8c (the release closed in the docs, post-v1.md)
 
-analytics — Phase 7, V1.1: steps 7.1–7.4 (7.0 is done)
+analytics — Phase 7, V1.1: steps 7.2–7.4 (7.0 and 7.1 are done)
 
 
 

@@ -152,6 +152,27 @@ def test_migrations_apply_to_empty_database(db_engine, monkeypatch):
             assert "UNIQUE" in contact_type_index
             assert "'OTHER'" in contact_type_index
 
+            # ADR-0029: daily counters, one row per day even without a project.
+            assert {
+                "ck_analytics_event_type",
+                "ck_analytics_project",
+                "ck_analytics_count",
+            } <= {c["name"] for c in schema.get_check_constraints("analytics_daily_counts")}
+            with engine.connect() as conn:
+                counts_unique = conn.execute(
+                    text(
+                        "SELECT indexdef FROM pg_indexes "
+                        "WHERE indexname = 'uq_analytics_daily_counts'"
+                    )
+                ).scalar_one()
+            assert "NULLS NOT DISTINCT" in counts_unique
+            assert {"profiles", "projects"} == {
+                fk["referred_table"] for fk in schema.get_foreign_keys("analytics_daily_counts")
+            }
+
+            alembic_command.downgrade(cfg, "d5e9b3a7f204")
+            assert "analytics_daily_counts" not in set(inspect(engine).get_table_names())
+
             alembic_command.downgrade(cfg, "9cef1f7367c5")
             assert "profile_contacts" not in set(inspect(engine).get_table_names())
 

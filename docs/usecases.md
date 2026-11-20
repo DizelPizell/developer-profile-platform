@@ -179,3 +179,10 @@
 - **Поток:** `GET /api/v1/public/profiles/{slug}/projects/{id}` без сессии → профиль `PUBLISHED`, проект его владельца в `PUBLISHED + PUBLIC` → `200`: поля проекта (с `description`, `problem`, `results`, `contribution`), технологии, `demo_url`, скриншоты по порядку (`url`, `caption`, `width`, `height` — без id), тот же объект `github`, что на карточке (UC-E2), и `owner` (`slug`, `display_name`, `avatar_url`) — пятью запросами без вызова GitHub API.
 - **Отклонения:** профиль не найден или `PRIVATE`, проект другого пользователя, черновик, архивный или скрытый проект, некорректный id → тот же `404 NOT_FOUND`, что у UC-E1.
 - **ADR:** [ADR-0019](release/v1/adr/0019-public-github-on-cards.md), [ADR-0022](release/v1/adr/0022-media-on-host-volume.md), [ADR-0023](release/v1/adr/0023-demo-link-without-iframe.md).
+
+### UC-E5. Учёт просмотра или клика на публичной странице
+
+- **Актор:** браузер посетителя. **С релиза:** V1.1 (бэкенд — 7.1; отправка со страниц — 7.3).
+- **Поток:** `POST /api/v1/analytics/events` с `{type, slug, project_id}` → профиль `PUBLISHED`, проект (если есть) его владельца в `PUBLISHED + PUBLIC`, сессия не владельца → `+1` к счётчику типа за сегодняшний день в UTC → `202` без тела. IP, User-Agent, referrer и cookie не сохраняются.
+- **Отклонения:** профиль или проект не показан, `project_id` некорректный или не подходит к типу, сессия владельца → тот же `202`, событие не засчитано. Тело другой формы (неизвестный тип, лишнее поле) → `422 VALIDATION_ERROR`; без `Origin` фронтенда → `403 CSRF_ORIGIN_INVALID`; больше 60 событий в минуту с одного IP → `429 RATE_LIMITED` с `Retry-After`.
+- **ADR:** [ADR-0029](release/v1/adr/0029-analytics-anonymous-daily-counters.md), [ADR-0024](release/v1/adr/0024-rate-limit-in-process.md) — лимит.

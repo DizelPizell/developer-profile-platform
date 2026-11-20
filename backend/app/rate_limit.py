@@ -64,6 +64,8 @@ class RateLimiter:
 contacts_limiter = RateLimiter((10, 60), (50, 3600))
 # GitHub login and its callback, which exchanges the code with GitHub (ADR-012).
 login_limiter = RateLimiter((20, 60))
+# Analytics events from public pages (ADR-0029).
+events_limiter = RateLimiter((60, 60))
 
 
 def client_ip(request: Request) -> str:
@@ -86,5 +88,11 @@ def rate_limited(seconds: int) -> AppError:
 
 def limit_contacts(request: Request) -> None:
     seconds = retry_after(contacts_limiter, request)
+    if seconds is not None:
+        raise rate_limited(seconds)
+
+
+def limit_events(request: Request) -> None:
+    seconds = retry_after(events_limiter, request)
     if seconds is not None:
         raise rate_limited(seconds)
