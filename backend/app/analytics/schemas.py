@@ -38,7 +38,7 @@ class Period(BaseModel):
 
 class ProjectAnalyticsItem(BaseModel):
     id: uuid.UUID
-    title: str
+    title: str | None
     status: str
     visibility: str
     counts: ProjectCounts

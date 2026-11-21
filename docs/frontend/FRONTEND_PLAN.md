@@ -564,10 +564,12 @@ Done (2026-11-20):
 Screen and texts: "Analytics" in `DESIGN.md`, mockup `analytics.png`. API: `GET /analytics/profile` and `GET /analytics/projects/{id}` (step 7.2).
 
 - **7.4a** [done]: the mockup `analytics.png` drawn as HTML in `docs/frontend/mockups/src/analytics.html`, the screen in `DESIGN.md`; documents only, no code.
-- **7.4b**:
+- **7.4b** [done]:
   - `getProfileAnalytics(days, init)` and `getProjectAnalytics(id, days, init)` in `lib/api/analytics.ts` with the response types;
   - `app/me/analytics/page.tsx` and `analytics-screen.tsx` on `CabinetPage` and `useAccount`; the tab «Аналитика» in `CabinetTabs`;
   - the funnel, the project table, the day panel with the chart and «Таблица по дням», every state of the table in `DESIGN.md`.
+
+Done (2026-11-21): the client in `lib/api/analytics.ts` with a shape check (`INVALID_RESPONSE` otherwise); `app/me/analytics/` — `analytics-screen.tsx`, `project-days.tsx` (the chart from `div` bars, no chart library), `dates.ts` (UTC days split as text, never through `Date`). Vitest + RTL: 867 tests, lint and typecheck pass; `next build` not run locally (the sandbox cannot reach Google Fonts), CI runs it. Checked in the browser against the local stack with a temporary session and seeded counters: 7, 30 and 90 days, an opened project and its tooltip, 375, 700 and 1024 px without horizontal scroll. Found on the way: the table did not fit under 1024 px and the funnel under 768 px, so those are the breakpoints (DESIGN.md); the backend answered 500 for a draft without a title, so `title` is nullable in the profile analytics response (a backend test added, the contract updated).
 
 Done when: Vitest + RTL cover the client (paths, `days`, credentials), the funnel numbers without percentages, the API order of projects, the period change aborting the older request, one opened project at a time and its reload for a new period, and every state; lint, typecheck and `next build` pass; the screen is checked in the browser at 1280 and 375 px with counters seeded in the local database.
 
@@ -578,7 +580,7 @@ Done when: Vitest + RTL cover the client (paths, `days`, credentials), the funne
 - The public project page `/u/{slug}/projects/{id}`, demos and screenshots — steps 4.5 and 4.6, done above.
 - GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 and F-GH2 are planned above. There is no profile-level «Данные GitHub» block in V1.
 - Contacts on the cabinet and the public page — step C.2, done above.
-- Analytics — V1.1: step 7.3 is done (`AnalyticsTracker` on both public pages: the view after the mount, clicks on links marked with `data-analytics`, the project from `data-analytics-project`; `trackEvent` in `lib/api/analytics.ts`); step 7.4 (the analytics screen) is planned above, its mockup (7.4a) is done.
+- Analytics — V1.1: step 7.3 is done (`AnalyticsTracker` on both public pages: the view after the mount, clicks on links marked with `data-analytics`, the project from `data-analytics-project`; `trackEvent` in `lib/api/analytics.ts`); step 7.4 (the analytics screen) is done above (7.4a the mockup, 7.4b the code).
 - Read-only IDE view — after V1 (decided by the owner on 2026-11-04): the file tree is deferred (ADR-018), and file content is still an open question (ADR-011).
 
 Each of these gets its own goal, done criteria and tests when its backend contract exists.

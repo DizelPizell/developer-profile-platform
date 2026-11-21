@@ -895,7 +895,7 @@ components:
             required: [id, title, status, visibility, counts]
             properties:
               id: {type: string, format: uuid}
-              title: {type: string}
+              title: {type: string, nullable: true, description: "null for a draft without a title"}
               status: {type: string, enum: [DRAFT, PUBLISHED, ARCHIVED]}
               visibility: {type: string, enum: [PUBLIC, PRIVATE]}
               counts: {$ref: "#/components/schemas/ProjectCounts"}

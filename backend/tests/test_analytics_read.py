@@ -98,6 +98,22 @@ def test_profile_period_of_seven_and_ninety_days(owner, db_session):
     assert _get(owner, f"{PROFILE}?days=90")["totals"]["profile_views"] == 111
 
 
+def test_profile_lists_a_draft_without_a_title(owner):
+    draft = _create(owner)
+
+    body = _get(owner, PROFILE)
+
+    assert body["projects"] == [
+        {
+            "id": draft["id"],
+            "title": None,
+            "status": "DRAFT",
+            "visibility": "PRIVATE",
+            "counts": ZERO,
+        }
+    ]
+
+
 def test_profile_without_events_is_all_zeros(owner):
     body = _get(owner, PROFILE)
 

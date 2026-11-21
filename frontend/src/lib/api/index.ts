@@ -1,8 +1,19 @@
 export {
   ANALYTICS_EVENT_TYPES,
+  ANALYTICS_PERIODS,
+  getProfileAnalytics,
+  getProjectAnalytics,
   isAnalyticsEventType,
   trackEvent,
+  type AnalyticsDays,
   type AnalyticsEventType,
+  type AnalyticsPeriod,
+  type ProfileAnalytics,
+  type ProfileCounts,
+  type ProjectAnalytics,
+  type ProjectAnalyticsItem,
+  type ProjectCounts,
+  type ProjectDay,
 } from "./analytics";
 export { deleteAccount, getMe, githubLoginUrl, logout, type MeResponse } from "./auth";
 export { apiFetch, type ApiRequestInit } from "./client";
