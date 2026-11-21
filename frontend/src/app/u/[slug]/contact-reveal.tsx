@@ -57,6 +57,8 @@ export function ContactReveal({ type, slug }: { type: RevealedContact["type"]; s
           variant="secondary"
           disabled={state === "loading"}
           onClick={() => void reveal()}
+          // The contact is counted on the reveal, not again on the mailto: or tel: link.
+          data-analytics="CONTACT_CLICK"
         >
           {state === "loading" ? "Загрузка…" : TEXT[type].show}
         </Button>

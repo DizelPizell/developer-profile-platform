@@ -1,3 +1,9 @@
+export {
+  ANALYTICS_EVENT_TYPES,
+  isAnalyticsEventType,
+  trackEvent,
+  type AnalyticsEventType,
+} from "./analytics";
 export { deleteAccount, getMe, githubLoginUrl, logout, type MeResponse } from "./auth";
 export { apiFetch, type ApiRequestInit } from "./client";
 export { ApiConfigError, apiUrl, mediaUrl } from "./config";

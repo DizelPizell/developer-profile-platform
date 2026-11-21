@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import type {
   PublicFeaturedProject,
@@ -50,6 +50,74 @@ function project(id: string, title: string, overrides: Partial<PublicProject> = 
 function featured(position: number, title: string, overrides: Partial<PublicProject> = {}) {
   return { ...project(`f${position}`, title, overrides), position } satisfies PublicFeaturedProject;
 }
+
+// The analytics tracker posts events from the page.
+const fetchMock = vi.fn<typeof fetch>();
+
+beforeEach(() => {
+  vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.test");
+  vi.stubGlobal("fetch", fetchMock);
+  fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  fetchMock.mockReset();
+});
+
+const sentEvents = () =>
+  fetchMock.mock.calls
+    .filter(([url]) => String(url).endsWith("/analytics/events"))
+    .map(([, init]) => JSON.parse(init?.body as string));
+
+describe("analytics", () => {
+  test("the page sends PROFILE_VIEW; GitHub links send clicks with the card's project", () => {
+    renderView({
+      featured: [featured(1, "Shop", { github: GITHUB })],
+      other: [project("o1", "Tracker", { github: { ...GITHUB, full_name: "ann/tracker" } })],
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "GitHub" }));
+    fireEvent.click(screen.getByRole("link", { name: "ann/shop" }));
+    fireEvent.click(screen.getByRole("link", { name: "ann/tracker" }));
+    // The project page link and the hero anchor are not counted.
+    fireEvent.click(screen.getByRole("link", { name: "Shop" }));
+    fireEvent.click(screen.getByRole("link", { name: "Проекты" }));
+
+    expect(sentEvents()).toEqual([
+      { type: "PROFILE_VIEW", slug: "ann", project_id: null },
+      { type: "GITHUB_CLICK", slug: "ann", project_id: null },
+      { type: "GITHUB_CLICK", slug: "ann", project_id: "f1" },
+      { type: "GITHUB_CLICK", slug: "ann", project_id: "o1" },
+    ]);
+  });
+
+  test("a contact link and the reveal button send CONTACT_CLICK", async () => {
+    renderView({
+      contacts: [
+        { type: "TELEGRAM", value: "ann_dev", label: null, url: "https://t.me/ann_dev" },
+        { type: "EMAIL", value: null, label: null, url: null },
+      ],
+    });
+    fetchMock.mockClear();
+    fetchMock.mockImplementation(async (url) =>
+      String(url).includes("/contacts")
+        ? Response.json({ type: "EMAIL", value: "ann@example.com", url: "mailto:ann@example.com" })
+        : new Response(null, { status: 202 }),
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "@ann_dev" }));
+    fireEvent.click(screen.getByRole("button", { name: "Показать email" }));
+    // The revealed mailto: link is not counted a second time.
+    fireEvent.click(await screen.findByRole("link", { name: "ann@example.com" }));
+
+    expect(sentEvents()).toEqual([
+      { type: "CONTACT_CLICK", slug: "ann", project_id: null },
+      { type: "CONTACT_CLICK", slug: "ann", project_id: null },
+    ]);
+  });
+});
 
 function renderView(profile: Partial<PublicProfile>) {
   return render(<ProfileView profile={{ ...PROFILE, ...profile }} />);

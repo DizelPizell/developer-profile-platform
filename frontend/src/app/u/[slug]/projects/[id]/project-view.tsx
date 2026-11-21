@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { mediaUrl, type PublicProjectPage, type PublicScreenshot } from "@/lib/api";
 
 import { CardGitHub, CHIP } from "../../project-github";
+import { AnalyticsTracker } from "../../analytics-tracker";
 import { AuthorMark, PublicHeader } from "../../public-parts";
 
 const PANEL = "bg-panel px-6 py-6 shadow-panel sm:px-8 sm:py-8";
@@ -12,7 +13,8 @@ const SHOT_IMAGE = "h-auto w-full border-4 border-outline bg-bg";
 
 // The public project page per project-page.png (DESIGN.md, "Public project page"):
 // the demo first, then the screenshots, the developer's texts and the GitHub data.
-// Server rendered with no client JavaScript; every value is React text.
+// Server rendered; the only client JavaScript is the analytics tracker. Every value
+// is React text.
 export function ProjectView({ project }: { project: PublicProjectPage }) {
   const { demo_url: demoUrl, screenshots } = project;
   // With a demo the first screenshot is its preview and the gallery starts from the second.
@@ -22,6 +24,7 @@ export function ProjectView({ project }: { project: PublicProjectPage }) {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 p-4 sm:p-6">
+      <AnalyticsTracker slug={project.owner.slug} projectId={project.id} />
       <PublicHeader />
 
       <main className="flex flex-col gap-8">
@@ -128,7 +131,7 @@ function DemoBlock({
         <div className="flex flex-col gap-4">
           {preview?.caption && <p className="text-sm break-words text-text-muted">{preview.caption}</p>}
           <Button asChild size="lg" className="w-full md:w-auto md:self-start">
-            <a href={url} target="_blank" rel="noopener noreferrer nofollow ugc">
+            <a href={url} target="_blank" rel="noopener noreferrer nofollow ugc" data-analytics="DEMO_CLICK">
               Открыть демо ↗
             </a>
           </Button>

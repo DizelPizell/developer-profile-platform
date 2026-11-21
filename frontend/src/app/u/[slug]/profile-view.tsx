@@ -6,6 +6,7 @@ import { SectionHeading } from "@/components/section-heading";
 import { Button } from "@/components/ui/button";
 import type { PublicFeaturedProject, PublicProfile, PublicProject } from "@/lib/api";
 
+import { AnalyticsTracker } from "./analytics-tracker";
 import { ProfileContacts } from "./profile-contacts";
 import { CardGitHub, CHIP, RowGitHub } from "./project-github";
 import { AuthorMark, PublicHeader } from "./public-parts";
@@ -23,6 +24,7 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 p-6">
+      <AnalyticsTracker slug={profile.slug} />
       <PublicHeader />
 
       <main className="flex flex-col gap-8">
@@ -65,6 +67,7 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
                   href={`https://github.com/${encodeURIComponent(profile.github_login)}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  data-analytics="GITHUB_CLICK"
                 >
                   GitHub
                 </a>
@@ -129,7 +132,11 @@ function FeaturedProjects({ projects, slug }: { projects: PublicFeaturedProject[
       </SectionHeading>
       <ol className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((project) => (
-          <li key={project.id} className="flex min-w-0 flex-col gap-4 bg-panel px-6 py-6 shadow-panel">
+          <li
+            key={project.id}
+            data-analytics-project={project.id}
+            className="flex min-w-0 flex-col gap-4 bg-panel px-6 py-6 shadow-panel"
+          >
             <span className="self-start border-2 border-outline bg-label px-2 py-1 caps-label text-outline">
               Главный {project.position}
             </span>
@@ -165,7 +172,11 @@ function OtherProjects({ projects, slug }: { projects: PublicProject[]; slug: st
       </SectionHeading>
       <ul className="flex flex-col gap-4">
         {projects.map((project) => (
-          <li key={project.id} className="flex flex-col gap-3 bg-panel px-6 py-4 shadow-panel">
+          <li
+            key={project.id}
+            data-analytics-project={project.id}
+            className="flex flex-col gap-3 bg-panel px-6 py-4 shadow-panel"
+          >
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
               <div className="flex w-full min-w-0 grow flex-col gap-1 sm:w-auto">
                 <h3 className="text-lg break-words">
