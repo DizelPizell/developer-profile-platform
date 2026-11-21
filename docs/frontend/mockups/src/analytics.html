@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>analytics</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .tabs { display: flex; gap: 16px; }
+  .tabs .btn.on { background: var(--accent); }
+  .who { display: flex; align-items: center; gap: 14px; }
+  .ava { width: 48px; height: 48px; border-radius: 50%; border: 4px solid var(--accent); background: var(--panel); }
+  .seg { display: flex; gap: 12px; flex-wrap: wrap; }
+  .seg .btn.on { background: var(--accent); }
+  .title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+
+  /* The funnel: four stat tiles, numbers only. */
+  .funnel { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; align-items: stretch; gap: 10px; }
+  .tile { background: var(--bg); border: 2px solid var(--outline); padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .tile .n { font-family: "Press Start 2P", monospace; font-size: 28px; line-height: 1.2; }
+  .tile .parts { font-size: 14px; color: var(--muted); }
+  .arrow { align-self: center; color: var(--muted); font-size: 24px; }
+
+  /* Projects table. */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 500; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 12px 10px; border-bottom: 4px solid var(--outline); }
+  td { padding: 14px 12px; border-bottom: 2px solid var(--frame); vertical-align: middle; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; width: 110px; }
+  tr.open td { background: var(--bg); }
+  .st { display: inline-block; padding: 2px 8px; border: 2px solid var(--outline); font-size: 14px; white-space: nowrap; }
+  .st.pub { background: var(--success); color: var(--outline); }
+  .st.draft { background: var(--frame); }
+  .st.hidden { background: var(--muted); color: var(--outline); }
+  .st.arch { background: var(--bg); color: var(--muted); }
+  .zero { color: var(--muted); }
+
+  /* The daily chart: one series, bars on the page background (contrast 3:1 holds there, not on the panel). */
+  .detail { background: var(--bg); border: 2px solid var(--outline); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .chart { position: relative; height: 180px; display: grid; grid-template-columns: 40px 1fr; gap: 8px; }
+  .yaxis { display: flex; flex-direction: column; justify-content: space-between; font-size: 14px; line-height: 1; margin: -7px 0; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .plot { position: relative; border-bottom: 2px solid var(--muted); display: flex; align-items: flex-end; gap: 2px; }
+  .plot::before { content: ""; position: absolute; left: 0; right: 0; top: 0; border-top: 2px dashed var(--frame); }
+  .plot i { flex: 1; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 0; }
+  .plot i.zero { height: 2px !important; background: var(--frame); border-radius: 0; }
+  .plot i.hov { background: var(--label); }
+  .plot.dense { gap: 1px; }
+  .xaxis { display: flex; justify-content: space-between; margin-left: 48px; font-size: 14px; color: var(--muted); }
+  .tip { position: absolute; background: var(--panel); border: 4px solid var(--outline); box-shadow: 4px 4px 0 var(--outline); padding: 8px 12px; font-size: 14px; white-space: nowrap; }
+  .sum { display: flex; gap: 24px; flex-wrap: wrap; }
+  .sum b { font-weight: 500; }
+  details summary { cursor: pointer; color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+  .days td { padding: 6px 12px; }
+
+  /* 375 px: the funnel in two columns, the table as stacked rows. */
+  .w375 .funnel { grid-template-columns: 1fr 1fr; }
+  .w375 .arrow { display: none; }
+  .w375 .tile .n { font-size: 22px; }
+  .w375 .tile { padding: 12px; }
+  .prow { border-bottom: 2px solid var(--frame); padding: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+  .prow .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 14px; }
+  .prow .nums span b { display: block; font-size: 18px; font-weight: 500; color: var(--text); }
+  .w375 .chart { grid-template-columns: 28px 1fr; height: 140px; }
+  .w375 .xaxis { margin-left: 36px; }
+  .w375 .detail { padding: 12px; }
+</style>
+</head>
+<body>
+
+<header class="intro panel">
+  <h1 class="h" style="font-size:24px">Аналитика в кабинете</h1>
+  <p>Шаг 7.4a для 7.4b. Экран /me/analytics, третья вкладка кабинета. API: GET /analytics/profile и GET /analytics/projects/{id}, days = 7 | 30 | 90 (шаг 7.2, ADR-0029). Тексты и правила — DESIGN.md, «Analytics». Квадратные скобки и числа — примерные данные.</p>
+</header>
+
+<!-- ===== A: the screen at 1280 ===== -->
+<div class="sheet-h h" style="font-size:16px;margin-top:0">A · экран, 30 дней, проект раскрыт</div>
+<div class="viewport stack" style="gap:24px">
+  <div class="between">
+    <span class="brand">■ DEV.PROFILE</span>
+    <div class="who"><span class="ava"></span><div class="stack" style="gap:0"><span style="font-size:18px">@[dizelpizell]</span><span class="sm muted">Источник: GitHub</span></div><span class="btn">Выйти</span></div>
+  </div>
+  <nav class="tabs"><span class="btn">Профиль</span><span class="btn">Проекты</span><span class="btn on">Аналитика</span></nav>
+
+  <section class="panel stack" style="gap:20px">
+    <div class="title-row">
+      <div class="stack" style="gap:6px">
+        <span class="h" style="font-size:20px">Аналитика</span>
+        <span class="sm muted">С 23.10.2026 по 21.11.2026 · дни по UTC, сегодня включительно</span>
+      </div>
+      <div class="seg" role="group" aria-label="Период"><span class="btn">7 дней</span><span class="btn on">30 дней</span><span class="btn">90 дней</span></div>
+    </div>
+
+    <div class="sec"><span class="h">Воронка</span><span class="rule"></span></div>
+    <div class="funnel">
+      <div class="tile"><span class="cap">Профиль</span><span class="n">248</span><span class="parts">просмотров профиля</span></div>
+      <span class="arrow">›</span>
+      <div class="tile"><span class="cap">Проекты</span><span class="n">131</span><span class="parts">просмотров проектов</span></div>
+      <span class="arrow">›</span>
+      <div class="tile"><span class="cap">Демо и GitHub</span><span class="n">57</span><span class="parts">демо 34 · GitHub 23</span></div>
+      <span class="arrow">›</span>
+      <div class="tile"><span class="cap">Контакты</span><span class="n">9</span><span class="parts">кликов по контактам</span></div>
+    </div>
+    <p class="sm muted">Это суммы событий за период, а не люди: одно обновление страницы — ещё один просмотр. Ваши собственные просмотры не считаются. Посетители с блокировщиками не видны, поэтому цифры — нижняя граница.</p>
+
+    <div class="sec"><span class="h">Проекты</span><span class="rule"></span></div>
+    <table>
+      <thead><tr><th>Проект</th><th>Статус</th><th class="num">Просмотры</th><th class="num">Демо</th><th class="num">GitHub</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>[Учёт складских остатков]</td><td><span class="st pub">Опубликован</span></td><td class="num">72</td><td class="num">21</td><td class="num">9</td><td style="text-align:right"><span class="btn sq">По дням ▾</span></td></tr>
+        <tr class="open"><td>[Трекер задач]</td><td><span class="st pub">Опубликован</span></td><td class="num">59</td><td class="num">13</td><td class="num">8</td><td style="text-align:right"><span class="btn sq on" style="background:var(--accent)">По дням ▴</span></td></tr>
+        <tr><td colspan="6" style="padding:0 0 14px;border-bottom:2px solid var(--frame)">
+          <div class="detail">
+            <div class="between" style="margin-bottom:44px"><span class="cap">[Трекер задач] · просмотры по дням</span><span class="sm muted">дни по UTC</span></div>
+            <div class="chart" id="chartA"></div>
+            <div class="xaxis" id="xA"></div>
+            <div class="sum sm"><span class="muted">За 30 дней:</span><span><b>59</b> <span class="muted">просмотров</span></span><span><b>13</b> <span class="muted">по демо</span></span><span><b>8</b> <span class="muted">по GitHub</span></span></div>
+            <details><summary>Таблица по дням</summary></details>
+          </div>
+        </td></tr>
+        <tr><td>[Бот для заметок]</td><td><span class="st hidden">Скрыт</span></td><td class="num zero">0</td><td class="num zero">0</td><td class="num zero">0</td><td style="text-align:right"><span class="btn sq">По дням ▾</span></td></tr>
+        <tr><td>[Без названия]</td><td><span class="st draft">Черновик</span></td><td class="num zero">0</td><td class="num zero">0</td><td class="num zero">0</td><td style="text-align:right"><span class="btn sq">По дням ▾</span></td></tr>
+      </tbody>
+    </table>
+    <p class="sm muted">Счётчики идут только у опубликованных и видимых проектов. Порядок — как в «Мои проекты».</p>
+    <p class="sm muted">GitHub в воронке — это ещё и кнопка «GitHub» в шапке профиля, поэтому сумма может быть больше, чем по проектам.</p>
+  </section>
+</div>
+<p class="note"><b>A</b>Вкладка «Аналитика» — третья, после «Профиль» и «Проекты». Период — переключатель из трёх кнопок (aria-pressed), по умолчанию 30 дней. Воронка — только числа, без процентов между этапами и без стрелок-конверсий. Проекты — в порядке API, без сортировки по числам: иначе это рейтинг. «По дням» раскрывает один проект за раз (aria-expanded); второй клик сворачивает. Наведение на столбик или фокус показывает подсказку (здесь — 14.11).</p>
+
+<!-- ===== B / C ===== -->
+<div class="states">
+  <div>
+    <div class="sheet-h h" style="font-size:16px">B · 375 px, 7 дней</div>
+    <div class="viewport w375 stack" style="gap:16px">
+      <div class="between"><span class="brand" style="font-size:12px">■ DEV.PROFILE</span><span class="btn">Выйти</span></div>
+      <nav class="tabs" style="gap:8px;flex-wrap:wrap"><span class="btn">Профиль</span><span class="btn">Проекты</span><span class="btn on">Аналитика</span></nav>
+      <section class="panel stack" style="padding:16px;gap:16px">
+        <span class="h" style="font-size:16px">Аналитика</span>
+        <div class="seg" style="gap:8px"><span class="btn on">7 дней</span><span class="btn">30 дней</span><span class="btn">90 дней</span></div>
+        <span class="sm muted">С 15.11.2026 по 21.11.2026 · дни по UTC</span>
+        <div class="funnel">
+          <div class="tile"><span class="cap sm">Профиль</span><span class="n">61</span></div>
+          <div class="tile"><span class="cap sm">Проекты</span><span class="n">30</span></div>
+          <div class="tile"><span class="cap sm">Демо и GitHub</span><span class="n">12</span><span class="parts">демо 8 · GitHub 4</span></div>
+          <div class="tile"><span class="cap sm">Контакты</span><span class="n">2</span></div>
+        </div>
+        <p class="sm muted">Это суммы событий за период, а не люди…</p>
+        <div>
+          <div class="prow"><span>[Учёт складских остатков]</span><span><span class="st pub">Опубликован</span></span>
+            <div class="nums muted"><span>Просмотры<b>18</b></span><span>Демо<b>6</b></span><span>GitHub<b>2</b></span></div>
+            <span class="btn sq" style="align-self:flex-start;background:var(--accent)">По дням ▴</span>
+            <div class="detail">
+              <span class="cap sm">Просмотры по дням</span>
+              <div class="chart" id="chartB"></div>
+              <div class="xaxis" id="xB"></div>
+              <details><summary class="sm">Таблица по дням</summary></details>
+            </div>
+          </div>
+          <div class="prow"><span>[Трекер задач]</span><span><span class="st pub">Опубликован</span></span>
+            <div class="nums muted"><span>Просмотры<b>12</b></span><span>Демо<b>2</b></span><span>GitHub<b>2</b></span></div>
+            <span class="btn sq" style="align-self:flex-start">По дням ▾</span>
+          </div>
+        </div>
+      </section>
+    </div>
+    <p class="note"><b>B</b>Уже 640 px: воронка — сетка 2×2 без стрелок, порядок этапов слева направо и сверху вниз. Таблица — строками: название, статус, три числа с подписями.</p>
+  </div>
+
+  <div>
+    <div class="sheet-h h" style="font-size:16px">C · 90 дней и таблица по дням</div>
+    <div class="detail">
+      <div class="between"><span class="cap">[Учёт складских остатков] · просмотры по дням</span></div>
+      <div class="chart" id="chartC"></div>
+      <div class="xaxis" id="xC"></div>
+      <details open><summary>Таблица по дням</summary>
+        <table class="days sm" style="margin-top:12px">
+          <thead><tr><th>День</th><th class="num">Просмотры</th><th class="num">Демо</th><th class="num">GitHub</th></tr></thead>
+          <tbody>
+            <tr><td>[23.08]</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+            <tr><td>[24.08]</td><td class="num">3</td><td class="num">1</td><td class="num">0</td></tr>
+            <tr><td>[25.08]</td><td class="num">5</td><td class="num">2</td><td class="num">1</td></tr>
+            <tr><td colspan="4" class="muted">… все 90 дней, от старых к новым</td></tr>
+          </tbody>
+        </table>
+      </details>
+    </div>
+    <div class="sheet-h h" style="font-size:16px">C · 90 дней, 375 px</div>
+    <div class="viewport w375"><div class="detail"><span class="cap sm">Просмотры по дням</span><div class="chart" id="chartD"></div><div class="xaxis" id="xD"></div></div></div>
+    <p class="note"><b>C</b>Столбик — день; ноль — тонкая линия на оси, чтобы было видно, что день есть. Ось Y — 0 и максимум периода, одна пунктирная линия на максимуме. Подписи X — первый, средний и последний день. На 90 днях промежуток 1 px; на 375 px столбики узкие, точные числа — в «Таблица по дням» (она и вариант графика для скринридера).</p>
+  </div>
+</div>
+
+<!-- ===== D / E ===== -->
+<div class="states">
+  <div>
+    <div class="sheet-h h" style="font-size:16px">D · событий нет</div>
+    <section class="panel stack" style="gap:16px">
+      <div class="funnel">
+        <div class="tile"><span class="cap">Профиль</span><span class="n zero">0</span></div><span class="arrow">›</span>
+        <div class="tile"><span class="cap">Проекты</span><span class="n zero">0</span></div><span class="arrow">›</span>
+        <div class="tile"><span class="cap sm">Демо и GitHub</span><span class="n zero">0</span></div><span class="arrow">›</span>
+        <div class="tile"><span class="cap">Контакты</span><span class="n zero">0</span></div>
+      </div>
+      <div class="placeholder" style="padding:20px;border:2px dashed var(--frame)">
+        <p>За этот период событий нет.</p>
+        <p class="sm muted" style="margin-top:8px">Профиль скрыт — счётчики появятся после публикации. <a class="link">Открыть профиль</a></p>
+      </div>
+    </section>
+    <p class="note"><b>D</b>Все нули: воронка и таблица остаются (с нулями), над таблицей — пояснение. Вторая строка — только для профиля PRIVATE (статус из GET /profile, который уже грузит шапка); у опубликованного: «Счётчики растут, когда профиль открывают посетители.» Проектов нет — вместо таблицы «Проектов пока нет.» и ссылка «Мои проекты».</p>
+  </div>
+  <div>
+    <div class="sheet-h h" style="font-size:16px">E · загрузка и ошибки</div>
+    <div class="stack" style="gap:20px">
+      <section class="panel"><p style="font-size:20px">Загрузка…</p></section>
+      <section class="panel stack" style="gap:16px;align-items:flex-start">
+        <div class="alert err">Не удалось связаться с сервером. Проверьте подключение.</div>
+        <span class="btn accent">Повторить</span>
+      </section>
+      <div class="detail">
+        <span class="cap">[Старый проект] · просмотры по дням</span>
+        <p class="err">Проект не найден — возможно, он удалён.</p>
+      </div>
+    </div>
+    <p class="note"><b>E</b>Загрузка и ошибка страницы — общие панели кабинета (LoadingPanel, LoadErrorPanel), 401 → /login. При смене периода числа остаются, пока не придёт ответ; кнопки периода и «По дням» на это время неактивны, прежний запрос отменяется. Ошибка по одному проекту — внутри его панели, таблица на месте.</p>
+  </div>
+</div>
+
+<!-- ===== Rules ===== -->
+<div class="sheet-h h" style="font-size:16px">Правила</div>
+<div class="panel">
+  <dl class="rules">
+    <dt class="cap">Данные</dt><dd>Экран: GET /analytics/profile?days=N. Раскрытый проект: GET /analytics/projects/{id}?days=N, заново при смене периода. Шапка — useAccount (GET /profile), оттуда же статус профиля для D.</dd>
+    <dt class="cap">Воронка</dt><dd>Профиль = profile_views, Проекты = project_views, Демо и GitHub = demo_clicks + github_clicks (с разбивкой), Контакты = contact_clicks. Без процентов, без «конверсии», без цвета-оценки (ADR-0029, CLAUDE.md: никаких рейтингов).</dd>
+    <dt class="cap">Проекты</dt><dd>Все свои, в порядке API (= «Мои проекты»), нули — серым. Статус — как в «Мои проекты»: Опубликован, Скрыт, Черновик, В архиве.</dd>
+    <dt class="cap">График</dt><dd>Одна серия — просмотры проекта; клики — числами под графиком и в таблице (две шкалы на одном графике не рисуем). Цвет — accent на фоне bg (на panel контраст ниже 3:1), наведённый столбик — label. Без легенды: подпись над графиком называет серию.</dd>
+    <dt class="cap">Даты</dt><dd>Дни — UTC, как в API; формат ДД.ММ, в подписи периода ДД.ММ.ГГГГ. Без пересчёта в часовой пояс браузера: иначе «сегодня» не совпадёт с днём счётчика.</dd>
+    <dt class="cap">Период</dt><dd>В состоянии экрана, не в адресе: после обновления — снова 30 дней.</dd>
+  </dl>
+</div>
+
+<script>
+  // Sample data only.
+  const series = (n, seed) => Array.from({ length: n }, (_, i) => Math.max(0, Math.round(3 + 3 * Math.sin((i + seed) / 3) + ((i * seed) % 5) - (i % 7 === 3 ? 4 : 0))));
+  function chart(id, xid, data, labels, hover) {
+    const max = Math.max(...data);
+    const el = document.getElementById(id);
+    el.innerHTML = `<div class="yaxis"><span>${max}</span><span>0</span></div><div class="plot${data.length > 60 ? " dense" : ""}">${data
+      .map((v, i) => (v === 0 ? '<i class="zero"></i>' : `<i class="${i === hover ? "hov" : ""}" style="height:${(v / max) * 100}%"></i>`))
+      .join("")}</div>`;
+    document.getElementById(xid).innerHTML = labels.map((l) => `<span>${l}</span>`).join("");
+    if (hover !== undefined) {
+      const tip = document.createElement("div");
+      tip.className = "tip";
+      tip.innerHTML = `<b style="font-weight:500">14.11</b> · ${data[hover]} просмотров<br><span class="muted">демо 1 · GitHub 0</span>`;
+      // Centred over the bar, above the plot's top: the plot starts after the 40px axis and the 8px gap.
+      tip.style.left = `calc(48px + (100% - 48px) * ${(hover + 0.5) / data.length})`;
+      tip.style.transform = "translate(-50%, -100%)";
+      tip.style.top = "-6px";
+      el.appendChild(tip);
+    }
+  }
+  chart("chartA", "xA", series(30, 2), ["23.10", "06.11", "21.11"], 22);
+  chart("chartB", "xB", series(7, 5), ["15.11", "18.11", "21.11"]);
+  chart("chartC", "xC", series(90, 3), ["23.08", "06.10", "21.11"]);
+  chart("chartD", "xD", series(90, 3), ["23.08", "06.10", "21.11"]);
+</script>
+</body>
+</html>
