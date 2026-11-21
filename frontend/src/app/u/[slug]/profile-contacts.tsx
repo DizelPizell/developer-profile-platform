@@ -36,7 +36,13 @@ function External({ url, safe, children }: { url: string; safe: boolean; childre
     return <span className="break-all">{children}</span>;
   }
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer nofollow ugc" className={CONTACT_LINK}>
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer nofollow ugc"
+      className={CONTACT_LINK}
+      data-analytics="CONTACT_CLICK"
+    >
       {children}
     </a>
   );

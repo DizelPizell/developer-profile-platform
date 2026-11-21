@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import type { PublicGitHub, PublicProjectPage } from "@/lib/api";
@@ -41,12 +41,39 @@ const GITHUB: PublicGitHub = {
   synced_at: "2026-11-01T00:00:00Z",
 };
 
+// The analytics tracker posts events from the page.
+const fetchMock = vi.fn<typeof fetch>();
+
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_API_URL", "http://browser.test");
+  vi.stubGlobal("fetch", fetchMock);
+  fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  fetchMock.mockReset();
+});
+
+const sentEvents = () => fetchMock.mock.calls.map(([, init]) => JSON.parse(init?.body as string));
+
+describe("analytics", () => {
+  test("the page sends PROJECT_VIEW; the demo and the repository send clicks with its id", () => {
+    const root = view({ github: GITHUB });
+    const link = (text: string) => [...root.querySelectorAll("a")].find((a) => a.textContent === text)!;
+
+    fireEvent.click(link("Открыть демо ↗"));
+    fireEvent.click(link("ann/shop"));
+    // Screenshots and the link back to the profile are not counted.
+    fireEvent.click(link("‹ Ann Lee"));
+
+    expect(sentEvents()).toEqual([
+      { type: "PROJECT_VIEW", slug: "ann", project_id: "p1" },
+      { type: "DEMO_CLICK", slug: "ann", project_id: "p1" },
+      { type: "GITHUB_CLICK", slug: "ann", project_id: "p1" },
+    ]);
+  });
 });
 
 function view(changes: Partial<PublicProjectPage> = {}) {

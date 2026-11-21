@@ -564,7 +564,7 @@ Done (2026-11-20):
 - The public project page `/u/{slug}/projects/{id}`, demos and screenshots — steps 4.5 and 4.6, done above.
 - GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 and F-GH2 are planned above. There is no profile-level «Данные GitHub» block in V1.
 - Contacts on the cabinet and the public page — step C.2, done above.
-- Analytics — V1.1: steps 7.3 and 7.4 in DEVELOPMENT_PLAN, after the V1 launch.
+- Analytics — V1.1: step 7.3 is done (`AnalyticsTracker` on both public pages: the view after the mount, clicks on links marked with `data-analytics`, the project from `data-analytics-project`; `trackEvent` in `lib/api/analytics.ts`); step 7.4 (the analytics screen) is next.
 - Read-only IDE view — after V1 (decided by the owner on 2026-11-04): the file tree is deferred (ADR-018), and file content is still an open question (ADR-011).
 
 Each of these gets its own goal, done criteria and tests when its backend contract exists.

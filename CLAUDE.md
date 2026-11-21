@@ -965,13 +965,17 @@ Phase 7 step 7.2: analytics reading in the backend — GET /analytics/profile (t
 
 
 
+Phase 7 step 7.3: events sent from the public pages — trackEvent (apiFetch with keepalive, never awaited, errors swallowed) and one AnalyticsTracker client component per page: PROFILE_VIEW or PROJECT_VIEW after the mount, guarded against the Strict Mode double effect; one document listener for click and middle-button auxclick counting a link or button inside data-analytics="<type>", the project from the nearest data-analytics-project or the page; the demo button, the header GitHub button, the repository link of the GitHub block, contact links and the reveal buttons marked; /privacy describes the daily counters; checked in Chromium, Firefox not yet (ADR-0029)
+
+
+
 Not yet started:
 
 
 
 the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), deferred by the owner on 2026-11-20 until production: there is no lawyer, and the legal part (a paid one-off check, or the strict variant with a consent step before the launch) is an open question in scope-v1.md; then 9.8c (the release closed in the docs, post-v1.md)
 
-analytics — Phase 7, V1.1: steps 7.3 and 7.4 (7.0–7.2 are done)
+analytics — Phase 7, V1.1: step 7.4 (7.0–7.3 are done)
 
 
 

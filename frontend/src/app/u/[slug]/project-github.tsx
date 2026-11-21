@@ -85,7 +85,7 @@ export function CardGitHub({ github, divided = true }: { github: PublicGitHub; d
   return (
     <div className={divided ? `flex flex-col gap-3 pt-4 ${DIVIDER}` : "flex flex-col gap-3"}>
       <p className={SOURCE}>{SOURCE_GITHUB}</p>
-      <p className="text-text-muted">
+      <p className="text-text-muted" data-analytics="GITHUB_CLICK">
         <RepositoryName fullName={github.full_name} htmlUrl={github.html_url} />
       </p>
       <p className="break-words">{RELATION_LABEL[github.relation]}</p>
@@ -106,7 +106,7 @@ export function RowGitHub({ github }: { github: PublicGitHub }) {
   return (
     <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 pt-3 ${DIVIDER}`}>
       <p className={SOURCE}>{SOURCE_GITHUB}</p>
-      <p className="min-w-0 text-text-muted">
+      <p className="min-w-0 text-text-muted" data-analytics="GITHUB_CLICK">
         <RepositoryName fullName={github.full_name} htmlUrl={github.html_url} />
       </p>
       <p className="min-w-0 break-words">{RELATION_LABEL[github.relation]}</p>
