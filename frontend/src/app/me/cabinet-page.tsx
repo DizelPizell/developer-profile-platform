@@ -49,7 +49,7 @@ export function CabinetPage({
 }: {
   account: Account | null;
   /** The active tab; the project form has no tabs (mockup project-form.png). */
-  tab?: "profile" | "projects";
+  tab?: CabinetTab;
   children: ReactNode;
 }) {
   return (
@@ -61,12 +61,15 @@ export function CabinetPage({
   );
 }
 
+type CabinetTab = "profile" | "projects" | "analytics";
+
 const TABS = [
   { key: "profile", href: "/me", label: "Профиль" },
   { key: "projects", href: "/me/projects", label: "Проекты" },
+  { key: "analytics", href: "/me/analytics", label: "Аналитика" },
 ] as const;
 
-function CabinetTabs({ active }: { active: "profile" | "projects" }) {
+function CabinetTabs({ active }: { active: CabinetTab }) {
   return (
     <nav aria-label="Кабинет">
       <ul className="flex flex-wrap gap-4">

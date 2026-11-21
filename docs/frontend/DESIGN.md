@@ -799,7 +799,7 @@ Blocks, top to bottom, in one panel:
 | Title and period | `period` | «Аналитика»; under it «С {start} по {end} · дни по UTC, сегодня включительно» (`ДД.ММ.ГГГГ`). On the right a group «Период» of three buttons «7 дней», «30 дней», «90 дней» (`aria-pressed`, the active one accent), 30 by default. The period lives in the screen's state, not in the address. |
 | «Воронка» | `totals` | Four tiles on `bg`, numbers in Press Start 2P: «Профиль» = `profile_views` («просмотров профиля»), «Проекты» = `project_views` («просмотров проектов»), «Демо и GitHub» = `demo_clicks + github_clicks` («демо N · GitHub N»), «Контакты» = `contact_clicks` («кликов по контактам»), joined by «›». No percentages between stages and no colour that grades a number. Under it: «Это суммы событий за период, а не люди: одно обновление страницы — ещё один просмотр. Ваши собственные просмотры не считаются. Посетители с блокировщиками не видны, поэтому цифры — нижняя граница.» |
 | «Проекты» | `projects` | A table: «Проект», «Статус», «Просмотры», «Демо», «GitHub», and a button «По дням ▾» per row. Every own project in the API order (the order of «Мои проекты»), never sorted by a number: a sort would be a ranking. Zeros in `text-muted`. The status badge and its text are those of «Мои проекты» (`project-texts.tsx`). Under the table: «Счётчики идут только у опубликованных и видимых проектов. Порядок — как в «Мои проекты».» and «GitHub в воронке — это ещё и кнопка «GitHub» в шапке профиля, поэтому сумма может быть больше, чем по проектам.» |
-| Project by day | `daily`, `totals` | «По дням» opens a panel under its row (`aria-expanded`, the button «По дням ▴» accent); one project at a time, a second click closes it. The panel: «{title} · просмотры по дням», «дни по UTC», the chart, «За N дней: X просмотров, Y по демо, Z по GitHub», and a `<details>` «Таблица по дням» with «День», «Просмотры», «Демо», «GitHub» for every day, oldest first. |
+| Project by day | `daily`, `totals` | «По дням» opens a panel under its row (`aria-expanded`, the button «По дням ▴» accent); one project at a time, a second click closes it. The panel: «{title} · просмотры по дням», «дни по UTC», the chart, «За N дней: просмотры X, демо Y, GitHub Z» (counts after a label, so no plural forms are needed), and a `<details>` «Таблица по дням» with «День», «Просмотры», «Демо», «GitHub» for every day, oldest first. |
 
 The chart:
 
@@ -808,12 +808,12 @@ The chart:
 - bars anchored to the baseline with 4px rounded tops and a 2px gap (1px at 90 days); a day with zero is a 2px `frame` line on the axis, so the day is still there;
 - the Y axis shows 0 and the period's maximum, with one dashed `frame` line at the maximum; the X axis shows the first, the middle and the last day as `ДД.ММ`;
 - no legend: the heading names the series;
-- hover or focus on a bar shows a tooltip «ДД.ММ · N просмотров», «демо N · GitHub N» above the bar; the bars are not tab stops one by one, the table is the keyboard and screen reader version;
+- hover on a bar shows a tooltip «ДД.ММ · просмотры N», «демо N · GitHub N» above the bar, kept inside the plot at its edges; the bars are hidden from screen readers and are not tab stops, the day table is the keyboard and screen reader version (7.4b: the 7.4a text said "hover or focus", but a bar that is not a tab stop cannot take the focus);
 - at 375 px the 90 bars are narrow; the table carries the exact numbers.
 
 Dates are UTC days as the API returns them, never converted to the browser's time zone: otherwise "today" would not match the counter's day.
 
-Under 640 px the funnel is a 2×2 grid without «›», and the table becomes rows: the title, the badge, the three numbers with their labels, «По дням».
+Under 768 px the funnel is a 2×2 grid without «›». Under 1024 px the table becomes rows: the title, the badge, the three numbers with their labels, «По дням» (7.4b: six columns with the badge do not fit the panel narrower than that; the mockup drew 640 px for both).
 
 States and errors:
 
@@ -822,7 +822,8 @@ States and errors:
 | Loading | `LoadingPanel` |
 | 401 from any call | Redirect to `/login` |
 | Load fails | `LoadErrorPanel` with «Повторить» |
-| Period change | The numbers stay until the answer; the period buttons and «По дням» are disabled; the previous request is aborted, so an older answer never replaces a newer one. An opened project is loaded again for the new period |
+| Period change | The numbers stay until the answer, with «Загрузка…» (`role="status"`) under the period; the period buttons and «По дням» are disabled, so a second period cannot be requested meanwhile; an answer read after the screen left is dropped. An opened project is loaded again for the new period |
+| Period change fails | The numbers of the previous period stay, the request error is shown under the period, and the buttons are active again |
 | All zeros | The funnel and the table stay, with zeros; above the table «За этот период событий нет.» and, for a `PRIVATE` profile, «Профиль скрыт — счётчики появятся после публикации.» with a link «Открыть профиль» to `/me`; for a published one «Счётчики растут, когда профиль открывают посетители.» |
 | No projects | Instead of the table «Проектов пока нет.» and a link «Мои проекты» |
 | Project 404 (deleted meanwhile) | Inside its panel «Проект не найден — возможно, он удалён.»; the table stays |

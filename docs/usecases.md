@@ -194,14 +194,15 @@
 
 ### UC-F1. Аналитика профиля
 
-- **Актор:** владелец профиля. **С релиза:** V1.1 (бэкенд — 7.2; экран — 7.4).
-- **Поток:** `GET /api/v1/analytics/profile?days=7|30|90` (по умолчанию 30) → `200`: `period` (`days`, `start`, `end` — дни UTC включительно, сегодня последний), `totals` (`profile_views`, `project_views`, `demo_clicks`, `github_clicks`, `contact_clicks`; `github_clicks` — ссылки на репозитории и на GitHub профиля) и `projects` — все свои проекты в порядке `GET /projects` (`id`, `title`, `status`, `visibility`, `counts` с `project_views`, `demo_clicks`, `github_clicks`), без событий — нули. Это суммы событий, не посетители.
+- **Актор:** владелец профиля. **С релиза:** V1.1 (бэкенд — 7.2; экран — 7.4b).
+- **Поток:** `GET /api/v1/analytics/profile?days=7|30|90` (по умолчанию 30) → `200`: `period` (`days`, `start`, `end` — дни UTC включительно, сегодня последний), `totals` (`profile_views`, `project_views`, `demo_clicks`, `github_clicks`, `contact_clicks`; `github_clicks` — ссылки на репозитории и на GitHub профиля) и `projects` — все свои проекты в порядке `GET /projects` (`id`, `title` — `null` у черновика без названия, `status`, `visibility`, `counts` с `project_views`, `demo_clicks`, `github_clicks`), без событий — нули. Это суммы событий, не посетители.
+- **Экран:** `/me/analytics`, вкладка «Аналитика»: период «7 дней» / «30 дней» / «90 дней» (по умолчанию 30), воронка из четырёх сумм без процентов, проекты в порядке API с бейджем статуса, «По дням» раскрывает один проект (UC-F2) с графиком просмотров и «Таблица по дням». Без событий — «За этот период событий нет.», у скрытого профиля — подсказка опубликовать.
 - **Отклонения:** без сессии → `401 UNAUTHORIZED`; другое значение `days` → `422 VALIDATION_ERROR`.
 - **ADR:** [ADR-0029](release/v1/adr/0029-analytics-anonymous-daily-counters.md).
 
 ### UC-F2. Аналитика проекта по дням
 
-- **Актор:** владелец проекта. **С релиза:** V1.1 (бэкенд — 7.2; экран — 7.4).
+- **Актор:** владелец проекта. **С релиза:** V1.1 (бэкенд — 7.2; экран — 7.4b).
 - **Поток:** `GET /api/v1/analytics/projects/{id}?days=7|30|90` (по умолчанию 30) → `200`: `period`, `totals` (`project_views`, `demo_clicks`, `github_clicks`) и `daily` — каждый день периода от старого к новому с теми же `counts`, дни без событий — нули. Проект в любом состоянии: счётчики черновика или скрытого проекта остаются с тех пор, когда он был виден.
 - **Отклонения:** без сессии → `401 UNAUTHORIZED`; проект не найден, чужой или id некорректный → `404 NOT_FOUND`, как у `GET /projects/{id}`; другое значение `days` → `422 VALIDATION_ERROR`.
 - **ADR:** [ADR-0029](release/v1/adr/0029-analytics-anonymous-daily-counters.md).

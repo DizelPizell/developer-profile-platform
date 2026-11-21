@@ -973,13 +973,17 @@ Phase 7 step 7.4a: the mockup analytics.png (the screen /me/analytics as the thi
 
 
 
+Phase 7 step 7.4b: the analytics screen /me/analytics — the third cabinet tab «Аналитика»; getProfileAnalytics and getProjectAnalytics with a shape check; the period 7, 30 or 90 days kept on screen until the answer, buttons disabled meanwhile, an answer read after an abort dropped; the funnel as four sums without percentages; every own project in the API order with the badge of «Мои проекты»; «По дням» opens one project at a time with a chart of views from div bars (hover tooltip, hidden from screen readers) and «Таблица по дням»; UTC days split as text, never through Date; the table becomes rows under 1024 px and the funnel 2×2 under 768 px; the backend title of the profile analytics nullable for a draft without a title (it answered 500)
+
+
+
 Not yet started:
 
 
 
 the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), deferred by the owner on 2026-11-20 until production: there is no lawyer, and the legal part (a paid one-off check, or the strict variant with a consent step before the launch) is an open question in scope-v1.md; then 9.8c (the release closed in the docs, post-v1.md)
 
-analytics — Phase 7, V1.1: step 7.4b, the analytics screen in code (7.0–7.3 and 7.4a are done)
+analytics — Phase 7, V1.1: done (7.0–7.4); Firefox not yet checked for the keepalive events of 7.3
 
 
 
