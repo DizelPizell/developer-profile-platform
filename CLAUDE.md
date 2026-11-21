@@ -969,13 +969,17 @@ Phase 7 step 7.3: events sent from the public pages — trackEvent (apiFetch wit
 
 
 
+Phase 7 step 7.4a: the mockup analytics.png (the screen /me/analytics as the third cabinet tab: the period 7, 30 or 90 days, the funnel as four numbers without percentages, every own project in the API order, one project opened by day with a bar chart of views on bg and «Таблица по дням», 375 px, 90 days, no events, loading and errors), drawn as HTML in docs/frontend/mockups/src and rendered to PNG; the screen in DESIGN.md and step 7.4 in FRONTEND_PLAN.md; documents only, no code
+
+
+
 Not yet started:
 
 
 
 the launch on the server — step 9.8b (the owner, by the checklist in DEPLOY.md), deferred by the owner on 2026-11-20 until production: there is no lawyer, and the legal part (a paid one-off check, or the strict variant with a consent step before the launch) is an open question in scope-v1.md; then 9.8c (the release closed in the docs, post-v1.md)
 
-analytics — Phase 7, V1.1: step 7.4 (7.0–7.3 are done)
+analytics — Phase 7, V1.1: step 7.4b, the analytics screen in code (7.0–7.3 and 7.4a are done)
 
 
 

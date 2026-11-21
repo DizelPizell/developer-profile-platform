@@ -96,6 +96,7 @@ Rules that follow:
 | `/me/projects/new` | New project (F5) | Client |
 | `/me/projects/[id]` | Edit project (F5) | Client |
 | `/me/repositories` | «Репозитории GitHub» (F-GH1) | Client |
+| `/me/analytics` | «Аналитика» (7.4) | Client |
 | `/u/[slug]` | Public profile | Server (SSR) |
 | `/u/[slug]/projects/[id]` | Public project page (4.6) | Server (SSR) |
 | `/privacy` | «Политика данных» (9.7b) | Server (static) |
@@ -785,6 +786,48 @@ The countdown for 429 and 503 (a sync can get only the two 429s: it does not cal
 - When it ends, the button becomes «Повторить». For the list it reloads the page. For an action it closes the message, and the user repeats the action.
 - Without a valid `details.retry_after_seconds` the text ends with «Попробуйте позже.» and «Повторить» is active at once.
 
+### Analytics — `/me/analytics` (7.4)
+
+Mockup `analytics.png` (7.4a). Data: `GET /api/v1/analytics/profile?days=N` for the screen, `GET /api/v1/analytics/projects/{id}?days=N` for the opened project (step 7.2, ADR-0029); the header through `useAccount`, whose `GET /profile` also gives the profile status for the empty state. Every number is a sum of events, not people, and the screen says so.
+
+The cabinet tabs become «Профиль», «Проекты», «Аналитика»; the analytics tab is the third.
+
+Blocks, top to bottom, in one panel:
+
+| Block | Data | Notes |
+|---|---|---|
+| Title and period | `period` | «Аналитика»; under it «С {start} по {end} · дни по UTC, сегодня включительно» (`ДД.ММ.ГГГГ`). On the right a group «Период» of three buttons «7 дней», «30 дней», «90 дней» (`aria-pressed`, the active one accent), 30 by default. The period lives in the screen's state, not in the address. |
+| «Воронка» | `totals` | Four tiles on `bg`, numbers in Press Start 2P: «Профиль» = `profile_views` («просмотров профиля»), «Проекты» = `project_views` («просмотров проектов»), «Демо и GitHub» = `demo_clicks + github_clicks` («демо N · GitHub N»), «Контакты» = `contact_clicks` («кликов по контактам»), joined by «›». No percentages between stages and no colour that grades a number. Under it: «Это суммы событий за период, а не люди: одно обновление страницы — ещё один просмотр. Ваши собственные просмотры не считаются. Посетители с блокировщиками не видны, поэтому цифры — нижняя граница.» |
+| «Проекты» | `projects` | A table: «Проект», «Статус», «Просмотры», «Демо», «GitHub», and a button «По дням ▾» per row. Every own project in the API order (the order of «Мои проекты»), never sorted by a number: a sort would be a ranking. Zeros in `text-muted`. The status badge and its text are those of «Мои проекты» (`project-texts.tsx`). Under the table: «Счётчики идут только у опубликованных и видимых проектов. Порядок — как в «Мои проекты».» and «GitHub в воронке — это ещё и кнопка «GitHub» в шапке профиля, поэтому сумма может быть больше, чем по проектам.» |
+| Project by day | `daily`, `totals` | «По дням» opens a panel under its row (`aria-expanded`, the button «По дням ▴» accent); one project at a time, a second click closes it. The panel: «{title} · просмотры по дням», «дни по UTC», the chart, «За N дней: X просмотров, Y по демо, Z по GitHub», and a `<details>` «Таблица по дням» with «День», «Просмотры», «Демо», «GitHub» for every day, oldest first. |
+
+The chart:
+
+- one series, `project_views` per day; the clicks are numbers under it and in the table, never a second scale;
+- bars in `accent` on a `bg` box: on `panel` the accent has a contrast of 2.83:1, under the 3:1 a mark needs; the hovered or focused bar is `label`;
+- bars anchored to the baseline with 4px rounded tops and a 2px gap (1px at 90 days); a day with zero is a 2px `frame` line on the axis, so the day is still there;
+- the Y axis shows 0 and the period's maximum, with one dashed `frame` line at the maximum; the X axis shows the first, the middle and the last day as `ДД.ММ`;
+- no legend: the heading names the series;
+- hover or focus on a bar shows a tooltip «ДД.ММ · N просмотров», «демо N · GitHub N» above the bar; the bars are not tab stops one by one, the table is the keyboard and screen reader version;
+- at 375 px the 90 bars are narrow; the table carries the exact numbers.
+
+Dates are UTC days as the API returns them, never converted to the browser's time zone: otherwise "today" would not match the counter's day.
+
+Under 640 px the funnel is a 2×2 grid without «›», and the table becomes rows: the title, the badge, the three numbers with their labels, «По дням».
+
+States and errors:
+
+| Case | Shown as |
+|---|---|
+| Loading | `LoadingPanel` |
+| 401 from any call | Redirect to `/login` |
+| Load fails | `LoadErrorPanel` with «Повторить» |
+| Period change | The numbers stay until the answer; the period buttons and «По дням» are disabled; the previous request is aborted, so an older answer never replaces a newer one. An opened project is loaded again for the new period |
+| All zeros | The funnel and the table stay, with zeros; above the table «За этот период событий нет.» and, for a `PRIVATE` profile, «Профиль скрыт — счётчики появятся после публикации.» with a link «Открыть профиль» to `/me`; for a published one «Счётчики растут, когда профиль открывают посетители.» |
+| No projects | Instead of the table «Проектов пока нет.» and a link «Мои проекты» |
+| Project 404 (deleted meanwhile) | Inside its panel «Проект не найден — возможно, он удалён.»; the table stays |
+| Project load fails | Inside its panel the request error and «Повторить» |
+
 ### Sign-in — `/login`
 
 Blocks (mockup `login.png`):
@@ -871,6 +914,7 @@ Mockups are added manually to `docs/frontend/mockups/`. From 4.4 they can also b
 - `profile-contacts.png` (C.2: the contacts section of the public page, the block of the profile form and the rules card)
 - `project-page.png` (4.4, for 4.6): the public project page at 1280 and 375 px in four states — demo with screenshots, demo without screenshots, screenshots without a demo, neither (texts and GitHub only); the project 404; a profile card and row with the title as a link
 - `project-media.png` (4.4, for 4.5): the «Демо и скриншоты» block — a new project, empty, 1 screenshot with a demo link («Превью демо»), 6 of 6, uploading, an upload error, a `demo_url` error, the delete dialog; the top panel's link and note; a rules card
+- `analytics.png` (7.4a, for 7.4b): the analytics screen at 1280 px with 30 days and an opened project (the tooltip on one bar), at 375 px with 7 days, the chart at 90 days at 1280 and 375 px with the day table open, no events with a hidden profile, loading, a load error and a deleted project; a rules card
 
 The F-GH1 version of «Мои проекты» (with «Импорт из GitHub» and the GitHub label) is in the working tree as `my-projects.png.png`; the mockup owner decides whether it replaces `my-projects.png`.
 

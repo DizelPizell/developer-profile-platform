@@ -557,6 +557,20 @@ Done (2026-11-20):
 - `/privacy` in `app/privacy/page.tsx`; the footer link in the root layout, the link in the login note and in the deletion section.
 - Checked with Vitest + RTL (828 tests), lint, typecheck and `next build`. In the browser against the local stack: the section, the dialog (focus on «Отмена», «Удалить навсегда» disabled for a partial login, «Отмена» closes it), `/privacy` and the footer, without console errors. Not checked by hand: a real deletion (the tests and the backend tests of 9.7a cover it); see "Manual account deletion check" in `frontend/README.md`.
 
+## 7.4 — The analytics screen (M; after backend 7.2 and 7.3)
+
+**Goal**: the developer sees the counters of the profile and of each project for 7, 30 or 90 days, without the numbers reading as people or as a ranking (ADR-0029).
+
+Screen and texts: "Analytics" in `DESIGN.md`, mockup `analytics.png`. API: `GET /analytics/profile` and `GET /analytics/projects/{id}` (step 7.2).
+
+- **7.4a** [done]: the mockup `analytics.png` drawn as HTML in `docs/frontend/mockups/src/analytics.html`, the screen in `DESIGN.md`; documents only, no code.
+- **7.4b**:
+  - `getProfileAnalytics(days, init)` and `getProjectAnalytics(id, days, init)` in `lib/api/analytics.ts` with the response types;
+  - `app/me/analytics/page.tsx` and `analytics-screen.tsx` on `CabinetPage` and `useAccount`; the tab «Аналитика» in `CabinetTabs`;
+  - the funnel, the project table, the day panel with the chart and «Таблица по дням», every state of the table in `DESIGN.md`.
+
+Done when: Vitest + RTL cover the client (paths, `days`, credentials), the funnel numbers without percentages, the API order of projects, the period change aborting the older request, one opened project at a time and its reload for a new period, and every state; lint, typecheck and `next build` pass; the screen is checked in the browser at 1280 and 375 px with counters seeded in the local database.
+
 ## F7+ — Demos, GitHub data, contacts
 
 **Goal**: add project pages and technical evidence as the backend provides them.
@@ -564,7 +578,7 @@ Done (2026-11-20):
 - The public project page `/u/{slug}/projects/{id}`, demos and screenshots — steps 4.5 and 4.6, done above.
 - GitHub: the cabinet (repository list, import, link, sync status) and the GitHub block on project cards — steps F-GH1 and F-GH2 in DEVELOPMENT_PLAN, after backend Phases 5–6 (ADR-016–ADR-019). F-GH1 and F-GH2 are planned above. There is no profile-level «Данные GitHub» block in V1.
 - Contacts on the cabinet and the public page — step C.2, done above.
-- Analytics — V1.1: step 7.3 is done (`AnalyticsTracker` on both public pages: the view after the mount, clicks on links marked with `data-analytics`, the project from `data-analytics-project`; `trackEvent` in `lib/api/analytics.ts`); step 7.4 (the analytics screen) is next.
+- Analytics — V1.1: step 7.3 is done (`AnalyticsTracker` on both public pages: the view after the mount, clicks on links marked with `data-analytics`, the project from `data-analytics-project`; `trackEvent` in `lib/api/analytics.ts`); step 7.4 (the analytics screen) is planned above, its mockup (7.4a) is done.
 - Read-only IDE view — after V1 (decided by the owner on 2026-11-04): the file tree is deferred (ADR-018), and file content is still an open question (ADR-011).
 
 Each of these gets its own goal, done criteria and tests when its backend contract exists.
